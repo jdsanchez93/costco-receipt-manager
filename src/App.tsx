@@ -1,25 +1,40 @@
 import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import { Auth0Provider } from '@auth0/auth0-react';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import Dashboard from './components/Dashboard';
+
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#0066CC',
+    },
+    secondary: {
+      main: '#E31837',
+    },
+  },
+});
 
 function App() {
+  const domain = process.env.REACT_APP_AUTH0_DOMAIN || '';
+  const clientId = process.env.REACT_APP_AUTH0_CLIENT_ID || '';
+  const redirectUri = process.env.REACT_APP_AUTH0_REDIRECT_URI || window.location.origin;
+  const audience = process.env.REACT_APP_AUTH0_AUDIENCE;
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <Auth0Provider
+      domain={domain}
+      clientId={clientId}
+      authorizationParams={{
+        redirect_uri: redirectUri,
+        audience: audience,
+      }}
+    >
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Dashboard />
+      </ThemeProvider>
+    </Auth0Provider>
   );
 }
 
