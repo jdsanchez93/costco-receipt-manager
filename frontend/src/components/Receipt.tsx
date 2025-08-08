@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth0 } from '@auth0/auth0-react';
 import {
@@ -54,7 +54,7 @@ const Receipt: React.FC = () => {
   const navigate = useNavigate();
   const { getAccessTokenSilently } = useAuth0();
 
-  const fetchReceiptData = async () => {
+  const fetchReceiptData = useCallback(async () => {
     if (!receiptId) {
       setError('Receipt ID not provided');
       setLoading(false);
@@ -91,11 +91,11 @@ const Receipt: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [receiptId, getAccessTokenSilently]);
 
   useEffect(() => {
     fetchReceiptData();
-  }, [receiptId, getAccessTokenSilently]);
+  }, [fetchReceiptData]);
 
   const handleValidationComplete = () => {
     // Refresh receipt data to show updated validation status

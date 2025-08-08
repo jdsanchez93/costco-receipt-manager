@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import {
   Container,
   AppBar,
   Toolbar,
   Typography,
-  Button,
   Box,
   CircularProgress,
   Alert,
@@ -22,7 +21,7 @@ const Dashboard: React.FC = () => {
   const [loadingReceipts, setLoadingReceipts] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchReceipts = async () => {
+  const fetchReceipts = useCallback(async () => {
     if (!isAuthenticated) return;
     
     setLoadingReceipts(true);
@@ -42,13 +41,13 @@ const Dashboard: React.FC = () => {
     } finally {
       setLoadingReceipts(false);
     }
-  };
+  }, [isAuthenticated, getAccessTokenSilently]);
 
   useEffect(() => {
     if (isAuthenticated) {
       fetchReceipts();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, fetchReceipts]);
 
   if (isLoading) {
     return (

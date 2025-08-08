@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useAuth0 } from '@auth0/auth0-react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -12,9 +13,14 @@ import {
   ListItem,
   ListItemText,
   IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DeleteIcon from '@mui/icons-material/Delete';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { uploadReceipt } from '../services/api';
 
 interface ReceiptUploadProps {
@@ -23,10 +29,13 @@ interface ReceiptUploadProps {
 
 const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onUploadSuccess }) => {
   const { getAccessTokenSilently } = useAuth0();
+  const navigate = useNavigate();
   const [uploading, setUploading] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [uploadedReceiptIds, setUploadedReceiptIds] = useState<string[]>([]);
+  const [showValidationDialog, setShowValidationDialog] = useState(false);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setFiles(prev => [...prev, ...acceptedFiles]);
@@ -52,6 +61,7 @@ const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onUploadSuccess }) => {
     setUploading(true);
     setError(null);
     setSuccess(null);
+    const receiptIds: string[] = [];
 
     try {
       const token = await getAccessTokenSilently({
@@ -61,18 +71,40 @@ const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onUploadSuccess }) => {
       });
       
       for (const file of files) {
-        await uploadReceipt(file, token);
+        const result = await uploadReceipt(file, token);
+        receiptIds.push(result.receiptId);
       }
       
       setSuccess(`Successfully uploaded ${files.length} receipt(s)`);
       setFiles([]);
+      setUploadedReceiptIds(receiptIds);
       onUploadSuccess();
+      
+      // Show validation dialog after successful upload
+      setShowValidationDialog(true);
     } catch (err) {
       console.error('Error uploading receipts:', err);
       setError('Failed to upload receipts. Please try again.');
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleValidateReceipts = () => {
+    setShowValidationDialog(false);
+    if (uploadedReceiptIds.length === 1) {
+      // Navigate to validation page for single receipt
+      navigate(`/receipt/${uploadedReceiptIds[0]}`);
+    } else {
+      // For multiple receipts, navigate to the first one
+      // User can validate others from the receipts table
+      navigate(`/receipt/${uploadedReceiptIds[0]}`);
+    }
+  };
+
+  const handleSkipValidation = () => {
+    setShowValidationDialog(false);
+    setUploadedReceiptIds([]);
   };
 
   return (
@@ -151,6 +183,39 @@ const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onUploadSuccess }) => {
           {success}
         </Alert>
       )}
+
+      {/* Validation Dialog */}
+      <Dialog open={showValidationDialog} onClose={handleSkipValidation} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <CheckCircleIcon color="success" />
+            Upload Successful!
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Typography mb={2}>
+            Your {uploadedReceiptIds.length === 1 ? 'receipt has' : 'receipts have'} been uploaded successfully.
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Would you like to validate the receipt{uploadedReceiptIds.length > 1 ? 's' : ''} now? 
+            This helps ensure the calculated totals match the receipt image.
+            {uploadedReceiptIds.length > 1 && ' You can validate additional receipts from the receipts table.'}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleSkipValidation} color="inherit">
+            Skip for Now
+          </Button>
+          <Button 
+            onClick={handleValidateReceipts} 
+            variant="contained" 
+            color="primary"
+            startIcon={<CheckCircleIcon />}
+          >
+            Validate {uploadedReceiptIds.length === 1 ? 'Receipt' : 'First Receipt'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

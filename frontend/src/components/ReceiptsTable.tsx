@@ -1,7 +1,10 @@
 import React from 'react';
-import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
+import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import { Paper, Button, Chip } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import PendingIcon from '@mui/icons-material/Pending';
+import ErrorIcon from '@mui/icons-material/Error';
 
 interface UserReceipt {
   PK: string;
@@ -12,6 +15,10 @@ interface UserReceipt {
   fileUrl?: string;
   totalAmount?: number;
   receiptDate?: string;
+  validationStatus?: 'pending' | 'confirmed' | 'disputed';
+  validatedBy?: string;
+  validatedAt?: string;
+  comments?: string;
 }
 
 interface ReceiptsTableProps {
@@ -64,25 +71,54 @@ const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receipts }) => {
       },
     },
     { 
+      field: 'validationStatus', 
+      headerName: 'Validation', 
+      width: 130,
+      renderCell: (params) => {
+        const status = params.value as 'pending' | 'confirmed' | 'disputed' | undefined;
+        if (!status) {
+          return (
+            <Chip 
+              label="Pending" 
+              color="warning" 
+              size="small" 
+              icon={<PendingIcon />}
+            />
+          );
+        }
+        
+        const config = {
+          confirmed: { label: 'Confirmed', color: 'success' as const, icon: <CheckCircleIcon /> },
+          disputed: { label: 'Disputed', color: 'error' as const, icon: <ErrorIcon /> },
+          pending: { label: 'Pending', color: 'warning' as const, icon: <PendingIcon /> },
+        };
+        
+        const { label, color, icon } = config[status] || config.pending;
+        return <Chip label={label} color={color} size="small" icon={icon} />;
+      },
+    },
+    { 
       field: 'fileName', 
       headerName: 'File Name', 
-      width: 200,
+      width: 180,
       flex: 1,
     },
     {
       field: 'actions',
       headerName: 'Actions',
-      width: 120,
+      width: 140,
       sortable: false,
       renderCell: (params) => {
         const receiptId = params.row.SK.replace('RECEIPT#', '');
+        const needsValidation = !params.row.validationStatus;
         return (
           <Button 
-            variant="outlined" 
+            variant={needsValidation ? "contained" : "outlined"}
+            color={needsValidation ? "primary" : "inherit"}
             size="small"
             onClick={() => navigate(`/receipt/${receiptId}`)}
           >
-            View Items
+            {needsValidation ? 'Validate' : 'View Details'}
           </Button>
         );
       },
