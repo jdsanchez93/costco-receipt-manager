@@ -16,4 +16,5 @@ export const dynamoDbClient = DynamoDBDocumentClient.from(client);
 export const TABLES = {
   USER_RECEIPTS: process.env.DYNAMODB_TABLE_USER_RECEIPTS || 'costco-user-receipts',
   ITEMS: process.env.DYNAMODB_TABLE_ITEMS || 'costco-receipt-items',
+  RECEIPT_GEOMETRY: process.env.DYNAMODB_TABLE_RECEIPT_GEOMETRY || 'costco-receipt-geometry',
 };

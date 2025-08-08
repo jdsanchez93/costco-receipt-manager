@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ItemsTable from './ItemsTable';
-import ReceiptImage from './ReceiptImage';
+import ReceiptValidation from './ReceiptValidation';
 import { getReceiptItems, getUserReceipts } from '../services/api';
 
 interface ReceiptItem {
@@ -36,6 +36,10 @@ interface UserReceipt {
   fileUrl?: string;
   totalAmount?: number;
   receiptDate?: string;
+  validationStatus?: 'pending' | 'confirmed' | 'disputed';
+  validatedBy?: string;
+  validatedAt?: string;
+  comments?: string;
 }
 
 const Receipt: React.FC = () => {
@@ -50,48 +54,53 @@ const Receipt: React.FC = () => {
   const navigate = useNavigate();
   const { getAccessTokenSilently } = useAuth0();
 
-  useEffect(() => {
-    const fetchReceiptData = async () => {
-      if (!receiptId) {
-        setError('Receipt ID not provided');
+  const fetchReceiptData = async () => {
+    if (!receiptId) {
+      setError('Receipt ID not provided');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: process.env.REACT_APP_AUTH0_AUDIENCE,
+        },
+      });
+
+      // Get receipt metadata
+      const receipts = await getUserReceipts(token);
+      const currentReceipt = receipts.find((r: UserReceipt) => 
+        r.SK === `RECEIPT#${receiptId}`
+      );
+      
+      if (!currentReceipt) {
+        setError('Receipt not found');
         setLoading(false);
         return;
       }
+      
+      setReceipt(currentReceipt);
 
-      try {
-        const token = await getAccessTokenSilently({
-          authorizationParams: {
-            audience: process.env.REACT_APP_AUTH0_AUDIENCE,
-          },
-        });
+      // Get receipt items
+      const itemsData = await getReceiptItems(receiptId, token);
+      setItems(itemsData);
+    } catch (err) {
+      console.error('Error fetching receipt data:', err);
+      setError('Failed to load receipt data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        // Get receipt metadata
-        const receipts = await getUserReceipts(token);
-        const currentReceipt = receipts.find((r: UserReceipt) => 
-          r.SK === `RECEIPT#${receiptId}`
-        );
-        
-        if (!currentReceipt) {
-          setError('Receipt not found');
-          setLoading(false);
-          return;
-        }
-        
-        setReceipt(currentReceipt);
-
-        // Get receipt items
-        const itemsData = await getReceiptItems(receiptId, token);
-        setItems(itemsData);
-      } catch (err) {
-        console.error('Error fetching receipt data:', err);
-        setError('Failed to load receipt data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
+  useEffect(() => {
     fetchReceiptData();
   }, [receiptId, getAccessTokenSilently]);
+
+  const handleValidationComplete = () => {
+    // Refresh receipt data to show updated validation status
+    fetchReceiptData();
+  };
 
   if (loading) {
     return (
@@ -226,6 +235,31 @@ const Receipt: React.FC = () => {
             </Typography>
           </Box>
 
+          {receipt.validationStatus && (
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary">
+                Validation Status
+              </Typography>
+              <Chip 
+                label={receipt.validationStatus} 
+                color={receipt.validationStatus === 'confirmed' ? 'success' : 
+                       receipt.validationStatus === 'disputed' ? 'error' : 'default'}
+                size="small"
+              />
+            </Box>
+          )}
+
+          {receipt.validatedAt && (
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary">
+                Validated On
+              </Typography>
+              <Typography variant="body1">
+                {new Date(receipt.validatedAt).toLocaleDateString()}
+              </Typography>
+            </Box>
+          )}
+
           {receipt.fileName && (
             <Box sx={{ gridColumn: '1 / -1' }}>
               <Typography variant="subtitle2" color="text.secondary">
@@ -241,9 +275,14 @@ const Receipt: React.FC = () => {
 
       <Box mb={3}>
         <Typography variant="h5" gutterBottom>
-          Receipt Image
+          Receipt Validation
         </Typography>
-        <ReceiptImage receiptId={receiptId || ''} />
+        <ReceiptValidation 
+          receiptId={receiptId || ''} 
+          receipt={receipt}
+          calculatedTotal={calculatedTotal}
+          onValidationComplete={handleValidationComplete}
+        />
       </Box>
 
       <Box>

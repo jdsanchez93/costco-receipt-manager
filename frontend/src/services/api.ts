@@ -71,3 +71,31 @@ export const getReceiptDownloadUrl = async (receiptId: string, token: string) =>
 
   return response.data;
 };
+
+export const getReceiptGeometry = async (receiptId: string, token: string) => {
+  const response = await api.get(`/api/receipts/receipt/${receiptId}/geometry`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return response.data;
+};
+
+export const validateReceiptSubtotal = async (
+  receiptId: string, 
+  isValid: boolean, 
+  comments: string,
+  token: string
+) => {
+  const response = await api.post(`/api/receipts/validate/${receiptId}`, {
+    isValid,
+    comments,
+  }, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return response.data;
+};

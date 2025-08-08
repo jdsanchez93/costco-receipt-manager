@@ -7,7 +7,9 @@ import {
   getDownloadUrl,
   getUserReceipts, 
   getReceiptItems,
-  getAllItems 
+  getAllItems,
+  getReceiptGeometryData,
+  validateReceiptSubtotal
 } from '../controllers/receiptController';
 
 const router = Router();
@@ -34,6 +36,8 @@ router.get('/get-download-url/:receiptId', checkJwt, getDownloadUrl);
 router.post('/upload', checkJwt, upload.single('receipt'), uploadReceipt);
 router.get('/user-receipts', checkJwt, getUserReceipts);
 router.get('/receipt/:receiptId/items', checkJwt, getReceiptItems);
+router.get('/receipt/:receiptId/geometry', checkJwt, getReceiptGeometryData);
 router.get('/items', checkJwt, getAllItems);
+router.post('/validate/:receiptId', checkJwt, validateReceiptSubtotal);
 
 export default router;

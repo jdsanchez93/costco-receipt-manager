@@ -7,4 +7,8 @@ export interface UserReceipt {
   fileUrl?: string;
   totalAmount?: number;
   receiptDate?: string;
+  validationStatus?: 'pending' | 'confirmed' | 'disputed';
+  validatedBy?: string;
+  validatedAt?: string;
+  comments?: string;
 }

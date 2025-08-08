@@ -8,6 +8,7 @@ import { UserReceipt } from '../models/UserReceipt';
 import { ReceiptItem } from '../models/ReceiptItem';
 import { getS3UploadUrl } from '../services/s3UploadService';
 import { getS3DownloadUrl } from '../services/s3DownloadService';
+import { getReceiptGeometry } from '../services/receiptGeometryService';
 
 interface AuthRequest extends Request {
   auth?: {
@@ -239,5 +240,81 @@ export const getAllItems = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Error fetching all items:', error);
     res.status(500).json({ error: 'Failed to fetch items' });
+  }
+};
+
+export const getReceiptGeometryData = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.auth?.sub;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const { receiptId } = req.params;
+    if (!receiptId) {
+      return res.status(400).json({ error: 'Receipt ID is required' });
+    }
+
+    // Verify the receipt belongs to the user
+    const result = await dynamoDbClient.send(new QueryCommand({
+      TableName: TABLES.USER_RECEIPTS,
+      KeyConditionExpression: 'PK = :pk AND SK = :sk',
+      ExpressionAttributeValues: {
+        ':pk': `USER#${userId}`,
+        ':sk': `RECEIPT#${receiptId}`,
+      },
+    }));
+
+    if (!result.Items || result.Items.length === 0) {
+      return res.status(404).json({ error: 'Receipt not found' });
+    }
+
+    // Get geometry data from the ReceiptGeometryTable
+    const geometryData = await getReceiptGeometry(receiptId);
+
+    res.json(geometryData);
+  } catch (error) {
+    console.error('Error fetching receipt geometry:', error);
+    res.status(500).json({ error: 'Failed to fetch receipt geometry' });
+  }
+};
+
+export const validateReceiptSubtotal = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.auth?.sub;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const { receiptId } = req.params;
+    const { isValid, comments } = req.body;
+
+    if (typeof isValid !== 'boolean') {
+      return res.status(400).json({ error: 'isValid must be a boolean' });
+    }
+
+    // Update the receipt validation status
+    await dynamoDbClient.send(new UpdateCommand({
+      TableName: TABLES.USER_RECEIPTS,
+      Key: {
+        PK: `USER#${userId}`,
+        SK: `RECEIPT#${receiptId}`,
+      },
+      UpdateExpression: 'SET validationStatus = :status, validatedBy = :userId, validatedAt = :timestamp, comments = :comments',
+      ExpressionAttributeValues: {
+        ':status': isValid ? 'confirmed' : 'disputed',
+        ':userId': userId,
+        ':timestamp': new Date().toISOString(),
+        ':comments': comments || null,
+      },
+    }));
+
+    res.json({ 
+      message: 'Validation updated successfully',
+      validationStatus: isValid ? 'confirmed' : 'disputed'
+    });
+  } catch (error) {
+    console.error('Error updating validation:', error);
+    res.status(500).json({ error: 'Failed to update validation' });
   }
 };
