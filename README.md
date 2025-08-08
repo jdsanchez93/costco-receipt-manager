@@ -1,46 +1,162 @@
-# Getting Started with Create React App
+# Costco Receipt Manager
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A full-stack web application for managing Costco receipts with item tracking and user assignment features.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- 🔐 Secure authentication with Auth0
+- 📸 Drag-and-drop receipt upload
+- 📊 Item tracking with detailed table view
+- 👥 User assignment for receipt items
+- ☁️ AWS DynamoDB for scalable storage
+- 🐳 Docker containerization for easy deployment
 
-### `npm start`
+## Prerequisites
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+- Node.js 18+
+- AWS Account with DynamoDB access
+- Auth0 Account
+- Docker (for containerized deployment)
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## Setup Instructions
 
-### `npm test`
+### 1. Clone the repository
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```bash
+git clone <repository-url>
+cd claude-costco-webapp
+```
 
-### `npm run build`
+### 2. Configure Auth0
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+1. Create an Auth0 application (Single Page Application)
+2. Create an Auth0 API
+3. Note down the Domain, Client ID, and API Identifier
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### 3. Set up AWS DynamoDB Tables
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Create two DynamoDB tables:
 
-### `npm run eject`
+**costco-user-receipts**
+- Partition Key: PK (String)
+- Sort Key: SK (String)
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+**costco-receipt-items**
+- Partition Key: PK (String)  
+- Sort Key: SK (String)
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### 4. Configure Environment Variables
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+#### Frontend
+```bash
+cd frontend
+cp .env.example .env
+# Edit .env with your Auth0 and API configuration
+```
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+#### Backend
+```bash
+cd backend
+cp .env.example .env
+# Edit .env with your Auth0, AWS, and DynamoDB configuration
+```
 
-## Learn More
+### 5. Install Dependencies
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```bash
+# Frontend
+cd frontend
+npm install
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+# Backend
+cd ../backend
+npm install
+```
+
+### 6. Run Development Servers
+
+```bash
+# Terminal 1 - Backend
+cd backend
+npm run dev
+
+# Terminal 2 - Frontend
+cd frontend
+npm start
+```
+
+The application will be available at:
+- Frontend: http://localhost:3000
+- Backend: http://localhost:5000
+
+## Docker Deployment
+
+### Build and run with Docker Compose
+
+```bash
+# From root directory
+docker-compose up --build
+```
+
+### Build individual containers
+
+```bash
+# Frontend
+docker build -f Dockerfile.frontend -t costco-frontend .
+
+# Backend
+docker build -f Dockerfile.backend -t costco-backend .
+```
+
+## AWS Deployment
+
+1. Push Docker images to Amazon ECR
+2. Create ECS Task Definitions for frontend and backend
+3. Deploy to ECS Fargate or EC2
+4. Configure Application Load Balancer
+5. Set up Route 53 for domain management
+
+## Project Structure
+
+```
+claude-costco-webapp/
+├── frontend/                 # React TypeScript frontend
+│   ├── src/
+│   │   ├── components/      # React components
+│   │   ├── services/        # API services
+│   │   └── App.tsx          # Main app component
+│   └── package.json
+├── backend/                  # Node.js Express backend
+│   ├── src/
+│   │   ├── config/          # Configuration files
+│   │   ├── controllers/     # Route controllers
+│   │   ├── middleware/      # Express middleware
+│   │   ├── models/          # Data models
+│   │   ├── routes/          # API routes
+│   │   └── index.ts         # Server entry point
+│   └── package.json
+├── docker-compose.yml        # Docker Compose configuration
+├── Dockerfile.frontend       # Frontend Docker configuration
+├── Dockerfile.backend        # Backend Docker configuration
+└── nginx.conf               # Nginx configuration for frontend
+```
+
+## API Endpoints
+
+- `POST /api/receipts/upload` - Upload a receipt image
+- `GET /api/receipts/user-receipts` - Get user's receipts
+- `GET /api/receipts/receipt/:receiptId/items` - Get items for a specific receipt
+- `GET /api/receipts/items` - Get all items for the authenticated user
+
+## Technologies Used
+
+- **Frontend**: React, TypeScript, Material-UI, Auth0 React SDK
+- **Backend**: Node.js, Express, TypeScript, AWS SDK
+- **Database**: AWS DynamoDB
+- **Authentication**: Auth0
+- **Deployment**: Docker, AWS ECS/Fargate
+- **Image Processing**: Sharp
+
+## License
+
+MIT
