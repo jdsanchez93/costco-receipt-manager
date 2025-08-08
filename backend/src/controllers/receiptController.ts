@@ -7,6 +7,7 @@ import axios from 'axios';
 import { UserReceipt } from '../models/UserReceipt';
 import { ReceiptItem } from '../models/ReceiptItem';
 import { getS3UploadUrl } from '../services/s3UploadService';
+import { getS3DownloadUrl } from '../services/s3DownloadService';
 
 interface AuthRequest extends Request {
   auth?: {
@@ -16,6 +17,53 @@ interface AuthRequest extends Request {
     authorization?: string;
   } & Request['headers'];
 }
+
+export const getDownloadUrl = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.auth?.sub;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const { receiptId } = req.params;
+    if (!receiptId) {
+      return res.status(400).json({ error: 'Receipt ID is required' });
+    }
+
+    // Verify the receipt belongs to the user
+    const result = await dynamoDbClient.send(new QueryCommand({
+      TableName: TABLES.USER_RECEIPTS,
+      KeyConditionExpression: 'PK = :pk AND SK = :sk',
+      ExpressionAttributeValues: {
+        ':pk': `USER#${userId}`,
+        ':sk': `RECEIPT#${receiptId}`,
+      },
+    }));
+
+    if (!result.Items || result.Items.length === 0) {
+      return res.status(404).json({ error: 'Receipt not found' });
+    }
+
+    // Extract token from authorization header
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Invalid authorization header' });
+    }
+    
+    const token = authHeader.substring(7);
+
+    // Get S3 download URL from your existing API Gateway
+    const s3Response = await getS3DownloadUrl(receiptId, token);
+
+    res.json({
+      downloadUrl: s3Response.download_url,
+      expiresIn: s3Response.expires_in,
+    });
+  } catch (error) {
+    console.error('Error getting download URL:', error);
+    res.status(500).json({ error: 'Failed to get download URL' });
+  }
+};
 
 export const getUploadUrl = async (req: AuthRequest, res: Response) => {
   try {

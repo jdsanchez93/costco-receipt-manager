@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ItemsTable from './ItemsTable';
+import ReceiptImage from './ReceiptImage';
 import { getReceiptItems, getUserReceipts } from '../services/api';
 
 interface ReceiptItem {
@@ -237,6 +238,13 @@ const Receipt: React.FC = () => {
           )}
         </Box>
       </Paper>
+
+      <Box mb={3}>
+        <Typography variant="h5" gutterBottom>
+          Receipt Image
+        </Typography>
+        <ReceiptImage receiptId={receiptId || ''} />
+      </Box>
 
       <Box>
         <Typography variant="h5" gutterBottom>

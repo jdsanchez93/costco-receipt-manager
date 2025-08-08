@@ -50,6 +50,7 @@ docker build -f Dockerfile.backend -t costco-backend .
 
 ### API Endpoints
 - `POST /api/receipts/get-upload-url` - Get S3 presigned upload URL
+- `GET /api/receipts/get-download-url/:receiptId` - Get S3 presigned download URL for receipt image
 - `POST /api/receipts/upload` - Upload receipt image (legacy endpoint)
 - `GET /api/receipts/user-receipts` - Get user's receipts
 - `GET /api/receipts/receipt/:receiptId/items` - Get items for a specific receipt
@@ -79,20 +80,23 @@ docker build -f Dockerfile.backend -t costco-backend .
 - DYNAMODB_TABLE_USER_RECEIPTS
 - DYNAMODB_TABLE_ITEMS
 - S3_UPLOAD_API_URL
+- S3_DOWNLOAD_API_URL
 
 ## Key Features
 1. Drag-and-drop receipt upload with react-dropzone
 2. Receipts table showing all user receipts with status and metadata
-3. Individual receipt detail pages with items table
-4. React Router navigation between receipts list and detail views
-5. Material-UI DataGrid for displaying data
-6. Integration with external S3 upload API using JWT passthrough
-7. JWT-based authentication with Auth0
-8. DynamoDB integration for scalable data storage
+3. Individual receipt detail pages with items table and receipt image viewing
+4. Receipt image display with fullscreen modal view
+5. React Router navigation between receipts list and detail views
+6. Material-UI DataGrid for displaying data
+7. Integration with external S3 upload/download APIs using JWT passthrough
+8. JWT-based authentication with Auth0
+9. DynamoDB integration for scalable data storage
 
 ## UI Structure
 - **Dashboard** (`/`): Main receipts table with upload functionality
-- **Receipt Details** (`/receipt/:receiptId`): Individual receipt view with items table
+- **Receipt Details** (`/receipt/:receiptId`): Individual receipt view with receipt image, metadata, and items table
+- **Receipt Image Display**: Embedded image with fullscreen modal view
 - Navigation between views using React Router
 - Responsive Material-UI components
 

@@ -56,7 +56,16 @@ export const getItems = async (token: string) => {
   const response = await api.get('/api/receipts/items', {
     headers: {
       Authorization: `Bearer ${token}`,
+    },
+  });
 
+  return response.data;
+};
+
+export const getReceiptDownloadUrl = async (receiptId: string, token: string) => {
+  const response = await api.get(`/api/receipts/get-download-url/${receiptId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
     },
   });
 

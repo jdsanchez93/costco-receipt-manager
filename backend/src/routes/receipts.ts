@@ -4,6 +4,7 @@ import { checkJwt, logTokenDetails } from '../middleware/auth';
 import { 
   uploadReceipt,
   getUploadUrl,
+  getDownloadUrl,
   getUserReceipts, 
   getReceiptItems,
   getAllItems 
@@ -29,6 +30,7 @@ router.use(logTokenDetails);
 
 // Apply authentication to specific routes
 router.post('/get-upload-url', checkJwt, getUploadUrl);
+router.get('/get-download-url/:receiptId', checkJwt, getDownloadUrl);
 router.post('/upload', checkJwt, upload.single('receipt'), uploadReceipt);
 router.get('/user-receipts', checkJwt, getUserReceipts);
 router.get('/receipt/:receiptId/items', checkJwt, getReceiptItems);
