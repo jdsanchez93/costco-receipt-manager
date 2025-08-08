@@ -1,8 +1,11 @@
 import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Auth0Provider } from '@auth0/auth0-react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import Dashboard from './components/Dashboard';
+import Receipt from './components/Receipt';
+import ProtectedRoute from './components/ProtectedRoute';
 
 const theme = createTheme({
   palette: {
@@ -22,19 +25,28 @@ function App() {
   const audience = process.env.REACT_APP_AUTH0_AUDIENCE;
 
   return (
-    <Auth0Provider
-      domain={domain}
-      clientId={clientId}
-      authorizationParams={{
-        redirect_uri: redirectUri,
-        audience: audience,
-      }}
-    >
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <Dashboard />
-      </ThemeProvider>
-    </Auth0Provider>
+    <Router>
+      <Auth0Provider
+        domain={domain}
+        clientId={clientId}
+        authorizationParams={{
+          redirect_uri: redirectUri,
+          audience: audience,
+        }}
+      >
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/receipt/:receiptId" element={
+              <ProtectedRoute>
+                <Receipt />
+              </ProtectedRoute>
+            } />
+          </Routes>
+        </ThemeProvider>
+      </Auth0Provider>
+    </Router>
   );
 }
 

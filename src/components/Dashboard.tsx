@@ -13,19 +13,19 @@ import {
 import LoginButton from './LoginButton';
 import LogoutButton from './LogoutButton';
 import ReceiptUpload from './ReceiptUpload';
-import ItemsTable from './ItemsTable';
-import { getItems } from '../services/api';
+import ReceiptsTable from './ReceiptsTable';
+import { getUserReceipts } from '../services/api';
 
 const Dashboard: React.FC = () => {
   const { isAuthenticated, isLoading, getAccessTokenSilently } = useAuth0();
-  const [items, setItems] = useState([]);
-  const [loadingItems, setLoadingItems] = useState(false);
+  const [receipts, setReceipts] = useState([]);
+  const [loadingReceipts, setLoadingReceipts] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchItems = async () => {
+  const fetchReceipts = async () => {
     if (!isAuthenticated) return;
     
-    setLoadingItems(true);
+    setLoadingReceipts(true);
     setError(null);
     try {
       const token = await getAccessTokenSilently({
@@ -34,19 +34,19 @@ const Dashboard: React.FC = () => {
         },
       });
       console.log('Token obtained:', token ? 'Yes' : 'No');
-      const data = await getItems(token);
-      setItems(data);
+      const data = await getUserReceipts(token);
+      setReceipts(data);
     } catch (err) {
-      console.error('Error fetching items:', err);
-      setError('Failed to load items');
+      console.error('Error fetching receipts:', err);
+      setError('Failed to load receipts');
     } finally {
-      setLoadingItems(false);
+      setLoadingReceipts(false);
     }
   };
 
   useEffect(() => {
     if (isAuthenticated) {
-      fetchItems();
+      fetchReceipts();
     }
   }, [isAuthenticated]);
 
@@ -86,7 +86,7 @@ const Dashboard: React.FC = () => {
               <Typography variant="h4" gutterBottom>
                 Receipt Management
               </Typography>
-              <ReceiptUpload onUploadSuccess={fetchItems} />
+              <ReceiptUpload onUploadSuccess={fetchReceipts} />
             </Box>
 
             {error && (
@@ -97,14 +97,14 @@ const Dashboard: React.FC = () => {
 
             <Box>
               <Typography variant="h5" gutterBottom>
-                All Receipt Items
+                Your Receipts
               </Typography>
-              {loadingItems ? (
+              {loadingReceipts ? (
                 <Box display="flex" justifyContent="center" py={4}>
                   <CircularProgress />
                 </Box>
               ) : (
-                <ItemsTable items={items} />
+                <ReceiptsTable receipts={receipts} />
               )}
             </Box>
           </>

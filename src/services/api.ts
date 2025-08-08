@@ -7,17 +7,29 @@ const api = axios.create({
 });
 
 export const uploadReceipt = async (file: File, token: string) => {
-  const formData = new FormData();
-  formData.append('receipt', file);
-
-  const response = await api.post('/api/receipts/upload', formData, {
+  // Step 1: Get upload URL from your backend (which calls your API Gateway)
+  const uploadUrlResponse = await api.post('/api/receipts/get-upload-url', {
+    contentType: file.type
+  }, {
     headers: {
-      'Content-Type': 'multipart/form-data',
       Authorization: `Bearer ${token}`,
     },
   });
 
-  return response.data;
+  const { uploadUrl, receiptId, expiresIn } = uploadUrlResponse.data;
+
+  // Step 2: Upload directly to S3 using the presigned URL
+  await axios.put(uploadUrl, file, {
+    headers: {
+      'Content-Type': file.type,
+    },
+  });
+
+  return { 
+    receiptId, 
+    message: 'Upload successful',
+    expiresIn 
+  };
 };
 
 export const getUserReceipts = async (token: string) => {
