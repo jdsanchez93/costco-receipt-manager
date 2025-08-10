@@ -139,6 +139,9 @@ const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receipts }) => {
           pagination: {
             paginationModel: { page: 0, pageSize: 10 },
           },
+          sorting: {
+            sortModel: [{ field: 'created_at', sort: 'desc' }],
+          },
         }}
         pageSizeOptions={[10, 25, 50]}
         disableRowSelectionOnClick
