@@ -18,6 +18,7 @@ import {
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import { getReceiptDownloadUrl, getReceiptGeometry, validateReceiptSubtotal } from '../services/api';
+import { UserReceipt } from '../types/singleTableTypes';
 
 interface BoundingBox {
   Width: number;
@@ -57,21 +58,6 @@ interface GeometryData {
     label?: ReceiptGeometry;
     value?: ReceiptGeometry;
   };
-}
-
-interface UserReceipt {
-  PK: string;
-  SK: string;
-  status: 'pending' | 'processed' | 'error';
-  created_at: string;
-  fileName?: string;
-  fileUrl?: string;
-  totalAmount?: number;
-  receiptDate?: string;
-  validationStatus?: 'pending' | 'confirmed' | 'disputed';
-  validatedBy?: string;
-  validatedAt?: string;
-  comments?: string;
 }
 
 interface ReceiptValidationProps {

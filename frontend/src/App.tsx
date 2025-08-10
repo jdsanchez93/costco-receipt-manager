@@ -5,6 +5,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import Dashboard from './components/Dashboard';
 import Receipt from './components/Receipt';
+import SharedReceipt from './components/SharedReceipt';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const theme = createTheme({
@@ -43,6 +44,7 @@ function App() {
                 <Receipt />
               </ProtectedRoute>
             } />
+            <Route path="/shared-receipt/:shareToken" element={<SharedReceipt />} />
           </Routes>
         </ThemeProvider>
       </Auth0Provider>

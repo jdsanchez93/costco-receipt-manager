@@ -14,33 +14,14 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ItemsTable from './ItemsTable';
 import ReceiptValidation from './ReceiptValidation';
+import ReceiptMembers from './ReceiptMembers';
+import ReceiptSharing from './ReceiptSharing';
 import { getReceiptItems, getUserReceipts } from '../services/api';
+import { UserReceipt as SingleTableUserReceipt, ReceiptItem as SingleTableReceiptItem } from '../types/singleTableTypes';
 
-interface ReceiptItem {
-  PK: string;
-  SK: string;
-  item_number: string;
-  item_name: string;
-  price: number;
-  discount: number;
-  receipt_id: string;
-  assigned_users: string[];
-}
-
-interface UserReceipt {
-  PK: string;
-  SK: string;
-  status: 'pending' | 'processed' | 'error';
-  created_at: string;
-  fileName?: string;
-  fileUrl?: string;
-  totalAmount?: number;
-  receiptDate?: string;
-  validationStatus?: 'pending' | 'confirmed' | 'disputed';
-  validatedBy?: string;
-  validatedAt?: string;
-  comments?: string;
-}
+// Use the single table types
+type ReceiptItem = SingleTableReceiptItem;
+type UserReceipt = SingleTableUserReceipt;
 
 const Receipt: React.FC = () => {
   const [receipt, setReceipt] = useState<UserReceipt | null>(null);
@@ -71,7 +52,7 @@ const Receipt: React.FC = () => {
       // Get receipt metadata
       const receipts = await getUserReceipts(token);
       const currentReceipt = receipts.find((r: UserReceipt) => 
-        r.SK === `RECEIPT#${receiptId}`
+        r.receipt_id === receiptId
       );
       
       if (!currentReceipt) {
@@ -191,7 +172,7 @@ const Receipt: React.FC = () => {
               Upload Date
             </Typography>
             <Typography variant="body1">
-              {new Date(receipt.created_at).toLocaleDateString()}
+              {receipt.created_at ? new Date(receipt.created_at).toLocaleDateString() : 'Unknown'}
             </Typography>
           </Box>
           
@@ -282,6 +263,25 @@ const Receipt: React.FC = () => {
           receipt={receipt}
           calculatedTotal={calculatedTotal}
           onValidationComplete={handleValidationComplete}
+        />
+      </Box>
+
+      <Box mb={3}>
+        <Typography variant="h5" gutterBottom>
+          Receipt Members
+        </Typography>
+        <ReceiptMembers 
+          receiptId={receiptId || ''}
+          onMembersChange={handleValidationComplete}
+        />
+      </Box>
+
+      <Box mb={3}>
+        <Typography variant="h5" gutterBottom>
+          Share Receipt
+        </Typography>
+        <ReceiptSharing 
+          receiptId={receiptId || ''}
         />
       </Box>
 

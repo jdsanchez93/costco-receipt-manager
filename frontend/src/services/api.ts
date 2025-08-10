@@ -99,3 +99,66 @@ export const validateReceiptSubtotal = async (
 
   return response.data;
 };
+
+// ==================== RECEIPT MEMBERS ====================
+
+export const getReceiptMembers = async (receiptId: string, token: string) => {
+  const response = await api.get(`/api/receipts/receipt/${receiptId}/members`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return response.data;
+};
+
+export const addReceiptMember = async (
+  receiptId: string, 
+  memberData: {
+    displayName: string;
+    email?: string;
+    userType: 'authenticated' | 'placeholder';
+  },
+  token: string
+) => {
+  const response = await api.post(`/api/receipts/receipt/${receiptId}/members`, memberData, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return response.data;
+};
+
+// ==================== RECEIPT SHARING ====================
+
+export const createReceiptShare = async (
+  receiptId: string, 
+  expiresInDays: number = 30,
+  token: string
+) => {
+  const response = await api.post(`/api/receipts/receipt/${receiptId}/share`, {
+    expiresInDays,
+  }, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return response.data;
+};
+
+export const getReceiptShares = async (receiptId: string, token: string) => {
+  const response = await api.get(`/api/receipts/receipt/${receiptId}/shares`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return response.data;
+};
+
+export const getSharedReceipt = async (shareToken: string) => {
+  const response = await api.get(`/api/receipts/shared/${shareToken}`);
+  return response.data;
+};
