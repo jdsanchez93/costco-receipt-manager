@@ -14,7 +14,10 @@ const client = new DynamoDBClient({
 export const dynamoDbClient = DynamoDBDocumentClient.from(client);
 
 export const TABLES = {
-  USER_RECEIPTS: process.env.DYNAMODB_TABLE_USER_RECEIPTS || 'costco-user-receipts',
-  ITEMS: process.env.DYNAMODB_TABLE_ITEMS || 'costco-receipt-items',
-  RECEIPT_GEOMETRY: process.env.DYNAMODB_TABLE_RECEIPT_GEOMETRY || 'costco-receipt-geometry',
+  MAIN: process.env.DYNAMODB_TABLE_MAIN || 'costco-receipt-parser-main',
+};
+
+export const GSI = {
+  GSI1: 'GSI1', // For user-based queries
+  GSI2: 'GSI2', // For receipt share lookups  
 };

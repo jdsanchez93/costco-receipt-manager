@@ -9,7 +9,12 @@ import {
   getReceiptItems,
   getAllItems,
   getReceiptGeometryData,
-  validateReceiptSubtotal
+  validateReceiptSubtotal,
+  getReceiptMembers,
+  addReceiptMember,
+  createReceiptShare,
+  getReceiptShares,
+  getSharedReceipt
 } from '../controllers/receiptController';
 
 const router = Router();
@@ -31,13 +36,31 @@ const upload = multer({
 router.use(logTokenDetails);
 
 // Apply authentication to specific routes
+// Upload and download routes
 router.post('/get-upload-url', checkJwt, getUploadUrl);
 router.get('/get-download-url/:receiptId', checkJwt, getDownloadUrl);
 router.post('/upload', checkJwt, upload.single('receipt'), uploadReceipt);
+
+// User receipts routes
 router.get('/user-receipts', checkJwt, getUserReceipts);
+
+// Receipt data routes
 router.get('/receipt/:receiptId/items', checkJwt, getReceiptItems);
 router.get('/receipt/:receiptId/geometry', checkJwt, getReceiptGeometryData);
-router.get('/items', checkJwt, getAllItems);
 router.post('/validate/:receiptId', checkJwt, validateReceiptSubtotal);
+
+// Receipt members routes
+router.get('/receipt/:receiptId/members', checkJwt, getReceiptMembers);
+router.post('/receipt/:receiptId/members', checkJwt, addReceiptMember);
+
+// Receipt sharing routes
+router.post('/receipt/:receiptId/share', checkJwt, createReceiptShare);
+router.get('/receipt/:receiptId/shares', checkJwt, getReceiptShares);
+
+// Public sharing route (no auth required)
+router.get('/shared/:shareToken', getSharedReceipt);
+
+// Legacy route for all items
+router.get('/items', checkJwt, getAllItems);
 
 export default router;
