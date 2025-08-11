@@ -205,15 +205,20 @@ const SharedReceipt: React.FC = () => {
           <Alert severity="info" sx={{ mb: 2 }}>
             This validation view is read-only. Only the receipt owner can make changes.
           </Alert>
-          {/* Create a simple UserReceipt object for the validation component */}
+          {/* Create a simple ReceiptMember object for the validation component */}
           <ReceiptValidation 
             receiptId={sharedReceipt.receiptId}
             receipt={{
-              PK: `USER#shared`,
-              SK: `RECEIPT#${sharedReceipt.receiptId}`,
+              PK: `RECEIPT#${sharedReceipt.receiptId}`,
+              SK: `USER#shared`,
               entity_type: 'RECEIPT_MEMBER',
+              GSI1PK: `USER#shared`,
+              GSI1SK: `RECEIPT#${sharedReceipt.receiptId}`,
+              user_type: 'authenticated',
+              display_name: 'Shared View',
               receipt_id: sharedReceipt.receiptId,
-              user_id: 'shared',
+              added_by: 'system',
+              added_at: new Date().toISOString(),
               validationStatus: 'pending', // Default for shared view
             }}
             calculatedTotal={calculatedTotal}
