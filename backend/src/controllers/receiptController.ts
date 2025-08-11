@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import { PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { dynamoDbClient, TABLES } from '../config/dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
 import axios from 'axios';
@@ -78,10 +80,8 @@ export const getUploadUrl = async (req: AuthRequest, res: Response) => {
     // Get S3 upload URL from your existing API Gateway
     const s3Response = await getS3UploadUrl(token, contentType);
 
-    // Store receipt metadata using single table service
-    await SingleTableService.createUserReceipt(userId, s3Response.receipt_id, {
-      status: 'pending',
-    });
+    // Note: The S3 event notification lambda will handle all initial database population
+    // including creating UserReceipt, ReceiptItems, ReceiptMembers, and ReceiptGeometry records
 
     res.json({
       receiptId: s3Response.receipt_id,
@@ -94,6 +94,8 @@ export const getUploadUrl = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// DEPRECATED: This function is no longer used. 
+// Upload flow now uses getUploadUrl + direct S3 upload + S3 event lambda processing
 export const uploadReceipt = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.auth?.sub;
@@ -117,19 +119,8 @@ export const uploadReceipt = async (req: AuthRequest, res: Response) => {
     // TODO: Upload to S3 and get URL
     const fileUrl = `https://your-s3-bucket.s3.amazonaws.com/receipts/${fileName}`;
 
-    const userReceipt: UserReceipt = {
-      PK: `USER#${userId}`,
-      SK: `RECEIPT#${receiptId}`,
-      status: 'pending',
-      created_at: new Date().toISOString(),
-      fileName,
-      fileUrl,
-    };
-
-    await dynamoDbClient.send(new PutCommand({
-      TableName: TABLES.USER_RECEIPTS,
-      Item: userReceipt,
-    }));
+    // NOTE: The S3 event notification lambda now handles all initial database population
+    // This function should be removed in favor of the getUploadUrl + S3 direct upload flow
 
     res.json({ 
       message: 'Receipt uploaded successfully', 
@@ -177,32 +168,14 @@ export const getAllItems = async (req: AuthRequest, res: Response) => {
     }
 
     // First get all user's receipts
-    const receiptsResult = await dynamoDbClient.send(new QueryCommand({
-      TableName: TABLES.USER_RECEIPTS,
-      KeyConditionExpression: 'PK = :PK',
-      ExpressionAttributeValues: {
-        ':PK': `USER#${userId}`,
-      },
-    }));
-
-    const receiptIds = receiptsResult.Items?.map(item => 
-      item.SK.replace('RECEIPT#', '')
-    ) || [];
+    const userReceipts = await SingleTableService.getUserReceipts(userId);
+    const receiptIds = userReceipts.map(receipt => receipt.receipt_id);
 
     // Get all items for these receipts
     const allItems: ReceiptItem[] = [];
     for (const receiptId of receiptIds) {
-      const itemsResult = await dynamoDbClient.send(new QueryCommand({
-        TableName: TABLES.ITEMS,
-        KeyConditionExpression: 'PK = :PK',
-        ExpressionAttributeValues: {
-          ':PK': `RECEIPT#${receiptId}`,
-        },
-      }));
-      
-      if (itemsResult.Items) {
-        allItems.push(...(itemsResult.Items as ReceiptItem[]));
-      }
+      const items = await SingleTableService.getReceiptItems(receiptId);
+      allItems.push(...items);
     }
 
     res.json(allItems);

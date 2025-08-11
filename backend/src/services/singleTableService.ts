@@ -241,7 +241,21 @@ export const getReceiptGeometry = async (receiptId: string): Promise<{ [fieldNam
         geometryData[fieldName] = {};
       }
       
-      geometryData[fieldName][fieldType] = item;
+      // Transform the data to match the lambda's output format
+      geometryData[fieldName][fieldType] = {
+        text: item.text,
+        confidence: parseFloat(item.confidence.toString()),
+        bounding_box: {
+          Width: parseFloat(item.bounding_box.Width.toString()),
+          Height: parseFloat(item.bounding_box.Height.toString()),
+          Left: parseFloat(item.bounding_box.Left.toString()),
+          Top: parseFloat(item.bounding_box.Top.toString())
+        },
+        polygon: item.polygon.map(point => ({
+          X: parseFloat(point.X.toString()),
+          Y: parseFloat(point.Y.toString())
+        }))
+      };
     }
   }
 
