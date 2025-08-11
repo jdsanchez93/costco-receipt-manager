@@ -115,12 +115,13 @@ const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receiptMembers }) => {
         disableRowSelectionOnClick
         autoHeight
         sx={{
+          border: (theme) => `1px solid ${theme.palette.divider}`,
           '& .MuiDataGrid-cell': {
-            borderBottom: '1px solid rgba(224, 224, 224, 1)',
+            borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
           },
           '& .MuiDataGrid-columnHeaders': {
-            backgroundColor: 'background.default',
-            borderBottom: '2px solid rgba(224, 224, 224, 1)',
+            backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'background.default',
+            borderBottom: (theme) => `2px solid ${theme.palette.divider}`,
           },
         }}
       />

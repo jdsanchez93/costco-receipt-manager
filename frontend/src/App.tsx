@@ -10,11 +10,56 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 const theme = createTheme({
   palette: {
+    mode: 'dark',
     primary: {
-      main: '#0066CC',
+      main: '#66B2FF', // Lighter blue for dark theme
     },
     secondary: {
-      main: '#E31837',
+      main: '#FF6B6B', // Lighter red for dark theme
+    },
+    background: {
+      default: '#121212',
+      paper: '#1E1E1E',
+    },
+    text: {
+      primary: '#FFFFFF',
+      secondary: 'rgba(255, 255, 255, 0.7)',
+    },
+  },
+  components: {
+    // Customize components for better dark theme experience
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundColor: '#1E1E1E',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundImage: 'none',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none', // Remove uppercase transformation
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          '&.MuiChip-colorDefault': {
+            backgroundColor: 'rgba(255, 255, 255, 0.08)',
+            color: 'rgba(255, 255, 255, 0.87)',
+          },
+        },
+      },
     },
   },
 });
