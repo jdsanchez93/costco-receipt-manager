@@ -322,3 +322,20 @@ export const getActiveSharesForReceipt = async (receiptId: string): Promise<Rece
 
   return activeShares;
 };
+
+// ==================== ITEM ASSIGNMENTS ====================
+
+export const updateReceiptItemAssignments = async (receiptId: string, itemId: string, assignedUsers: string[]): Promise<void> => {
+  await dynamoDbClient.send(new UpdateCommand({
+    TableName: TABLES.MAIN,
+    Key: {
+      PK: `RECEIPT#${receiptId}`,
+      SK: `ITEM#${itemId}`,
+    },
+    UpdateExpression: 'SET assigned_users = :assignedUsers, updated_at = :updatedAt',
+    ExpressionAttributeValues: {
+      ':assignedUsers': assignedUsers,
+      ':updatedAt': new Date().toISOString(),
+    },
+  }));
+};

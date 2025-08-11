@@ -16,7 +16,8 @@ import ItemsTable from './ItemsTable';
 import ReceiptValidation from './ReceiptValidation';
 import ReceiptMembers from './ReceiptMembers';
 import ReceiptSharing from './ReceiptSharing';
-import { getReceiptItems, getUserReceipts } from '../services/api';
+import ItemAssignment from './ItemAssignment';
+import { getReceiptItems, getUserReceipts, getReceiptMembers } from '../services/api';
 import { ReceiptMember, ReceiptItem as SingleTableReceiptItem } from '../types/singleTableTypes';
 
 // Use the single table types
@@ -25,6 +26,7 @@ type ReceiptItem = SingleTableReceiptItem;
 const Receipt: React.FC = () => {
   const [receiptMember, setReceiptMember] = useState<ReceiptMember | null>(null);
   const [items, setItems] = useState<ReceiptItem[]>([]);
+  const [members, setMembers] = useState<ReceiptMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -62,9 +64,13 @@ const Receipt: React.FC = () => {
       
       setReceiptMember(currentMembership);
 
-      // Get receipt items
-      const itemsData = await getReceiptItems(receiptId, token);
+      // Get receipt items and members
+      const [itemsData, membersData] = await Promise.all([
+        getReceiptItems(receiptId, token),
+        getReceiptMembers(receiptId, token)
+      ]);
       setItems(itemsData);
+      setMembers(membersData);
     } catch (err) {
       console.error('Error fetching receipt data:', err);
       setError('Failed to load receipt data');
@@ -246,7 +252,7 @@ const Receipt: React.FC = () => {
         </Typography>
         <ReceiptMembers 
           receiptId={receiptId || ''}
-          onMembersChange={handleValidationComplete}
+          onMembersChange={fetchReceiptData}
         />
       </Box>
 
@@ -261,9 +267,14 @@ const Receipt: React.FC = () => {
 
       <Box>
         <Typography variant="h5" gutterBottom>
-          Receipt Items
+          Assign Items to Members
         </Typography>
-        <ItemsTable items={items} />
+        <ItemAssignment 
+          items={items}
+          members={members}
+          receiptId={receiptId || ''}
+          onAssignmentChange={fetchReceiptData}
+        />
       </Box>
     </Container>
   );

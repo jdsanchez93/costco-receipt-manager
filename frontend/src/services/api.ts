@@ -162,3 +162,35 @@ export const getSharedReceipt = async (shareToken: string) => {
   const response = await api.get(`/api/receipts/shared/${shareToken}`);
   return response.data;
 };
+
+// Item Assignment APIs
+export const updateItemAssignment = async (receiptId: string, itemId: string, assignedUsers: string[], token: string) => {
+  const response = await api.put(`/api/receipts/receipt/${receiptId}/items/${itemId}/assignment`, {
+    assignedUsers
+  }, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data;
+};
+
+export const bulkUpdateItemAssignments = async (receiptId: string, updates: Array<{ itemId: string; assignedUsers: string[] }>, token: string) => {
+  const response = await api.put(`/api/receipts/receipt/${receiptId}/items/assignments/bulk`, {
+    updates
+  }, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data;
+};
+
+export const clearAllItemAssignments = async (receiptId: string, token: string) => {
+  const response = await api.delete(`/api/receipts/receipt/${receiptId}/items/assignments/all`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data;
+};

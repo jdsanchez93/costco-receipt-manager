@@ -14,7 +14,10 @@ import {
   addReceiptMember,
   createReceiptShare,
   getReceiptShares,
-  getSharedReceipt
+  getSharedReceipt,
+  updateItemAssignment,
+  bulkUpdateItemAssignments,
+  clearAllItemAssignments
 } from '../controllers/receiptController';
 
 const router = Router();
@@ -59,6 +62,11 @@ router.get('/receipt/:receiptId/shares', checkJwt, getReceiptShares);
 
 // Public sharing route (no auth required)
 router.get('/shared/:shareToken', getSharedReceipt);
+
+// Item assignments routes
+router.put('/receipt/:receiptId/items/:itemId/assignment', checkJwt, updateItemAssignment);
+router.put('/receipt/:receiptId/items/assignments/bulk', checkJwt, bulkUpdateItemAssignments);
+router.delete('/receipt/:receiptId/items/assignments/all', checkJwt, clearAllItemAssignments);
 
 // Legacy route for all items
 router.get('/items', checkJwt, getAllItems);

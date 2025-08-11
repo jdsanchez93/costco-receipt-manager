@@ -433,3 +433,148 @@ export const getSharedReceipt = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch shared receipt' });
   }
 };
+
+// ==================== ITEM ASSIGNMENTS ====================
+
+export const updateItemAssignment = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.auth?.sub;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const { receiptId, itemId } = req.params;
+    const { assignedUsers } = req.body;
+
+    if (!receiptId || !itemId) {
+      return res.status(400).json({ error: 'Receipt ID and Item ID are required' });
+    }
+
+    if (!Array.isArray(assignedUsers)) {
+      return res.status(400).json({ error: 'Assigned users must be an array' });
+    }
+
+    // Verify the user is a member of this receipt
+    const receiptMembers = await SingleTableService.getUserReceipts(userId);
+    const membership = receiptMembers.find(r => r.receipt_id === receiptId);
+
+    if (!membership) {
+      return res.status(404).json({ error: 'Receipt not found or access denied' });
+    }
+
+    // Update the item assignment
+    await SingleTableService.updateReceiptItemAssignments(receiptId, itemId, assignedUsers);
+
+    res.json({
+      message: 'Item assignment updated successfully',
+      receiptId,
+      itemId,
+      assignedUsers
+    });
+  } catch (error) {
+    console.error('Error updating item assignment:', error);
+    res.status(500).json({ error: 'Failed to update item assignment' });
+  }
+};
+
+export const bulkUpdateItemAssignments = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.auth?.sub;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const { receiptId } = req.params;
+    const { updates } = req.body; // Array of { itemId, assignedUsers }
+
+    if (!receiptId) {
+      return res.status(400).json({ error: 'Receipt ID is required' });
+    }
+
+    if (!Array.isArray(updates)) {
+      return res.status(400).json({ error: 'Updates must be an array' });
+    }
+
+    // Verify the user is a member of this receipt
+    const receiptMembers = await SingleTableService.getUserReceipts(userId);
+    const membership = receiptMembers.find(r => r.receipt_id === receiptId);
+
+    if (!membership) {
+      return res.status(404).json({ error: 'Receipt not found or access denied' });
+    }
+
+    // Process bulk updates
+    const results = [];
+    for (const update of updates) {
+      try {
+        await SingleTableService.updateReceiptItemAssignments(
+          receiptId, 
+          update.itemId, 
+          update.assignedUsers
+        );
+        results.push({ itemId: update.itemId, success: true });
+      } catch (err) {
+        console.error(`Error updating item ${update.itemId}:`, err);
+        const errorMessage = (err instanceof Error) ? err.message : String(err);
+        results.push({ itemId: update.itemId, success: false, error: errorMessage });
+      }
+    }
+
+    res.json({
+      message: 'Bulk assignment update completed',
+      receiptId,
+      results
+    });
+  } catch (error) {
+    console.error('Error with bulk assignment update:', error);
+    res.status(500).json({ error: 'Failed to update assignments' });
+  }
+};
+
+export const clearAllItemAssignments = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.auth?.sub;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const { receiptId } = req.params;
+
+    if (!receiptId) {
+      return res.status(400).json({ error: 'Receipt ID is required' });
+    }
+
+    // Verify the user is a member of this receipt
+    const receiptMembers = await SingleTableService.getUserReceipts(userId);
+    const membership = receiptMembers.find(r => r.receipt_id === receiptId);
+
+    if (!membership) {
+      return res.status(404).json({ error: 'Receipt not found or access denied' });
+    }
+
+    // Get all items for the receipt
+    const items = await SingleTableService.getReceiptItems(receiptId);
+    
+    // Clear assignments for all items
+    const results = [];
+    for (const item of items) {
+      try {
+        await SingleTableService.updateReceiptItemAssignments(receiptId, item.item_number, []);
+        results.push({ itemId: item.item_number, success: true });
+      } catch (err) {
+        console.error(`Error clearing item ${item.item_number}:`, err);
+        const errorMessage = (err instanceof Error) ? err.message : String(err);
+        results.push({ itemId: item.item_number, success: false, error: errorMessage });
+      }
+    }
+
+    res.json({
+      message: 'All assignments cleared successfully',
+      receiptId,
+      results
+    });
+  } catch (error) {
+    console.error('Error clearing all assignments:', error);
+    res.status(500).json({ error: 'Failed to clear assignments' });
+  }
+};
