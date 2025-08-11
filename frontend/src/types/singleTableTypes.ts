@@ -49,29 +49,14 @@ export interface ReceiptMember {
   // For claimed users
   claimed_from_placeholder?: string;
   claimed_at?: string;
-}
-
-// User Receipt Relationship
-export interface UserReceipt {
-  PK: string; // USER#{user_id}
-  SK: string; // RECEIPT#{receipt_id}
-  entity_type: 'USER_RECEIPT';
-  receipt_id: string;
-  user_id: string;
-  status: 'active' | 'pending' | 'processed' | 'error';
-  joined_at?: string;
-  created_at?: string;
   
-  // Legacy fields from old structure
-  fileName?: string;
-  fileUrl?: string;
-  totalAmount?: number;
-  receiptDate?: string;
+  // Validation fields
   validationStatus?: 'pending' | 'confirmed' | 'disputed';
   validatedBy?: string;
   validatedAt?: string;
   comments?: string;
 }
+
 
 // Receipt Share
 export interface ReceiptShare {

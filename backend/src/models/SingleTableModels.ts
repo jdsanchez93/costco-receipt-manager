@@ -52,27 +52,14 @@ export interface ReceiptMember extends BaseEntity {
   // For claimed users
   claimed_from_placeholder?: string;
   claimed_at?: string;
-}
-
-// User Receipt Relationship Entity
-export interface UserReceipt extends BaseEntity {
-  entity_type: 'USER_RECEIPT';
-  receipt_id: string;
-  user_id: string;
-  status: 'active' | 'pending' | 'processed' | 'error';
-  joined_at?: string;
-  created_at?: string;
   
-  // Legacy fields from old structure
-  fileName?: string;
-  fileUrl?: string;
-  totalAmount?: number;
-  receiptDate?: string;
+  // Validation fields
   validationStatus?: 'pending' | 'confirmed' | 'disputed';
   validatedBy?: string;
   validatedAt?: string;
   comments?: string;
 }
+
 
 // Placeholder User Entity
 export interface PlaceholderUser extends BaseEntity {
@@ -116,7 +103,6 @@ export interface ReceiptGeometry extends BaseEntity {
 export type TableEntity = 
   | ReceiptItem 
   | ReceiptMember 
-  | UserReceipt 
   | PlaceholderUser 
   | ReceiptShare 
   | ReceiptGeometry;

@@ -7,7 +7,7 @@ import axios from 'axios';
 import { getS3UploadUrl } from '../services/s3UploadService';
 import { getS3DownloadUrl } from '../services/s3DownloadService';
 import * as SingleTableService from '../services/singleTableService';
-import { UserReceipt, ReceiptItem, ReceiptMember } from '../models/SingleTableModels';
+import { ReceiptItem, ReceiptMember } from '../models/SingleTableModels';
 
 interface AuthRequest extends Request {
   auth?: {
@@ -30,12 +30,12 @@ export const getDownloadUrl = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Receipt ID is required' });
     }
 
-    // Verify the receipt belongs to the user using single table
-    const userReceipts = await SingleTableService.getUserReceipts(userId);
-    const receipt = userReceipts.find(r => r.receipt_id === receiptId);
+    // Verify the user is a member of this receipt
+    const receiptMembers = await SingleTableService.getUserReceipts(userId);
+    const membership = receiptMembers.find(r => r.receipt_id === receiptId);
 
-    if (!receipt) {
-      return res.status(404).json({ error: 'Receipt not found' });
+    if (!membership) {
+      return res.status(404).json({ error: 'Receipt not found or access denied' });
     }
 
     // Extract token from authorization header
@@ -140,8 +140,8 @@ export const getUserReceipts = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    const userReceipts = await SingleTableService.getUserReceipts(userId);
-    res.json(userReceipts);
+    const receiptMembers = await SingleTableService.getUserReceipts(userId);
+    res.json(receiptMembers);
   } catch (error) {
     console.error('Error fetching receipts:', error);
     res.status(500).json({ error: 'Failed to fetch receipts' });
@@ -167,9 +167,9 @@ export const getAllItems = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // First get all user's receipts
-    const userReceipts = await SingleTableService.getUserReceipts(userId);
-    const receiptIds = userReceipts.map(receipt => receipt.receipt_id);
+    // First get all receipts where user is a member
+    const receiptMembers = await SingleTableService.getUserReceipts(userId);
+    const receiptIds = receiptMembers.map(member => member.receipt_id);
 
     // Get all items for these receipts
     const allItems: ReceiptItem[] = [];
@@ -197,12 +197,12 @@ export const getReceiptGeometryData = async (req: AuthRequest, res: Response) =>
       return res.status(400).json({ error: 'Receipt ID is required' });
     }
 
-    // Verify the receipt belongs to the user using single table
-    const userReceipts = await SingleTableService.getUserReceipts(userId);
-    const receipt = userReceipts.find(r => r.receipt_id === receiptId);
+    // Verify the user is a member of this receipt
+    const receiptMembers = await SingleTableService.getUserReceipts(userId);
+    const membership = receiptMembers.find(r => r.receipt_id === receiptId);
 
-    if (!receipt) {
-      return res.status(404).json({ error: 'Receipt not found' });
+    if (!membership) {
+      return res.status(404).json({ error: 'Receipt not found or access denied' });
     }
 
     // Get geometry data using single table service
@@ -256,12 +256,12 @@ export const getReceiptMembers = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Receipt ID is required' });
     }
 
-    // Verify the receipt belongs to the user
-    const userReceipts = await SingleTableService.getUserReceipts(userId);
-    const receipt = userReceipts.find(r => r.receipt_id === receiptId);
+    // Verify the user is a member of this receipt
+    const receiptMembers = await SingleTableService.getUserReceipts(userId);
+    const membership = receiptMembers.find(r => r.receipt_id === receiptId);
 
-    if (!receipt) {
-      return res.status(404).json({ error: 'Receipt not found' });
+    if (!membership) {
+      return res.status(404).json({ error: 'Receipt not found or access denied' });
     }
 
     const members = await SingleTableService.getReceiptMembers(receiptId);
@@ -294,12 +294,12 @@ export const addReceiptMember = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Valid user type is required (authenticated or placeholder)' });
     }
 
-    // Verify the receipt belongs to the user
-    const userReceipts = await SingleTableService.getUserReceipts(userId);
-    const receipt = userReceipts.find(r => r.receipt_id === receiptId);
+    // Verify the user is a member of this receipt
+    const receiptMembers = await SingleTableService.getUserReceipts(userId);
+    const membership = receiptMembers.find(r => r.receipt_id === receiptId);
 
-    if (!receipt) {
-      return res.status(404).json({ error: 'Receipt not found' });
+    if (!membership) {
+      return res.status(404).json({ error: 'Receipt not found or access denied' });
     }
 
     let member: ReceiptMember;
@@ -341,12 +341,12 @@ export const createReceiptShare = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Receipt ID is required' });
     }
 
-    // Verify the receipt belongs to the user
-    const userReceipts = await SingleTableService.getUserReceipts(userId);
-    const receipt = userReceipts.find(r => r.receipt_id === receiptId);
+    // Verify the user is a member of this receipt
+    const receiptMembers = await SingleTableService.getUserReceipts(userId);
+    const membership = receiptMembers.find(r => r.receipt_id === receiptId);
 
-    if (!receipt) {
-      return res.status(404).json({ error: 'Receipt not found' });
+    if (!membership) {
+      return res.status(404).json({ error: 'Receipt not found or access denied' });
     }
 
     const share = await SingleTableService.createReceiptShare(receiptId, userId, expiresInDays);
@@ -376,12 +376,12 @@ export const getReceiptShares = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Receipt ID is required' });
     }
 
-    // Verify the receipt belongs to the user
-    const userReceipts = await SingleTableService.getUserReceipts(userId);
-    const receipt = userReceipts.find(r => r.receipt_id === receiptId);
+    // Verify the user is a member of this receipt
+    const receiptMembers = await SingleTableService.getUserReceipts(userId);
+    const membership = receiptMembers.find(r => r.receipt_id === receiptId);
 
-    if (!receipt) {
-      return res.status(404).json({ error: 'Receipt not found' });
+    if (!membership) {
+      return res.status(404).json({ error: 'Receipt not found or access denied' });
     }
 
     const shares = await SingleTableService.getActiveSharesForReceipt(receiptId);

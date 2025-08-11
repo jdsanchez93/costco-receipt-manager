@@ -3,7 +3,6 @@ import { dynamoDbClient, TABLES, GSI } from '../config/dynamodb';
 import { 
   ReceiptItem, 
   ReceiptMember, 
-  UserReceipt, 
   ReceiptShare, 
   ReceiptGeometry,
   PlaceholderUser,
@@ -83,27 +82,10 @@ export const addAuthenticatedUserToReceipt = async (
     added_at: new Date().toISOString(),
   };
 
-  // Create member record
+  // Create member record (GSI1PK/GSI1SK already provide user lookup capability)
   await dynamoDbClient.send(new PutCommand({
     TableName: TABLES.MAIN,
     Item: convertFloats(member),
-    ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
-  }));
-
-  // Create inverse relationship for user lookups
-  const userReceipt: UserReceipt = {
-    PK: `USER#${userId}`,
-    SK: `RECEIPT#${receiptId}`,
-    entity_type: 'USER_RECEIPT',
-    receipt_id: receiptId,
-    user_id: userId,
-    status: 'active',
-    joined_at: new Date().toISOString(),
-  };
-
-  await dynamoDbClient.send(new PutCommand({
-    TableName: TABLES.MAIN,
-    Item: convertFloats(userReceipt),
     ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
   }));
 
@@ -161,7 +143,7 @@ export const addPlaceholderUserToReceipt = async (
 
 // ==================== USER RECEIPTS ====================
 
-export const getUserReceipts = async (userId: string): Promise<UserReceipt[]> => {
+export const getUserReceipts = async (userId: string): Promise<ReceiptMember[]> => {
   const result = await dynamoDbClient.send(new QueryCommand({
     TableName: TABLES.MAIN,
     IndexName: GSI.GSI1,
@@ -170,30 +152,10 @@ export const getUserReceipts = async (userId: string): Promise<UserReceipt[]> =>
       ':pk': `USER#${userId}`,
     },
   }));
+  console.log('getUserReceipts result:', result);
 
-  // Filter to only USER_RECEIPT entities
-  return (result.Items || []).filter(item => item.entity_type === 'USER_RECEIPT') as UserReceipt[];
-};
-
-export const createUserReceipt = async (userId: string, receiptId: string, receiptData: Partial<UserReceipt>): Promise<UserReceipt> => {
-  const userReceipt: UserReceipt = {
-    PK: `USER#${userId}`,
-    SK: `RECEIPT#${receiptId}`,
-    entity_type: 'USER_RECEIPT',
-    receipt_id: receiptId,
-    user_id: userId,
-    status: 'pending',
-    created_at: new Date().toISOString(),
-    ...receiptData,
-  };
-
-  await dynamoDbClient.send(new PutCommand({
-    TableName: TABLES.MAIN,
-    Item: convertFloats(userReceipt),
-    ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
-  }));
-
-  return userReceipt;
+  // Filter to only RECEIPT_MEMBER entities
+  return (result.Items || []).filter(item => item.entity_type === 'RECEIPT_MEMBER') as ReceiptMember[];
 };
 
 export const updateUserReceiptValidation = async (
@@ -205,8 +167,8 @@ export const updateUserReceiptValidation = async (
   await dynamoDbClient.send(new UpdateCommand({
     TableName: TABLES.MAIN,
     Key: {
-      PK: `USER#${userId}`,
-      SK: `RECEIPT#${receiptId}`,
+      PK: `RECEIPT#${receiptId}`,
+      SK: `USER#${userId}`,
     },
     UpdateExpression: 'SET validationStatus = :status, validatedBy = :userId, validatedAt = :timestamp, comments = :comments',
     ExpressionAttributeValues: {

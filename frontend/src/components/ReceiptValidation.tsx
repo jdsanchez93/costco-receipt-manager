@@ -18,7 +18,7 @@ import {
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import { getReceiptDownloadUrl, getReceiptGeometry, validateReceiptSubtotal } from '../services/api';
-import { UserReceipt } from '../types/singleTableTypes';
+import { ReceiptMember } from '../types/singleTableTypes';
 
 interface BoundingBox {
   Width: number;
@@ -62,7 +62,7 @@ interface GeometryData {
 
 interface ReceiptValidationProps {
   receiptId: string;
-  receipt: UserReceipt;
+  receipt: ReceiptMember;
   calculatedTotal: number;
   onValidationComplete: () => void;
 }

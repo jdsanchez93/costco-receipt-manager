@@ -5,27 +5,13 @@ import { useNavigate } from 'react-router-dom';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PendingIcon from '@mui/icons-material/Pending';
 import ErrorIcon from '@mui/icons-material/Error';
-
-interface UserReceipt {
-  PK: string;
-  SK: string;
-  status: 'pending' | 'processed' | 'error';
-  created_at: string;
-  fileName?: string;
-  fileUrl?: string;
-  totalAmount?: number;
-  receiptDate?: string;
-  validationStatus?: 'pending' | 'confirmed' | 'disputed';
-  validatedBy?: string;
-  validatedAt?: string;
-  comments?: string;
-}
+import { ReceiptMember } from '../types/singleTableTypes';
 
 interface ReceiptsTableProps {
-  receipts: UserReceipt[];
+  receiptMembers: ReceiptMember[];
 }
 
-const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receipts }) => {
+const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receiptMembers }) => {
   const navigate = useNavigate();
 
   const columns: GridColDef[] = [
@@ -33,42 +19,30 @@ const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receipts }) => {
       field: 'receipt_id', 
       headerName: 'Receipt ID', 
       width: 200,
-      valueGetter: (value, row) => row.SK.replace('RECEIPT#', ''),
+      valueGetter: (value, row) => row.receipt_id,
     },
     { 
-      field: 'status', 
-      headerName: 'Status', 
+      field: 'user_type', 
+      headerName: 'Member Type', 
       width: 120,
       renderCell: (params) => {
-        const status = params.value as string;
-        const color = status === 'processed' ? 'success' : 
-                     status === 'error' ? 'error' : 'default';
-        return <Chip label={status} color={color} size="small" />;
+        const userType = params.value as string;
+        const color = userType === 'authenticated' ? 'primary' : 'default';
+        return <Chip label={userType === 'authenticated' ? 'User' : 'Placeholder'} color={color} size="small" />;
       },
     },
     { 
-      field: 'created_at', 
-      headerName: 'Upload Date', 
+      field: 'added_at', 
+      headerName: 'Joined Date', 
       width: 180,
       valueFormatter: (value) => {
         return new Date(value).toLocaleDateString();
       },
     },
     { 
-      field: 'receiptDate', 
-      headerName: 'Receipt Date', 
+      field: 'display_name', 
+      headerName: 'Your Role', 
       width: 150,
-      valueFormatter: (value) => {
-        return value ? new Date(value).toLocaleDateString() : '-';
-      },
-    },
-    { 
-      field: 'totalAmount', 
-      headerName: 'Total Amount', 
-      width: 130,
-      valueFormatter: (value) => {
-        return value ? `$${Number(value).toFixed(2)}` : '-';
-      },
     },
     { 
       field: 'validationStatus', 
@@ -97,19 +71,13 @@ const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receipts }) => {
         return <Chip label={label} color={color} size="small" icon={icon} />;
       },
     },
-    { 
-      field: 'fileName', 
-      headerName: 'File Name', 
-      width: 180,
-      flex: 1,
-    },
     {
       field: 'actions',
       headerName: 'Actions',
       width: 140,
       sortable: false,
       renderCell: (params) => {
-        const receiptId = params.row.SK.replace('RECEIPT#', '');
+        const receiptId = params.row.receipt_id;
         const needsValidation = !params.row.validationStatus;
         return (
           <Button 
@@ -125,9 +93,9 @@ const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receipts }) => {
     },
   ];
 
-  const rows = receipts.map((receipt, index) => ({
-    id: `${receipt.PK}-${receipt.SK}-${index}`,
-    ...receipt,
+  const rows = receiptMembers.map((member, index) => ({
+    id: `${member.PK}-${member.SK}-${index}`,
+    ...member,
   }));
 
   return (

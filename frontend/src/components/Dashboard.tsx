@@ -17,7 +17,7 @@ import { getUserReceipts } from '../services/api';
 
 const Dashboard: React.FC = () => {
   const { isAuthenticated, isLoading, getAccessTokenSilently } = useAuth0();
-  const [receipts, setReceipts] = useState([]);
+  const [receiptMembers, setReceiptMembers] = useState([]);
   const [loadingReceipts, setLoadingReceipts] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,7 +34,7 @@ const Dashboard: React.FC = () => {
       });
       console.log('Token obtained:', token ? 'Yes' : 'No');
       const data = await getUserReceipts(token);
-      setReceipts(data);
+      setReceiptMembers(data);
     } catch (err) {
       console.error('Error fetching receipts:', err);
       setError('Failed to load receipts');
@@ -103,7 +103,7 @@ const Dashboard: React.FC = () => {
                   <CircularProgress />
                 </Box>
               ) : (
-                <ReceiptsTable receipts={receipts} />
+                <ReceiptsTable receiptMembers={receiptMembers} />
               )}
             </Box>
           </>

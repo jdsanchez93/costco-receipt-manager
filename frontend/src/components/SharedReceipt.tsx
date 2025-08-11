@@ -211,10 +211,9 @@ const SharedReceipt: React.FC = () => {
             receipt={{
               PK: `USER#shared`,
               SK: `RECEIPT#${sharedReceipt.receiptId}`,
-              entity_type: 'USER_RECEIPT',
+              entity_type: 'RECEIPT_MEMBER',
               receipt_id: sharedReceipt.receiptId,
               user_id: 'shared',
-              status: 'active',
               validationStatus: 'pending', // Default for shared view
             }}
             calculatedTotal={calculatedTotal}

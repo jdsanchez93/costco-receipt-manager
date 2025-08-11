@@ -17,14 +17,13 @@ import ReceiptValidation from './ReceiptValidation';
 import ReceiptMembers from './ReceiptMembers';
 import ReceiptSharing from './ReceiptSharing';
 import { getReceiptItems, getUserReceipts } from '../services/api';
-import { UserReceipt as SingleTableUserReceipt, ReceiptItem as SingleTableReceiptItem } from '../types/singleTableTypes';
+import { ReceiptMember, ReceiptItem as SingleTableReceiptItem } from '../types/singleTableTypes';
 
 // Use the single table types
 type ReceiptItem = SingleTableReceiptItem;
-type UserReceipt = SingleTableUserReceipt;
 
 const Receipt: React.FC = () => {
-  const [receipt, setReceipt] = useState<UserReceipt | null>(null);
+  const [receiptMember, setReceiptMember] = useState<ReceiptMember | null>(null);
   const [items, setItems] = useState<ReceiptItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,19 +48,19 @@ const Receipt: React.FC = () => {
         },
       });
 
-      // Get receipt metadata
-      const receipts = await getUserReceipts(token);
-      const currentReceipt = receipts.find((r: UserReceipt) => 
-        r.receipt_id === receiptId
+      // Get user's membership in receipts
+      const receiptMembers = await getUserReceipts(token);
+      const currentMembership = receiptMembers.find((m: ReceiptMember) => 
+        m.receipt_id === receiptId
       );
       
-      if (!currentReceipt) {
-        setError('Receipt not found');
+      if (!currentMembership) {
+        setError('Receipt not found or access denied');
         setLoading(false);
         return;
       }
       
-      setReceipt(currentReceipt);
+      setReceiptMember(currentMembership);
 
       // Get receipt items
       const itemsData = await getReceiptItems(receiptId, token);
@@ -110,7 +109,7 @@ const Receipt: React.FC = () => {
     );
   }
 
-  if (!receipt) {
+  if (!receiptMember) {
     return (
       <Container>
         <Box py={4}>
@@ -157,22 +156,30 @@ const Receipt: React.FC = () => {
           
           <Box>
             <Typography variant="subtitle2" color="text.secondary">
-              Status
+              Your Role
+            </Typography>
+            <Typography variant="body1">
+              {receiptMember.display_name}
+            </Typography>
+          </Box>
+          
+          <Box>
+            <Typography variant="subtitle2" color="text.secondary">
+              Member Type
             </Typography>
             <Chip 
-              label={receipt.status} 
-              color={receipt.status === 'processed' ? 'success' : 
-                     receipt.status === 'error' ? 'error' : 'default'}
+              label={receiptMember.user_type === 'authenticated' ? 'User' : 'Placeholder'} 
+              color={receiptMember.user_type === 'authenticated' ? 'primary' : 'default'}
               size="small"
             />
           </Box>
           
           <Box>
             <Typography variant="subtitle2" color="text.secondary">
-              Upload Date
+              Joined Date
             </Typography>
             <Typography variant="body1">
-              {receipt.created_at ? new Date(receipt.created_at).toLocaleDateString() : 'Unknown'}
+              {receiptMember.added_at ? new Date(receiptMember.added_at).toLocaleDateString() : 'Unknown'}
             </Typography>
           </Box>
           
@@ -185,28 +192,6 @@ const Receipt: React.FC = () => {
             </Typography>
           </Box>
 
-          {receipt.receiptDate && (
-            <Box>
-              <Typography variant="subtitle2" color="text.secondary">
-                Receipt Date
-              </Typography>
-              <Typography variant="body1">
-                {new Date(receipt.receiptDate).toLocaleDateString()}
-              </Typography>
-            </Box>
-          )}
-
-          {receipt.totalAmount && (
-            <Box>
-              <Typography variant="subtitle2" color="text.secondary">
-                Receipt Total
-              </Typography>
-              <Typography variant="body1">
-                ${receipt.totalAmount.toFixed(2)}
-              </Typography>
-            </Box>
-          )}
-
           <Box>
             <Typography variant="subtitle2" color="text.secondary">
               Calculated Total
@@ -216,38 +201,27 @@ const Receipt: React.FC = () => {
             </Typography>
           </Box>
 
-          {receipt.validationStatus && (
+          {receiptMember.validationStatus && (
             <Box>
               <Typography variant="subtitle2" color="text.secondary">
-                Validation Status
+                Your Validation
               </Typography>
               <Chip 
-                label={receipt.validationStatus} 
-                color={receipt.validationStatus === 'confirmed' ? 'success' : 
-                       receipt.validationStatus === 'disputed' ? 'error' : 'default'}
+                label={receiptMember.validationStatus} 
+                color={receiptMember.validationStatus === 'confirmed' ? 'success' : 
+                       receiptMember.validationStatus === 'disputed' ? 'error' : 'default'}
                 size="small"
               />
             </Box>
           )}
 
-          {receipt.validatedAt && (
+          {receiptMember.validatedAt && (
             <Box>
               <Typography variant="subtitle2" color="text.secondary">
                 Validated On
               </Typography>
               <Typography variant="body1">
-                {new Date(receipt.validatedAt).toLocaleDateString()}
-              </Typography>
-            </Box>
-          )}
-
-          {receipt.fileName && (
-            <Box sx={{ gridColumn: '1 / -1' }}>
-              <Typography variant="subtitle2" color="text.secondary">
-                File Name
-              </Typography>
-              <Typography variant="body1">
-                {receipt.fileName}
+                {new Date(receiptMember.validatedAt).toLocaleDateString()}
               </Typography>
             </Box>
           )}
@@ -260,7 +234,7 @@ const Receipt: React.FC = () => {
         </Typography>
         <ReceiptValidation 
           receiptId={receiptId || ''} 
-          receipt={receipt}
+          receipt={receiptMember}
           calculatedTotal={calculatedTotal}
           onValidationComplete={handleValidationComplete}
         />
