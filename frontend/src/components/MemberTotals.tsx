@@ -39,9 +39,22 @@ const MemberTotals: React.FC<MemberTotalsProps> = ({ items, members, getMemberCo
       item.assigned_users.includes(memberId)
     );
 
-    // Calculate totals
-    const subtotal = assignedItems.reduce((sum, item) => sum + (item.price || 0), 0);
-    const totalDiscount = assignedItems.reduce((sum, item) => sum + (item.discount || 0), 0);
+    // Calculate totals with proper splitting for shared items
+    let subtotal = 0;
+    let totalDiscount = 0;
+
+    assignedItems.forEach(item => {
+      const assignedUserCount = item.assigned_users.length;
+      if (assignedUserCount > 0) {
+        // Split the price and discount equally among assigned users
+        const itemPrice = (item.price || 0) / assignedUserCount;
+        const itemDiscount = (item.discount || 0) / assignedUserCount;
+        
+        subtotal += itemPrice;
+        totalDiscount += itemDiscount;
+      }
+    });
+
     const finalTotal = subtotal - totalDiscount;
 
     return {
@@ -63,10 +76,14 @@ const MemberTotals: React.FC<MemberTotalsProps> = ({ items, members, getMemberCo
   const unassignedDiscount = unassignedItems.reduce((sum, item) => sum + (item.discount || 0), 0);
   const unassignedTotal = unassignedSubtotal - unassignedDiscount;
 
-  // Calculate receipt totals
+  // Calculate receipt totals (these should match the original receipt totals)
   const receiptSubtotal = items.reduce((sum, item) => sum + (item.price || 0), 0);
   const receiptDiscount = items.reduce((sum, item) => sum + (item.discount || 0), 0);
   const receiptTotal = receiptSubtotal - receiptDiscount;
+
+  // Calculate verification: sum of all member totals + unassigned should equal receipt total
+  const assignedTotal = memberTotals.reduce((sum, mt) => sum + mt.finalTotal, 0) + unassignedTotal;
+  const totalDiscrepancy = Math.abs(receiptTotal - assignedTotal);
 
   const getMemberIcon = (member: ReceiptMember) => {
     return member.user_type === 'authenticated' ? (
@@ -299,6 +316,20 @@ const MemberTotals: React.FC<MemberTotalsProps> = ({ items, members, getMemberCo
               size="small"
               color="default"
             />
+            {/* Show calculation verification (helpful for transparency) */}
+            {totalDiscrepancy < 0.01 ? (
+              <Chip
+                label="✓ Totals verified"
+                size="small"
+                color="success"
+              />
+            ) : (
+              <Chip
+                label={`⚠ Discrepancy: $${totalDiscrepancy.toFixed(2)}`}
+                size="small"
+                color="error"
+              />
+            )}
           </Stack>
         </Box>
       </Paper>
