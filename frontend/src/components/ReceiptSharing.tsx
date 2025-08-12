@@ -198,12 +198,14 @@ const ReceiptSharing: React.FC<ReceiptSharingProps> = ({ receiptId }) => {
             {shares.map((share) => (
               <ListItem key={share.share_token} divider>
                 <ListItemText
+                  primaryTypographyProps={{ component: 'div' }}
+                  secondaryTypographyProps={{ component: 'div' }}
                   primary={
                     <Box display="flex" alignItems="center" gap={1}>
                       <LinkIcon color="primary" />
-                      <Typography variant="body1">
+                      <Box component="span" sx={{ fontWeight: 'medium' }}>
                         Share Link
-                      </Typography>
+                      </Box>
                       <Chip
                         label={formatExpirationDate(share.expiresAt || '')}
                         color={getExpirationColor(share.expiresAt || '')}
@@ -222,20 +224,20 @@ const ReceiptSharing: React.FC<ReceiptSharingProps> = ({ receiptId }) => {
                   }
                   secondary={
                     <Box>
-                      <Typography variant="body2" color="text.secondary">
+                      <Box sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>
                         Created {new Date(share.created_at).toLocaleDateString()}
-                      </Typography>
-                      <Typography 
-                        variant="body2" 
+                      </Box>
+                      <Box 
                         sx={{ 
                           fontFamily: 'monospace', 
                           fontSize: '0.75rem',
                           wordBreak: 'break-all',
-                          mt: 0.5
+                          mt: 0.5,
+                          color: 'text.secondary'
                         }}
                       >
                         {share.shareUrl}
-                      </Typography>
+                      </Box>
                     </Box>
                   }
                 />
