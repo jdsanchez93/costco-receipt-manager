@@ -8,10 +8,6 @@ import {
   Alert,
   Paper,
   Chip,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemAvatar,
   Avatar,
   Button,
 } from '@mui/material';
@@ -25,7 +21,7 @@ import {
 import { getSharedReceipt } from '../services/api';
 import { SharedReceiptResponse, ReceiptMember } from '../types/singleTableTypes';
 import ItemsTable from './ItemsTable';
-import ReceiptValidation from './ReceiptValidation';
+import MemberTotals from './MemberTotals';
 
 const SharedReceipt: React.FC = () => {
   const { shareToken } = useParams<{ shareToken: string }>();
@@ -115,43 +111,51 @@ const SharedReceipt: React.FC = () => {
           This receipt has been shared with you. You're viewing a read-only version.
         </Alert>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 3 }}>
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              Receipt ID
+        <Box sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: { 
+            xs: '1fr', 
+            sm: 'repeat(2, 1fr)', 
+            md: 'repeat(4, 1fr)' 
+          }, 
+          gap: 3 
+        }}>
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="h4" fontWeight="bold" color="primary">
+              {sharedReceipt.items.length}
             </Typography>
-            <Typography variant="body1">
-              {sharedReceipt.receiptId}
+            <Typography variant="body2" color="text.secondary">
+              Total Items
             </Typography>
           </Box>
           
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              Total Items
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="h4" fontWeight="bold" color="primary">
+              {sharedReceipt.members.length}
             </Typography>
-            <Typography variant="body1">
-              {sharedReceipt.items.length}
+            <Typography variant="body2" color="text.secondary">
+              Members
             </Typography>
           </Box>
 
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              Calculated Total
-            </Typography>
-            <Typography variant="body1">
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="h4" fontWeight="bold" color="success.main">
               ${calculatedTotal.toFixed(2)}
             </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Total Amount
+            </Typography>
           </Box>
 
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              Share Expires
-            </Typography>
-            <Typography variant="body1">
-              <Box display="flex" alignItems="center" gap={1}>
-                <ScheduleIcon fontSize="small" />
+          <Box sx={{ textAlign: 'center' }}>
+            <Box display="flex" alignItems="center" justifyContent="center" gap={1}>
+              <ScheduleIcon fontSize="small" />
+              <Typography variant="body1" fontWeight="bold">
                 {new Date(sharedReceipt.shareInfo.expiresAt).toLocaleDateString()}
-              </Box>
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary">
+              Share Expires
             </Typography>
           </Box>
         </Box>
@@ -163,76 +167,70 @@ const SharedReceipt: React.FC = () => {
           <Typography variant="h6" gutterBottom>
             Receipt Members ({sharedReceipt.members.length})
           </Typography>
-          <List>
+          <Box sx={{ 
+            display: 'flex', 
+            flexWrap: 'wrap', 
+            gap: 2 
+          }}>
             {sharedReceipt.members.map((member) => (
-              <ListItem key={member.SK}>
-                <ListItemAvatar>
-                  <Avatar>
-                    {getMemberIcon(member)}
-                  </Avatar>
-                </ListItemAvatar>
-                <ListItemText
-                  primary={
-                    <Box display="flex" alignItems="center" gap={1}>
-                      <Typography variant="body1">
-                        {member.display_name}
-                      </Typography>
-                      <Chip
-                        label={member.user_type === 'authenticated' ? 'User' : 'Placeholder'}
-                        color={member.user_type === 'authenticated' ? 'primary' : 'default'}
-                        size="small"
-                      />
-                    </Box>
-                  }
-                  secondary={
-                    member.user_type === 'authenticated' && member.email
-                      ? member.email
-                      : 'Placeholder user'
-                  }
-                />
-              </ListItem>
+              <Box 
+                key={member.SK}
+                sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 1.5,
+                  p: 2,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 2,
+                  bgcolor: 'background.paper',
+                  minWidth: 200
+                }}
+              >
+                <Avatar sx={{ width: 32, height: 32 }}>
+                  {getMemberIcon(member)}
+                </Avatar>
+                <Box>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Typography variant="body2" fontWeight="medium">
+                      {member.display_name}
+                    </Typography>
+                    <Chip
+                      label={member.user_type === 'authenticated' ? 'User' : 'Guest'}
+                      color={member.user_type === 'authenticated' ? 'primary' : 'default'}
+                      size="small"
+                      sx={{ height: 20, fontSize: '0.75rem' }}
+                    />
+                  </Box>
+                  {member.user_type === 'authenticated' && member.email && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      {member.email}
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
             ))}
-          </List>
+          </Box>
         </Paper>
       )}
 
-      {/* Receipt Validation - if geometry data exists */}
-      {Object.keys(sharedReceipt.geometry).length > 0 && (
-        <Box mb={3}>
-          <Typography variant="h5" gutterBottom>
-            Receipt Validation
-          </Typography>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            This validation view is read-only. Only the receipt owner can make changes.
-          </Alert>
-          {/* Create a simple ReceiptMember object for the validation component */}
-          <ReceiptValidation 
-            receiptId={sharedReceipt.receiptId}
-            receipt={{
-              PK: `RECEIPT#${sharedReceipt.receiptId}`,
-              SK: `USER#shared`,
-              entity_type: 'RECEIPT_MEMBER',
-              GSI1PK: `USER#shared`,
-              GSI1SK: `RECEIPT#${sharedReceipt.receiptId}`,
-              user_type: 'authenticated',
-              display_name: 'Shared View',
-              receipt_id: sharedReceipt.receiptId,
-              added_by: 'system',
-              added_at: new Date().toISOString(),
-              validationStatus: 'pending', // Default for shared view
-            }}
-            calculatedTotal={calculatedTotal}
-            onValidationComplete={() => {}} // No-op for shared view
-          />
-        </Box>
-      )}
+      {/* Member Totals */}
+      <Box mb={3}>
+        <Typography variant="h5" gutterBottom>
+          Cost Breakdown
+        </Typography>
+        <MemberTotals 
+          items={sharedReceipt.items}
+          members={sharedReceipt.members}
+        />
+      </Box>
 
       {/* Receipt Items */}
-      <Box>
+      <Box mb={3}>
         <Typography variant="h5" gutterBottom>
           Receipt Items
         </Typography>
-        <ItemsTable items={sharedReceipt.items} />
+        <ItemsTable items={sharedReceipt.items} members={sharedReceipt.members} />
       </Box>
 
       {/* Call to Action */}
