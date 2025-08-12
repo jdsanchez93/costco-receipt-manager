@@ -29,6 +29,7 @@ const Receipt: React.FC = () => {
   const [members, setMembers] = useState<ReceiptMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryStatus, setRetryStatus] = useState<string | null>(null);
   
   // Move hooks after state initialization
   const params = useParams();
@@ -36,7 +37,10 @@ const Receipt: React.FC = () => {
   const navigate = useNavigate();
   const { getAccessTokenSilently, user } = useAuth0();
 
-  const fetchReceiptData = useCallback(async () => {
+  const fetchReceiptData = useCallback(async (retryCount = 0) => {
+    const maxRetries = 5;
+    const baseDelay = 1000; // 1 second
+
     if (!receiptId) {
       setError('Receipt ID not provided');
       setLoading(false);
@@ -57,12 +61,27 @@ const Receipt: React.FC = () => {
       );
       
       if (!currentMembership) {
+        // If this is a retry-eligible error and we haven't exceeded max retries
+        if (retryCount < maxRetries) {
+          const delay = baseDelay * Math.pow(2, retryCount); // Exponential backoff
+          console.log(`Receipt not found, retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries + 1})`);
+          
+          setRetryStatus(`Receipt is still processing... Retrying in ${Math.ceil(delay / 1000)} seconds (${retryCount + 1}/${maxRetries + 1})`);
+          
+          setTimeout(() => {
+            fetchReceiptData(retryCount + 1);
+          }, delay);
+          return;
+        }
+        
         setError('Receipt not found or access denied');
         setLoading(false);
+        setRetryStatus(null);
         return;
       }
       
       setReceiptMember(currentMembership);
+      setRetryStatus(null); // Clear retry status on success
 
       // Get receipt items and members
       const [itemsData, membersData] = await Promise.all([
@@ -98,9 +117,27 @@ const Receipt: React.FC = () => {
       }
     } catch (err) {
       console.error('Error fetching receipt data:', err);
+      
+      // Retry on certain errors that might be timing-related
+      if (retryCount < maxRetries && (err as any)?.response?.status === 404) {
+        const delay = baseDelay * Math.pow(2, retryCount);
+        console.log(`API error, retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries + 1})`);
+        
+        setRetryStatus(`Receipt is still processing... Retrying in ${Math.ceil(delay / 1000)} seconds (${retryCount + 1}/${maxRetries + 1})`);
+        
+        setTimeout(() => {
+          fetchReceiptData(retryCount + 1);
+        }, delay);
+        return;
+      }
+      
       setError('Failed to load receipt data');
+      setRetryStatus(null);
     } finally {
-      setLoading(false);
+      // Only set loading to false if we're not retrying
+      if (retryCount >= maxRetries || !retryStatus) {
+        setLoading(false);
+      }
     }
   }, [receiptId, getAccessTokenSilently, user?.sub, user?.email, user?.name, user?.nickname]);
 
@@ -116,8 +153,13 @@ const Receipt: React.FC = () => {
   if (loading) {
     return (
       <Container>
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
+        <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" minHeight="50vh">
           <CircularProgress />
+          {retryStatus && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2, textAlign: 'center' }}>
+              {retryStatus}
+            </Typography>
+          )}
         </Box>
       </Container>
     );
