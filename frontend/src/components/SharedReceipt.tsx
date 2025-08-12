@@ -30,6 +30,20 @@ const SharedReceipt: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Color palette for members (cycling through colors)
+  const memberColors = [
+    'primary', 'secondary', 'error', 'warning', 'info', 'success'
+  ] as const;
+
+  // Helper function to get consistent color for a member
+  const getMemberColor = (memberId: string) => {
+    if (!sharedReceipt) return 'default';
+    const memberIndex = sharedReceipt.members.findIndex(m => 
+      (m.user_id === memberId) || (m.placeholder_id === memberId)
+    );
+    return memberIndex >= 0 ? memberColors[memberIndex % memberColors.length] : 'default';
+  };
+
   useEffect(() => {
     const fetchSharedReceipt = async () => {
       if (!shareToken) {
@@ -172,44 +186,57 @@ const SharedReceipt: React.FC = () => {
             flexWrap: 'wrap', 
             gap: 2 
           }}>
-            {sharedReceipt.members.map((member) => (
-              <Box 
-                key={member.SK}
-                sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 1.5,
-                  p: 2,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 2,
-                  bgcolor: 'background.paper',
-                  minWidth: 200
-                }}
-              >
-                <Avatar sx={{ width: 32, height: 32 }}>
-                  {getMemberIcon(member)}
-                </Avatar>
-                <Box>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <Typography variant="body2" fontWeight="medium">
-                      {member.display_name}
-                    </Typography>
-                    <Chip
-                      label={member.user_type === 'authenticated' ? 'User' : 'Guest'}
-                      color={member.user_type === 'authenticated' ? 'primary' : 'default'}
-                      size="small"
-                      sx={{ height: 20, fontSize: '0.75rem' }}
-                    />
+            {sharedReceipt.members.map((member, index) => {
+              const memberId = member.user_id || member.placeholder_id || '';
+              const memberColor = memberColors[index % memberColors.length];
+              
+              return (
+                <Box 
+                  key={member.SK}
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 1.5,
+                    p: 2,
+                    border: '2px solid',
+                    borderColor: `${memberColor}.main`,
+                    borderRadius: 2,
+                    bgcolor: (theme) => theme.palette.mode === 'dark' 
+                      ? `${memberColor}.dark` 
+                      : `${memberColor}.light`,
+                    opacity: 0.9,
+                    minWidth: 200
+                  }}
+                >
+                  <Avatar sx={{ 
+                    width: 32, 
+                    height: 32,
+                    bgcolor: `${memberColor}.main`,
+                    color: 'white'
+                  }}>
+                    {getMemberIcon(member)}
+                  </Avatar>
+                  <Box>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Typography variant="body2" fontWeight="medium">
+                        {member.display_name}
+                      </Typography>
+                      <Chip
+                        label={member.user_type === 'authenticated' ? 'User' : 'Guest'}
+                        color={memberColor}
+                        size="small"
+                        sx={{ height: 20, fontSize: '0.75rem' }}
+                      />
+                    </Box>
+                    {member.user_type === 'authenticated' && member.email && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        {member.email}
+                      </Typography>
+                    )}
                   </Box>
-                  {member.user_type === 'authenticated' && member.email && (
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      {member.email}
-                    </Typography>
-                  )}
                 </Box>
-              </Box>
-            ))}
+              );
+            })}
           </Box>
         </Paper>
       )}
@@ -222,6 +249,7 @@ const SharedReceipt: React.FC = () => {
         <MemberTotals 
           items={sharedReceipt.items}
           members={sharedReceipt.members}
+          getMemberColor={getMemberColor}
         />
       </Box>
 
@@ -230,7 +258,12 @@ const SharedReceipt: React.FC = () => {
         <Typography variant="h5" gutterBottom>
           Receipt Items
         </Typography>
-        <ItemsTable items={sharedReceipt.items} members={sharedReceipt.members} />
+        <ItemsTable 
+          items={sharedReceipt.items} 
+          members={sharedReceipt.members}
+          getMemberColor={getMemberColor}
+          isSharedView={true}
+        />
       </Box>
 
       {/* Call to Action */}

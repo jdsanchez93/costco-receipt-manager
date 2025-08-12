@@ -17,6 +17,7 @@ import { ReceiptItem, ReceiptMember } from '../types/singleTableTypes';
 interface MemberTotalsProps {
   items: ReceiptItem[];
   members: ReceiptMember[];
+  getMemberColor?: (userId: string) => string;
 }
 
 interface MemberTotal {
@@ -28,7 +29,7 @@ interface MemberTotal {
   itemCount: number;
 }
 
-const MemberTotals: React.FC<MemberTotalsProps> = ({ items, members }) => {
+const MemberTotals: React.FC<MemberTotalsProps> = ({ items, members, getMemberColor }) => {
   // Calculate totals for each member
   const memberTotals: MemberTotal[] = members.map(member => {
     const memberId = member.user_id || member.placeholder_id || '';
@@ -96,16 +97,21 @@ const MemberTotals: React.FC<MemberTotalsProps> = ({ items, members }) => {
         mb: 3
       }}>
         {/* Individual Member Totals */}
-        {memberTotals.map((memberTotal) => (
-          <Paper variant="outlined" sx={{ p: 2, height: '100%' }} key={memberTotal.member.SK}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <Chip
-                icon={getMemberIcon(memberTotal.member)}
-                label={getMemberDisplayName(memberTotal.member)}
-                color={memberTotal.member.user_type === 'authenticated' ? 'primary' : 'default'}
-                size="small"
-              />
-            </Box>
+        {memberTotals.map((memberTotal) => {
+          const memberId = memberTotal.member.user_id || memberTotal.member.placeholder_id || '';
+          const memberColor = getMemberColor ? getMemberColor(memberId) : 
+            (memberTotal.member.user_type === 'authenticated' ? 'primary' : 'default');
+          
+          return (
+            <Paper variant="outlined" sx={{ p: 2, height: '100%' }} key={memberTotal.member.SK}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <Chip
+                  icon={getMemberIcon(memberTotal.member)}
+                  label={getMemberDisplayName(memberTotal.member)}
+                  color={memberColor as any}
+                  size="small"
+                />
+              </Box>
 
             <Stack spacing={1}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -149,7 +155,8 @@ const MemberTotals: React.FC<MemberTotalsProps> = ({ items, members }) => {
               </Box>
             </Stack>
           </Paper>
-        ))}
+          );
+        })}
 
         {/* Unassigned Items */}
         {unassignedItems.length > 0 && (
