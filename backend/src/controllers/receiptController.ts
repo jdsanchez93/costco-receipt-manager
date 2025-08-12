@@ -559,12 +559,14 @@ export const clearAllItemAssignments = async (req: AuthRequest, res: Response) =
     const results = [];
     for (const item of items) {
       try {
-        await SingleTableService.updateReceiptItemAssignments(receiptId, item.item_number, []);
-        results.push({ itemId: item.item_number, success: true });
+        // Extract item index from SK (e.g., "ITEM#001" -> "001")
+        const itemIndex = item.SK.replace('ITEM#', '');
+        await SingleTableService.updateReceiptItemAssignments(receiptId, itemIndex, []);
+        results.push({ itemId: itemIndex, success: true });
       } catch (err) {
-        console.error(`Error clearing item ${item.item_number}:`, err);
+        console.error(`Error clearing item ${item.SK}:`, err);
         const errorMessage = (err instanceof Error) ? err.message : String(err);
-        results.push({ itemId: item.item_number, success: false, error: errorMessage });
+        results.push({ itemId: item.SK, success: false, error: errorMessage });
       }
     }
 
