@@ -12,6 +12,7 @@ import {
   validateReceiptSubtotal,
   getReceiptMembers,
   addReceiptMember,
+  updateMemberDetails,
   createReceiptShare,
   getReceiptShares,
   getSharedReceipt,
@@ -55,6 +56,7 @@ router.post('/validate/:receiptId', checkJwt, validateReceiptSubtotal);
 // Receipt members routes
 router.get('/receipt/:receiptId/members', checkJwt, getReceiptMembers);
 router.post('/receipt/:receiptId/members', checkJwt, addReceiptMember);
+router.put('/receipt/:receiptId/members/update-details', checkJwt, updateMemberDetails);
 
 // Receipt sharing routes
 router.post('/receipt/:receiptId/share', checkJwt, createReceiptShare);

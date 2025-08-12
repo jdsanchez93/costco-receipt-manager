@@ -323,6 +323,30 @@ export const getActiveSharesForReceipt = async (receiptId: string): Promise<Rece
   return activeShares;
 };
 
+export const updateReceiptMemberDetails = async (
+  receiptId: string, 
+  userId: string, 
+  displayName: string, 
+  email: string
+): Promise<void> => {
+  await dynamoDbClient.send(new UpdateCommand({
+    TableName: TABLES.MAIN,
+    Key: {
+      PK: `RECEIPT#${receiptId}`,
+      SK: `USER#${userId}`,
+    },
+    UpdateExpression: 'SET display_name = :displayName, email = :email, updated_at = :updatedAt',
+    ExpressionAttributeValues: {
+      ':displayName': displayName,
+      ':email': email,
+      ':updatedAt': new Date().toISOString(),
+      ':emptyString': '',
+    },
+    // Only update if the member exists and has empty display_name
+    ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK) AND (attribute_not_exists(display_name) OR display_name = :emptyString)',
+  }));
+};
+
 // ==================== ITEM ASSIGNMENTS ====================
 
 export const updateReceiptItemAssignments = async (receiptId: string, itemId: string, assignedUsers: string[]): Promise<void> => {

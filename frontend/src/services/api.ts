@@ -130,6 +130,24 @@ export const addReceiptMember = async (
   return response.data;
 };
 
+export const updateMemberDetails = async (
+  receiptId: string, 
+  email: string, 
+  name: string | undefined, 
+  token: string
+) => {
+  const response = await api.put(`/api/receipts/receipt/${receiptId}/members/update-details`, {
+    email,
+    name
+  }, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return response.data;
+};
+
 // ==================== RECEIPT SHARING ====================
 
 export const createReceiptShare = async (

@@ -578,3 +578,51 @@ export const clearAllItemAssignments = async (req: AuthRequest, res: Response) =
     res.status(500).json({ error: 'Failed to clear assignments' });
   }
 };
+
+// ==================== MEMBER DETAILS UPDATE ====================
+
+export const updateMemberDetails = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.auth?.sub;
+    
+    // Get user details from request body (sent from frontend)
+    const { email: userEmail, name: userName } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    if (!userEmail) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const { receiptId } = req.params;
+
+    if (!receiptId) {
+      return res.status(400).json({ error: 'Receipt ID is required' });
+    }
+
+    // Verify the user is a member of this receipt
+    const receiptMembers = await SingleTableService.getUserReceipts(userId);
+    const membership = receiptMembers.find(r => r.receipt_id === receiptId);
+
+    if (!membership) {
+      return res.status(404).json({ error: 'Receipt not found or access denied' });
+    }
+
+    // Update member details with JWT information
+    const displayName = userName || userEmail.split('@')[0]; // Use name or fallback to email prefix
+    await SingleTableService.updateReceiptMemberDetails(receiptId, userId, displayName, userEmail);
+
+    res.json({
+      message: 'Member details updated successfully',
+      receiptId,
+      userId,
+      displayName,
+      email: userEmail
+    });
+  } catch (error) {
+    console.error('Error updating member details:', error);
+    res.status(500).json({ error: 'Failed to update member details' });
+  }
+};

@@ -17,7 +17,7 @@ import ReceiptValidation from './ReceiptValidation';
 import ReceiptMembers from './ReceiptMembers';
 import ReceiptSharing from './ReceiptSharing';
 import ItemAssignment from './ItemAssignment';
-import { getReceiptItems, getUserReceipts, getReceiptMembers } from '../services/api';
+import { getReceiptItems, getUserReceipts, getReceiptMembers, updateMemberDetails } from '../services/api';
 import { ReceiptMember, ReceiptItem as SingleTableReceiptItem } from '../types/singleTableTypes';
 
 // Use the single table types
@@ -34,7 +34,7 @@ const Receipt: React.FC = () => {
   const params = useParams();
   const receiptId = params?.receiptId;
   const navigate = useNavigate();
-  const { getAccessTokenSilently } = useAuth0();
+  const { getAccessTokenSilently, user } = useAuth0();
 
   const fetchReceiptData = useCallback(async () => {
     if (!receiptId) {
@@ -71,13 +71,38 @@ const Receipt: React.FC = () => {
       ]);
       setItems(itemsData);
       setMembers(membersData);
+
+      // Check if current user's member details need updating
+      if (user?.sub && user?.email) {
+        const currentUserMember = membersData.find((member: ReceiptMember) => 
+          member.user_id === user.sub && member.user_type === 'authenticated'
+        );
+        
+        // If the member exists but has empty display_name, update it
+        if (currentUserMember && (!currentUserMember.display_name || currentUserMember.display_name === '')) {
+          try {
+            await updateMemberDetails(
+              receiptId, 
+              user.email,
+              user.name || user.nickname,
+              token
+            );
+            // Refresh member data to get updated details
+            const updatedMembersData = await getReceiptMembers(receiptId, token);
+            setMembers(updatedMembersData);
+          } catch (error) {
+            console.warn('Failed to update member details:', error);
+            // Continue without showing error to user since this is a background operation
+          }
+        }
+      }
     } catch (err) {
       console.error('Error fetching receipt data:', err);
       setError('Failed to load receipt data');
     } finally {
       setLoading(false);
     }
-  }, [receiptId, getAccessTokenSilently]);
+  }, [receiptId, getAccessTokenSilently, user?.sub, user?.email, user?.name, user?.nickname]);
 
   useEffect(() => {
     fetchReceiptData();
