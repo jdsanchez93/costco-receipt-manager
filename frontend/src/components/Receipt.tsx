@@ -17,6 +17,7 @@ import ReceiptValidation from './ReceiptValidation';
 import ReceiptMembers from './ReceiptMembers';
 import ReceiptSharing from './ReceiptSharing';
 import ItemAssignment from './ItemAssignment';
+import MemberTotals from './MemberTotals';
 import { getReceiptItems, getUserReceipts, getReceiptMembers, updateMemberDetails } from '../services/api';
 import { ReceiptMember, ReceiptItem as SingleTableReceiptItem } from '../types/singleTableTypes';
 
@@ -329,6 +330,16 @@ const Receipt: React.FC = () => {
         </Typography>
         <ReceiptSharing 
           receiptId={receiptId || ''}
+        />
+      </Box>
+
+      <Box mb={3}>
+        <Typography variant="h5" gutterBottom>
+          Member Totals
+        </Typography>
+        <MemberTotals 
+          items={items}
+          members={members}
         />
       </Box>
 
