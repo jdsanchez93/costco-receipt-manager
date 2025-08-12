@@ -31,6 +31,19 @@ const Receipt: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryStatus, setRetryStatus] = useState<string | null>(null);
+
+  // Color palette for members (cycling through colors)
+  const memberColors = [
+    'primary', 'secondary', 'error', 'warning', 'info', 'success'
+  ] as const;
+
+  // Helper function to get consistent color for a member
+  const getMemberColor = (memberId: string) => {
+    const memberIndex = members.findIndex(m => 
+      (m.user_id === memberId) || (m.placeholder_id === memberId)
+    );
+    return memberIndex >= 0 ? memberColors[memberIndex % memberColors.length] : 'default';
+  };
   
   // Move hooks after state initialization
   const params = useParams();
@@ -340,6 +353,7 @@ const Receipt: React.FC = () => {
         <MemberTotals 
           items={items}
           members={members}
+          getMemberColor={getMemberColor}
         />
       </Box>
 
@@ -352,6 +366,7 @@ const Receipt: React.FC = () => {
           members={members}
           receiptId={receiptId || ''}
           onAssignmentChange={fetchReceiptData}
+          getMemberColor={getMemberColor}
         />
       </Box>
     </Container>

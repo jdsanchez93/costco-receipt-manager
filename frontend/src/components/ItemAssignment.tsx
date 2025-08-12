@@ -33,6 +33,7 @@ interface ItemAssignmentProps {
   members: ReceiptMember[];
   receiptId: string;
   onAssignmentChange: () => void;
+  getMemberColor?: (userId: string) => string;
 }
 
 const ItemAssignment: React.FC<ItemAssignmentProps> = ({
@@ -40,6 +41,7 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
   members,
   receiptId,
   onAssignmentChange,
+  getMemberColor,
 }) => {
   const { user, getAccessTokenSilently } = useAuth0();
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -430,7 +432,7 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
                           size="small"
                           icon={getMemberIcon(member)}
                           onDelete={() => toggleItemAssignment(item.SK, userId)}
-                          color={member.user_type === 'authenticated' ? 'primary' : 'default'}
+                          color={getMemberColor ? getMemberColor(userId) as any : (member.user_type === 'authenticated' ? 'primary' : 'default')}
                         />
                       );
                     })
