@@ -152,7 +152,6 @@ export const getUserReceipts = async (userId: string): Promise<ReceiptMember[]> 
       ':pk': `USER#${userId}`,
     },
   }));
-  console.log('getUserReceipts result:', result);
 
   // Filter to only RECEIPT_MEMBER entities
   return (result.Items || []).filter(item => item.entity_type === 'RECEIPT_MEMBER') as ReceiptMember[];

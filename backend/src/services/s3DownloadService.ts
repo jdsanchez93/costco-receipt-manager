@@ -18,16 +18,12 @@ export const getS3DownloadUrl = async (
     throw new Error('S3_DOWNLOAD_API_URL not configured');
   }
 
-  console.log('Requesting S3 download URL for receipt:', receiptId);
-  
   try {
     const response = await axios.get(`${apiUrl}/${receiptId}`, {
       headers: {
         'Authorization': `Bearer ${userToken}`,
       },
     });
-
-    console.log('S3 download URL response:', response.status);
     
     return response.data;
   } catch (error: any) {

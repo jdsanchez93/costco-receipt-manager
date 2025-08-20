@@ -24,8 +24,6 @@ export const getS3UploadUrl = async (
     requestBody.content_type = contentType;
   }
 
-  console.log('Requesting S3 upload URL from external API with body:', requestBody);
-  
   try {
     const response = await axios.post(apiUrl, requestBody, {
       headers: {
@@ -33,8 +31,6 @@ export const getS3UploadUrl = async (
         'Content-Type': 'application/json',
       },
     });
-
-    console.log('S3 upload URL response:', response.status, response.data);
     
     return response.data;
   } catch (error: any) {
