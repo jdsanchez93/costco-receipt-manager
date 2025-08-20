@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import { PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { dynamoDbClient, TABLES } from '../config/dynamodb';
 import { v4 as uuidv4 } from 'uuid';
-import sharp from 'sharp';
 import axios from 'axios';
 import { getS3UploadUrl } from '../services/s3UploadService';
 import { getS3DownloadUrl } from '../services/s3DownloadService';
@@ -94,45 +93,6 @@ export const getUploadUrl = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// DEPRECATED: This function is no longer used. 
-// Upload flow now uses getUploadUrl + direct S3 upload + S3 event lambda processing
-export const uploadReceipt = async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.auth?.sub;
-    if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    const receiptId = uuidv4();
-    const fileName = `${receiptId}-${req.file.originalname}`;
-    
-    // Process image (resize/optimize)
-    const processedImage = await sharp(req.file.buffer)
-      .resize(2000, null, { withoutEnlargement: true })
-      .jpeg({ quality: 80 })
-      .toBuffer();
-
-    // TODO: Upload to S3 and get URL
-    const fileUrl = `https://your-s3-bucket.s3.amazonaws.com/receipts/${fileName}`;
-
-    // NOTE: The S3 event notification lambda now handles all initial database population
-    // This function should be removed in favor of the getUploadUrl + S3 direct upload flow
-
-    res.json({ 
-      message: 'Receipt uploaded successfully', 
-      receiptId,
-      status: 'pending'
-    });
-  } catch (error) {
-    console.error('Error uploading receipt:', error);
-    res.status(500).json({ error: 'Failed to upload receipt' });
-  }
-};
-
 export const getUserReceipts = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.auth?.sub;
@@ -160,28 +120,30 @@ export const getReceiptItems = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const getAllItems = async (req: AuthRequest, res: Response) => {
+export const validateReceiptSubtotal = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.auth?.sub;
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // First get all receipts where user is a member
-    const receiptMembers = await SingleTableService.getUserReceipts(userId);
-    const receiptIds = receiptMembers.map(member => member.receipt_id);
+    const { receiptId } = req.params;
+    const { isValid, comments } = req.body;
 
-    // Get all items for these receipts
-    const allItems: ReceiptItem[] = [];
-    for (const receiptId of receiptIds) {
-      const items = await SingleTableService.getReceiptItems(receiptId);
-      allItems.push(...items);
+    if (typeof isValid !== 'boolean') {
+      return res.status(400).json({ error: 'isValid must be a boolean' });
     }
 
-    res.json(allItems);
+    // Update the receipt validation status using single table service
+    await SingleTableService.updateUserReceiptValidation(userId, receiptId, isValid, comments);
+
+    res.json({ 
+      message: 'Validation updated successfully',
+      validationStatus: isValid ? 'confirmed' : 'disputed'
+    });
   } catch (error) {
-    console.error('Error fetching all items:', error);
-    res.status(500).json({ error: 'Failed to fetch items' });
+    console.error('Error updating validation:', error);
+    res.status(500).json({ error: 'Failed to update validation' });
   }
 };
 
@@ -212,33 +174,6 @@ export const getReceiptGeometryData = async (req: AuthRequest, res: Response) =>
   } catch (error) {
     console.error('Error fetching receipt geometry:', error);
     res.status(500).json({ error: 'Failed to fetch receipt geometry' });
-  }
-};
-
-export const validateReceiptSubtotal = async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.auth?.sub;
-    if (!userId) {
-      return res.status(401).json({ error: 'User not authenticated' });
-    }
-
-    const { receiptId } = req.params;
-    const { isValid, comments } = req.body;
-
-    if (typeof isValid !== 'boolean') {
-      return res.status(400).json({ error: 'isValid must be a boolean' });
-    }
-
-    // Update the receipt validation status using single table service
-    await SingleTableService.updateUserReceiptValidation(userId, receiptId, isValid, comments);
-
-    res.json({ 
-      message: 'Validation updated successfully',
-      validationStatus: isValid ? 'confirmed' : 'disputed'
-    });
-  } catch (error) {
-    console.error('Error updating validation:', error);
-    res.status(500).json({ error: 'Failed to update validation' });
   }
 };
 
