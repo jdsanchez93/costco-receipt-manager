@@ -343,7 +343,7 @@ class SingleTableService {
       KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk_prefix)',
       ExpressionAttributeValues: {
         ':pk': `RECEIPT#${receiptId}`,
-        ':sk_prefix': 'GEOMETRY'
+        ':sk_prefix': 'GEOMETRY#'
       }
     };
 
@@ -355,11 +355,32 @@ class SingleTableService {
         return {};
       }
 
-      // Transform the geometry data into the expected format
+      // Transform the geometry data into the expected format (matching original backend)
       const geometryData = {};
       result.Items.forEach(item => {
-        if (item.field_name && item.geometry_data) {
-          geometryData[item.field_name] = item.geometry_data;
+        if (item.field_name && item.field_type) {
+          const fieldName = item.field_name.toLowerCase();
+          const fieldType = item.field_type;
+          
+          if (!geometryData[fieldName]) {
+            geometryData[fieldName] = {};
+          }
+          
+          // Transform the data to match the original format
+          geometryData[fieldName][fieldType] = {
+            text: item.text,
+            confidence: item.confidence ? parseFloat(item.confidence.toString()) : 0,
+            bounding_box: item.bounding_box ? {
+              Width: parseFloat(item.bounding_box.Width?.toString() || '0'),
+              Height: parseFloat(item.bounding_box.Height?.toString() || '0'),
+              Left: parseFloat(item.bounding_box.Left?.toString() || '0'),
+              Top: parseFloat(item.bounding_box.Top?.toString() || '0')
+            } : {},
+            polygon: item.polygon ? item.polygon.map(point => ({
+              X: parseFloat(point.X?.toString() || '0'),
+              Y: parseFloat(point.Y?.toString() || '0')
+            })) : []
+          };
         }
       });
       
