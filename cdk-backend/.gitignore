@@ -1,0 +1,50 @@
+# CDK compiled files (TypeScript output only)
+/lib/**/*.js
+/lib/**/*.d.ts
+/bin/**/*.js
+/bin/**/*.d.ts
+/test/**/*.js
+/test/**/*.d.ts
+*.js.map
+
+# Node modules
+node_modules
+
+# CDK output
+cdk.out
+cdk.context.json
+cdk.context.json.backup
+
+# Lambda dependencies
+lambda/layers/shared/nodejs/node_modules/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# AWS
+.aws/
+
+# Temporary files
+*.tmp
+*.temp

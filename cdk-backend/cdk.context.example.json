@@ -1,0 +1,13 @@
+{
+  "mainTableName": "your-dynamodb-table-name",
+  "auth0Domain": "your-auth0-domain.auth0.com",
+  "auth0Audience": "your-api-audience",
+  "s3UploadApiUrl": "https://your-api-gateway.execute-api.us-east-1.amazonaws.com/Prod/upload-url",
+  "s3DownloadApiUrl": "https://your-api-gateway.execute-api.us-east-1.amazonaws.com/Prod/download-url",
+  "deployFrontend": true,
+  "customDomainName": "your-custom-domain.com",
+  "certificateArn": "arn:aws:acm:us-east-1:YOUR_ACCOUNT_ID:certificate/YOUR_CERT_ID",
+  "acknowledged-issue-numbers": [
+    34892
+  ]
+}
