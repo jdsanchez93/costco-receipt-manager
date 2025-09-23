@@ -72,6 +72,7 @@ export class CostcoReceiptsStack extends cdk.Stack {
         auth0Audience,
         s3UploadApiUrl,
         s3DownloadApiUrl,
+        customDomainName,
       }
     );
 
@@ -108,6 +109,7 @@ export class CostcoReceiptsStack extends cdk.Stack {
       auth0Audience: string;
       s3UploadApiUrl: string;
       s3DownloadApiUrl: string;
+      customDomainName?: string;
     }
   ) {
     const environment = {
@@ -116,6 +118,7 @@ export class CostcoReceiptsStack extends cdk.Stack {
       AUTH0_AUDIENCE: envVars.auth0Audience,
       S3_UPLOAD_API_URL: envVars.s3UploadApiUrl,
       S3_DOWNLOAD_API_URL: envVars.s3DownloadApiUrl,
+      CLOUDFRONT_DOMAIN: envVars.customDomainName || '',
     };
 
     const commonProps = {

@@ -30,12 +30,13 @@ exports.handler = async (event) => {
     );
     
     // Add the full share URL to the response
-    const baseUrl = `https://${event.headers?.Host || event.requestContext?.domainName}`;
-    share.shareUrl = `${baseUrl}/shared/${share.share_token}`;
+    // Use CloudFront domain if configured, otherwise fall back to API Gateway domain
+    const cloudfrontDomain = process.env.CLOUDFRONT_DOMAIN;
+    const baseUrl = cloudfrontDomain 
+      ? `https://${cloudfrontDomain}`
+      : `https://${event.headers?.Host || event.requestContext?.domainName}`;
+    share.shareUrl = `${baseUrl}/shared-receipt/${share.share_token}`;
     
-    return {
-      message: 'Share created successfully',
-      share
-    };
+    return share;
   });
 };

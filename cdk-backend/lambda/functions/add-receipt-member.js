@@ -36,6 +36,7 @@ exports.handler = async (event) => {
       memberId,
       displayName,
       email || '',
+      user.userId,
       userType
     );
     

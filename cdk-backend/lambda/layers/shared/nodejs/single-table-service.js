@@ -57,19 +57,23 @@ class SingleTableService {
     }
   }
 
-  async createReceiptMember(receiptId, userId, displayName, email, userType = 'authenticated') {
+  async createReceiptMember(receiptId, userId, displayName, email, addedByUserId, userType = 'authenticated') {
     logger.info('Creating receipt member', { receiptId, userId, userType });
     
     const member = {
-      PK: `USER#${userId}`,
-      SK: `RECEIPT#${receiptId}`,
-      GSI1PK: `RECEIPT#${receiptId}`,
-      GSI1SK: `USER#${userId}`,
+      PK: `RECEIPT#${receiptId}`,
+      SK: `USER#${userId}`,
+      GSI1PK: `USER#${userId}`,
+      GSI1SK: `RECEIPT#${receiptId}`,
+      entity_type: 'RECEIPT_MEMBER',
+      user_type: userType,
       receipt_id: receiptId,
+      placeholder_id: userType === 'placeholder' ? userId : '',
       user_id: userId,
       display_name: displayName,
       email: email,
       user_type: userType,
+      added_by: addedByUserId,
       added_at: new Date().toISOString()
     };
 
@@ -93,15 +97,18 @@ class SingleTableService {
     const params = {
       TableName: this.mainTable,
       Key: {
-        PK: `USER#${userId}`,
-        SK: `RECEIPT#${receiptId}`
+        PK: `RECEIPT#${receiptId}`,
+        SK: `USER#${userId}`,
       },
       UpdateExpression: 'SET display_name = :displayName, email = :email, updated_at = :updatedAt',
       ExpressionAttributeValues: {
         ':displayName': displayName,
         ':email': email,
-        ':updatedAt': new Date().toISOString()
-      }
+        ':updatedAt': new Date().toISOString(),
+        ':emptyString': '',
+      },
+      // Only update if the member exists and has empty display_name
+      ConditionExpression: 'attribute_exists(PK) AND attribute_exists(SK) AND (attribute_not_exists(display_name) OR display_name = :emptyString)',
     };
 
     try {
@@ -226,20 +233,24 @@ class SingleTableService {
     logger.info('Creating receipt share', { receiptId, userId, expiresInDays });
     
     const shareToken = uuidv4();
+    const createdAt = new Date();
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+    expiresAt.setDate(createdAt.getDate() + expiresInDays);
+    const expiresAtTimestamp = Math.floor(expiresAt.getTime() / 1000);
 
     const share = {
-      PK: `RECEIPT#${receiptId}`,
-      SK: `SHARE#${shareToken}`,
-      GSI1PK: `SHARE#${shareToken}`,
-      GSI1SK: `RECEIPT#${receiptId}`,
-      share_token: shareToken,
+      PK: `SHARE#${shareToken}`,
+      SK: `RECEIPT#${receiptId}`,
+      GSI2PK: `RECEIPT#${receiptId}`,
+      GSI2SK: `SHARE#${shareToken}`,
+      entity_type: 'RECEIPT_SHARE',
       receipt_id: receiptId,
-      created_by: userId,
-      created_at: new Date().toISOString(),
-      expiresAt: expiresAt.toISOString(),
-      current_uses: 0
+      owner_user_id: userId,
+      share_token: shareToken,
+      created_at: createdAt.toISOString(),
+      expires_at: expiresAtTimestamp,
+      is_active: true,
+      current_uses: 0,
     };
 
     try {
@@ -288,11 +299,10 @@ class SingleTableService {
     // Get share info
     const shareParams = {
       TableName: this.mainTable,
-      IndexName: 'GSI1',
-      KeyConditionExpression: 'GSI1PK = :gsi1pk',
+      KeyConditionExpression: 'PK = :pk',
       ExpressionAttributeValues: {
-        ':gsi1pk': `SHARE#${shareToken}`
-      }
+        ':pk': `SHARE#${shareToken}`,
+      },
     };
 
     try {
@@ -303,32 +313,20 @@ class SingleTableService {
 
       const share = shareResult.Items[0];
       
-      // Check if expired
-      if (new Date(share.expiresAt) < new Date()) {
-        throw new Error('Share expired');
+      // Check if share is still active
+      if (!share.is_active) {
+        return null;
       }
 
-      // Get receipt data
-      const [members, items] = await Promise.all([
-        this.getReceiptMembers(share.receipt_id),
-        this.getReceiptItems(share.receipt_id)
-      ]);
-
-      // Increment usage count
-      await dynamodb.send(new UpdateCommand({
-        TableName: this.mainTable,
-        Key: { PK: share.PK, SK: share.SK },
-        UpdateExpression: 'SET current_uses = current_uses + :inc',
-        ExpressionAttributeValues: { ':inc': 1 }
-      }));
+      // Check if expired (TTL will handle cleanup, but we can check here too)
+      const now = Math.floor(Date.now() / 1000);
+      if (share.expires_at < now) {
+        return null;
+      }
 
       logger.info('Successfully retrieved shared receipt', { shareToken, receiptId: share.receipt_id });
       
-      return {
-        shareInfo: share,
-        members,
-        items
-      };
+      return share;
     } catch (error) {
       logger.error('Error getting shared receipt', { error: error.message, shareToken });
       throw error;

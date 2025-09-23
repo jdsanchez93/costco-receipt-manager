@@ -23,7 +23,11 @@ exports.handler = async (event) => {
     const shares = await singleTableService.getReceiptShares(receiptId);
     
     // Add full share URLs
-    const baseUrl = `https://${event.headers?.Host || event.requestContext?.domainName}`;
+    // Use CloudFront domain if configured, otherwise fall back to API Gateway domain
+    const cloudfrontDomain = process.env.CLOUDFRONT_DOMAIN;
+    const baseUrl = cloudfrontDomain 
+      ? `https://${cloudfrontDomain}`
+      : `https://${event.headers?.Host || event.requestContext?.domainName}`;
     shares.forEach(share => {
       share.shareUrl = `${baseUrl}/shared-receipt/${share.share_token}`;
       share.expiresAt = new Date(share.expires_at * 1000).toISOString();
