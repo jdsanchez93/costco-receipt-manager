@@ -60,12 +60,8 @@ export class CostcoReceiptsStack extends cdk.Stack {
       props.mainTableName
     );
 
-    // Lambda Layer for shared dependencies
-    const sharedLayer = this.createSharedLayer();
-
-    // Lambda Functions
-    const functions = this.createLambdaFunctions(
-      sharedLayer,
+    // Single .NET Lambda Function
+    const apiFunction = this.createDotNetApiFunction(
       mainTable,
       {
         auth0Domain,
@@ -77,7 +73,7 @@ export class CostcoReceiptsStack extends cdk.Stack {
     );
 
     // API Gateway
-    this.api = this.createApiGateway(functions);
+    this.api = this.createApiGateway(apiFunction);
 
     // Frontend resources (optional)
     if (deployFrontend) {
@@ -92,17 +88,7 @@ export class CostcoReceiptsStack extends cdk.Stack {
     this.createOutputs(deployFrontend);
   }
 
-  private createSharedLayer(): lambda.LayerVersion {
-    return new lambda.LayerVersion(this, 'SharedLayer', {
-      layerVersionName: `${this.stackName}-shared-layer`,
-      code: lambda.Code.fromAsset('lambda/layers/shared'),
-      compatibleRuntimes: [lambda.Runtime.NODEJS_18_X],
-      description: 'Shared dependencies for Costco Receipts Lambda functions',
-    });
-  }
-
-  private createLambdaFunctions(
-    sharedLayer: lambda.LayerVersion,
+  private createDotNetApiFunction(
     mainTable: dynamodb.ITable,
     envVars: {
       auth0Domain: string;
@@ -111,7 +97,7 @@ export class CostcoReceiptsStack extends cdk.Stack {
       s3DownloadApiUrl: string;
       customDomainName?: string;
     }
-  ) {
+  ): lambda.Function {
     const environment = {
       DYNAMODB_TABLE_MAIN: mainTable.tableName,
       AUTH0_DOMAIN: envVars.auth0Domain,
@@ -119,175 +105,51 @@ export class CostcoReceiptsStack extends cdk.Stack {
       S3_UPLOAD_API_URL: envVars.s3UploadApiUrl,
       S3_DOWNLOAD_API_URL: envVars.s3DownloadApiUrl,
       CLOUDFRONT_DOMAIN: envVars.customDomainName || '',
+      AWS_REGION: this.region,
     };
 
-    const commonProps = {
-      runtime: lambda.Runtime.NODEJS_18_X,
-      layers: [sharedLayer],
+    const apiFunction = new lambda.Function(this, 'CostcoReceiptsApiFunction', {
+      functionName: `${this.stackName}-api`,
+      runtime: lambda.Runtime.DOTNET_8,
+      code: lambda.Code.fromAsset('src', {
+        bundling: {
+          image: lambda.Runtime.DOTNET_8.bundlingImage,
+          command: [
+            '/bin/sh',
+            '-c',
+            'cd /asset-input && dotnet restore && dotnet publish CostcoReceipts.Api/CostcoReceipts.Api.csproj -c Release -o /asset-output --no-restore'
+          ],
+        },
+      }),
+      handler: 'CostcoReceipts.Api',
       environment,
       timeout: cdk.Duration.seconds(30),
-      memorySize: 512,
+      memorySize: 1024, // .NET typically needs more memory than Node.js
       logRetention: logs.RetentionDays.ONE_WEEK,
-    };
-
-    // Create functions
-    const getUserReceiptsFunction = new lambda.Function(this, 'GetUserReceiptsFunction', {
-      ...commonProps,
-      functionName: `${this.stackName}-get-user-receipts`,
-      code: lambda.Code.fromAsset('lambda/functions'),
-      handler: 'get-user-receipts.handler',
-      description: 'Get receipts for authenticated user',
+      description: 'Costco Receipts API - .NET 8 ASP.NET Core Lambda',
     });
 
-    const getReceiptItemsFunction = new lambda.Function(this, 'GetReceiptItemsFunction', {
-      ...commonProps,
-      functionName: `${this.stackName}-get-receipt-items`,
-      code: lambda.Code.fromAsset('lambda/functions'),
-      handler: 'get-receipt-items.handler',
-      description: 'Get items for a specific receipt',
-    });
+    // Grant DynamoDB permissions
+    mainTable.grantReadWriteData(apiFunction);
+    
+    // Grant access to GSI indexes
+    apiFunction.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        'dynamodb:Query',
+        'dynamodb:Scan'
+      ],
+      resources: [
+        `${mainTable.tableArn}/index/*`
+      ],
+    }));
 
-    const updateItemAssignmentFunction = new lambda.Function(this, 'UpdateItemAssignmentFunction', {
-      ...commonProps,
-      functionName: `${this.stackName}-update-item-assignment`,
-      code: lambda.Code.fromAsset('lambda/functions'),
-      handler: 'update-item-assignment.handler',
-      description: 'Update item assignments to members',
-    });
-
-    const getReceiptMembersFunction = new lambda.Function(this, 'GetReceiptMembersFunction', {
-      ...commonProps,
-      functionName: `${this.stackName}-get-receipt-members`,
-      code: lambda.Code.fromAsset('lambda/functions'),
-      handler: 'get-receipt-members.handler',
-      description: 'Get members for a specific receipt',
-    });
-
-    const addReceiptMemberFunction = new lambda.Function(this, 'AddReceiptMemberFunction', {
-      ...commonProps,
-      functionName: `${this.stackName}-add-receipt-member`,
-      code: lambda.Code.fromAsset('lambda/functions'),
-      handler: 'add-receipt-member.handler',
-      description: 'Add a member to a receipt',
-    });
-
-    const createReceiptShareFunction = new lambda.Function(this, 'CreateReceiptShareFunction', {
-      ...commonProps,
-      functionName: `${this.stackName}-create-receipt-share`,
-      code: lambda.Code.fromAsset('lambda/functions'),
-      handler: 'create-receipt-share.handler',
-      description: 'Create a shareable link for a receipt',
-    });
-
-    const getReceiptSharesFunction = new lambda.Function(this, 'GetReceiptSharesFunction', {
-      ...commonProps,
-      functionName: `${this.stackName}-get-receipt-shares`,
-      code: lambda.Code.fromAsset('lambda/functions'),
-      handler: 'get-receipt-shares.handler',
-      description: 'Get all share links for a receipt',
-    });
-
-    const getSharedReceiptFunction = new lambda.Function(this, 'GetSharedReceiptFunction', {
-      ...commonProps,
-      functionName: `${this.stackName}-get-shared-receipt`,
-      code: lambda.Code.fromAsset('lambda/functions'),
-      handler: 'get-shared-receipt.handler',
-      description: 'Get shared receipt data (public access)',
-    });
-
-    const getUploadUrlFunction = new lambda.Function(this, 'GetUploadUrlFunction', {
-      ...commonProps,
-      functionName: `${this.stackName}-get-upload-url`,
-      code: lambda.Code.fromAsset('lambda/functions'),
-      handler: 'get-upload-url.handler',
-      description: 'Get presigned URL for receipt upload',
-    });
-
-    const getDownloadUrlFunction = new lambda.Function(this, 'GetDownloadUrlFunction', {
-      ...commonProps,
-      functionName: `${this.stackName}-get-download-url`,
-      code: lambda.Code.fromAsset('lambda/functions'),
-      handler: 'get-download-url.handler',
-      description: 'Get presigned URL for receipt download',
-    });
-
-    const validateReceiptFunction = new lambda.Function(this, 'ValidateReceiptFunction', {
-      ...commonProps,
-      functionName: `${this.stackName}-validate-receipt`,
-      code: lambda.Code.fromAsset('lambda/functions'),
-      handler: 'validate-receipt.handler',
-      description: 'Validate receipt subtotal',
-    });
-
-    const updateMemberDetailsFunction = new lambda.Function(this, 'UpdateMemberDetailsFunction', {
-      ...commonProps,
-      functionName: `${this.stackName}-update-member-details`,
-      code: lambda.Code.fromAsset('lambda/functions'),
-      handler: 'update-member-details.handler',
-      description: 'Update member details with JWT info',
-    });
-
-    const getReceiptGeometryFunction = new lambda.Function(this, 'GetReceiptGeometryFunction', {
-      ...commonProps,
-      functionName: `${this.stackName}-get-receipt-geometry`,
-      code: lambda.Code.fromAsset('lambda/functions'),
-      handler: 'get-receipt-geometry.handler',
-      description: 'Get receipt geometry data',
-    });
-
-    // Grant DynamoDB permissions to all functions
-    const functions = [
-      getUserReceiptsFunction,
-      getReceiptItemsFunction,
-      updateItemAssignmentFunction,
-      getReceiptMembersFunction,
-      addReceiptMemberFunction,
-      createReceiptShareFunction,
-      getReceiptSharesFunction,
-      getSharedReceiptFunction,
-      getUploadUrlFunction,
-      getDownloadUrlFunction,
-      validateReceiptFunction,
-      updateMemberDetailsFunction,
-      getReceiptGeometryFunction,
-    ];
-
-    functions.forEach((fn) => {
-      mainTable.grantReadWriteData(fn);
-      
-      // Also grant access to GSI if needed
-      fn.addToRolePolicy(new iam.PolicyStatement({
-        actions: [
-          'dynamodb:Query',
-          'dynamodb:Scan'
-        ],
-        resources: [
-          `${mainTable.tableArn}/index/*`
-        ],
-      }));
-    });
-
-    return {
-      getUserReceipts: getUserReceiptsFunction,
-      getReceiptItems: getReceiptItemsFunction,
-      updateItemAssignment: updateItemAssignmentFunction,
-      getReceiptMembers: getReceiptMembersFunction,
-      addReceiptMember: addReceiptMemberFunction,
-      createReceiptShare: createReceiptShareFunction,
-      getReceiptShares: getReceiptSharesFunction,
-      getSharedReceipt: getSharedReceiptFunction,
-      getUploadUrl: getUploadUrlFunction,
-      getDownloadUrl: getDownloadUrlFunction,
-      validateReceipt: validateReceiptFunction,
-      updateMemberDetails: updateMemberDetailsFunction,
-      getReceiptGeometry: getReceiptGeometryFunction,
-    };
+    return apiFunction;
   }
 
-  private createApiGateway(functions: any): apigateway.RestApi {
+  private createApiGateway(apiFunction: lambda.Function): apigateway.RestApi {
     const api = new apigateway.RestApi(this, 'CostcoReceiptsApi', {
       restApiName: `${this.stackName}-api`,
-      description: 'Costco Receipt Management API',
+      description: 'Costco Receipt Management API (.NET)',
       defaultCorsPreflightOptions: {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
         allowMethods: apigateway.Cors.ALL_METHODS,
@@ -303,95 +165,17 @@ export class CostcoReceiptsStack extends cdk.Stack {
       binaryMediaTypes: ['image/*'],
     });
 
-    // API Routes
-    // Note: Authentication is handled within Lambda functions using auth-utils
-    const apiRoot = api.root.addResource('api');
-
-    // Health check (no auth)
-    const healthResource = api.root.addResource('health');
-    healthResource.addMethod('GET', new apigateway.MockIntegration({
-      integrationResponses: [{
-        statusCode: '200',
-        responseTemplates: {
-          'application/json': JSON.stringify({
-            status: 'ok',
-            timestamp: '$context.requestTime'
-          })
-        }
-      }],
-      requestTemplates: {
-        'application/json': '{"statusCode": 200}'
-      }
-    }), {
-      methodResponses: [{ statusCode: '200' }]
+    // Single Lambda proxy integration for all routes
+    const integration = new apigateway.LambdaIntegration(apiFunction, {
+      proxy: true,
+      allowTestInvoke: true,
     });
 
-    // Receipts resource
-    const receiptsResource = apiRoot.addResource('receipts');
-
-    // User receipts (authenticated)
-    const userReceiptsResource = receiptsResource.addResource('user-receipts');
-    userReceiptsResource.addMethod('GET', new apigateway.LambdaIntegration(functions.getUserReceipts));
-
-    // Upload URLs (authenticated)
-    const getUploadUrlResource = receiptsResource.addResource('get-upload-url');
-    getUploadUrlResource.addMethod('POST', new apigateway.LambdaIntegration(functions.getUploadUrl));
-
-    // Download URLs (authenticated)
-    const getDownloadUrlResource = receiptsResource.addResource('get-download-url');
-    const receiptDownloadResource = getDownloadUrlResource.addResource('{receiptId}');
-    receiptDownloadResource.addMethod('GET', new apigateway.LambdaIntegration(functions.getDownloadUrl));
-
-    // Receipt-specific resources
-    const receiptResource = receiptsResource.addResource('receipt');
-    const receiptIdResource = receiptResource.addResource('{receiptId}');
-
-    // Receipt items
-    const itemsResource = receiptIdResource.addResource('items');
-    itemsResource.addMethod('GET', new apigateway.LambdaIntegration(functions.getReceiptItems));
-
-    // Receipt geometry
-    const geometryResource = receiptIdResource.addResource('geometry');
-    geometryResource.addMethod('GET', new apigateway.LambdaIntegration(functions.getReceiptGeometry));
-
-    // Item assignment
-    const itemResource = itemsResource.addResource('{itemId}');
-    const assignmentResource = itemResource.addResource('assignment');
-    assignmentResource.addMethod('PUT', new apigateway.LambdaIntegration(functions.updateItemAssignment));
-
-    // Bulk assignments
-    const assignmentsResource = itemsResource.addResource('assignments');
-    const bulkAssignmentsResource = assignmentsResource.addResource('bulk');
-    bulkAssignmentsResource.addMethod('PUT', new apigateway.LambdaIntegration(functions.updateItemAssignment));
-
-    const allAssignmentsResource = assignmentsResource.addResource('all');
-    allAssignmentsResource.addMethod('DELETE', new apigateway.LambdaIntegration(functions.updateItemAssignment));
-
-    // Receipt members
-    const membersResource = receiptIdResource.addResource('members');
-    membersResource.addMethod('GET', new apigateway.LambdaIntegration(functions.getReceiptMembers));
-    membersResource.addMethod('POST', new apigateway.LambdaIntegration(functions.addReceiptMember));
-
-    // Update member details
-    const updateDetailsResource = membersResource.addResource('update-details');
-    updateDetailsResource.addMethod('PUT', new apigateway.LambdaIntegration(functions.updateMemberDetails));
-
-    // Receipt sharing
-    const shareResource = receiptIdResource.addResource('share');
-    shareResource.addMethod('POST', new apigateway.LambdaIntegration(functions.createReceiptShare));
-
-    const sharesResource = receiptIdResource.addResource('shares');
-    sharesResource.addMethod('GET', new apigateway.LambdaIntegration(functions.getReceiptShares));
-
-    // Receipt validation
-    const validateResource = receiptsResource.addResource('validate');
-    const validateReceiptResource = validateResource.addResource('{receiptId}');
-    validateReceiptResource.addMethod('POST', new apigateway.LambdaIntegration(functions.validateReceipt));
-
-    // Shared receipt (no auth required)
-    const sharedResource = receiptsResource.addResource('shared');
-    const sharedReceiptResource = sharedResource.addResource('{shareToken}');
-    sharedReceiptResource.addMethod('GET', new apigateway.LambdaIntegration(functions.getSharedReceipt));
+    // Proxy all requests to the single .NET Lambda function
+    api.root.addProxy({
+      defaultIntegration: integration,
+      anyMethod: true,
+    });
 
     return api;
   }
