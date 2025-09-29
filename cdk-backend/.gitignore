@@ -48,3 +48,19 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# .NET build artifacts
+src/**/bin/
+src/**/obj/
+src/**/*.dll
+src/**/*.pdb
+src/**/*.cache
+src/**/*.user
+src/**/.vs/
+
+# .NET publish output
+src/**/publish/
+src/**/out/
+
+# User secrets
+src/**/.config/
