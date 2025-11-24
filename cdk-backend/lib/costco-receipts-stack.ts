@@ -98,7 +98,7 @@ export class CostcoReceiptsStack extends cdk.Stack {
       customDomainName?: string;
     }
   ): lambda.Function {
-    const environment = {
+    const environment: { [key: string]: string } = {
       DYNAMODB_TABLE_MAIN: mainTable.tableName,
       AUTH0_DOMAIN: envVars.auth0Domain,
       AUTH0_AUDIENCE: envVars.auth0Audience,
@@ -107,6 +107,13 @@ export class CostcoReceiptsStack extends cdk.Stack {
       CLOUDFRONT_DOMAIN: envVars.customDomainName || '',
       AWS_REGION: this.region,
     };
+
+    // Configure CORS allowed origins for production
+    // .NET reads array configuration from environment variables using __ notation
+    if (envVars.customDomainName) {
+      // Set CORS to allow the custom domain where frontend is hosted
+      environment['Cors__AllowedOrigins__0'] = `https://${envVars.customDomainName}`;
+    }
 
     const apiFunction = new lambda.Function(this, 'CostcoReceiptsApiFunction', {
       functionName: `${this.stackName}-api`,

@@ -1,11 +1,19 @@
 namespace CostcoReceipts.Api.Configuration;
 
-public static class AppConfiguration
+public class AppConfiguration
 {
-    public static string Auth0Domain => Environment.GetEnvironmentVariable("AUTH0_DOMAIN") ?? "";
-    public static string Auth0Audience => Environment.GetEnvironmentVariable("AUTH0_AUDIENCE") ?? "";
-    public static string S3UploadApiUrl => Environment.GetEnvironmentVariable("S3_UPLOAD_API_URL") ?? "";
-    public static string S3DownloadApiUrl => Environment.GetEnvironmentVariable("S3_DOWNLOAD_API_URL") ?? "";
-    public static string CloudFrontDomain => Environment.GetEnvironmentVariable("CLOUDFRONT_DOMAIN") ?? "";
-    public static string AwsRegion => Environment.GetEnvironmentVariable("AWS_REGION") ?? "us-east-1";
+    private readonly IConfiguration _configuration;
+
+    public AppConfiguration(IConfiguration configuration)
+    {
+        _configuration = configuration;
+    }
+
+    public string Auth0Domain => _configuration["AUTH0_DOMAIN"] ?? "";
+    public string Auth0Audience => _configuration["AUTH0_AUDIENCE"] ?? "";
+    public string S3UploadApiUrl => _configuration["S3_UPLOAD_API_URL"] ?? "";
+    public string S3DownloadApiUrl => _configuration["S3_DOWNLOAD_API_URL"] ?? "";
+    public string CloudFrontDomain => _configuration["CLOUDFRONT_DOMAIN"] ?? "";
+    public string AwsRegion => _configuration["AWS:Region"] ?? "us-east-1";
+    public string AwsProfile => _configuration["AWS:Profile"] ?? "";
 }

@@ -10,14 +10,19 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <!-- Generate native AOT image during publishing to improve cold start time. -->
     <PublishAot>false</PublishAot>
+    <!-- User secrets for local development -->
+    <UserSecretsId>costco-receipts-api-5e7d9c4a-1b2d-4e8f-9a3c-6d7b8e9f0a1b</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Amazon.Lambda.AspNetCoreServer.Hosting" Version="1.6.0" />
     <PackageReference Include="AWSSDK.DynamoDBv2" Version="3.7.300" />
     <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.300" />
+    <PackageReference Include="AWSSDK.SSO" Version="3.7.300" />
+    <PackageReference Include="AWSSDK.SSOOIDC" Version="3.7.300" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
 

@@ -94,9 +94,6 @@ public class ValidateReceiptRequest
 
     [JsonPropertyName("comments")]
     public string? Comments { get; set; }
-
-    [JsonPropertyName("validatedAmount")]
-    public decimal? ValidatedAmount { get; set; }
 }
 
 // Shared Receipt Response

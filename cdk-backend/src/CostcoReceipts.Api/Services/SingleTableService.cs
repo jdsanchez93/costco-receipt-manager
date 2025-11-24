@@ -12,10 +12,13 @@ public class SingleTableService : ISingleTableService
     private readonly string _tableName;
     private readonly ILogger<SingleTableService> _logger;
 
-    public SingleTableService(IAmazonDynamoDB dynamoDb, ILogger<SingleTableService> logger)
+    public SingleTableService(
+        IAmazonDynamoDB dynamoDb, 
+        ILogger<SingleTableService> logger,
+        DynamoDbConfiguration dbConfig)
     {
         _dynamoDb = dynamoDb;
-        _tableName = DynamoDbConfiguration.MainTableName;
+        _tableName = dbConfig.MainTableName;
         _logger = logger;
     }
 
@@ -263,7 +266,7 @@ public class SingleTableService : ISingleTableService
 
     // Receipt Validation Methods
     public async Task ValidateReceiptSubtotalAsync(string receiptId, string userId, string validationStatus, 
-        decimal? validatedAmount, string? comments)
+        string? comments)
     {
         _logger.LogInformation("Validating receipt subtotal: receiptId={ReceiptId}, userId={UserId}, status={Status}", 
             receiptId, userId, validationStatus);
@@ -276,13 +279,13 @@ public class SingleTableService : ISingleTableService
                 { "PK", new AttributeValue($"RECEIPT#{receiptId}") },
                 { "SK", new AttributeValue($"USER#{userId}") }
             },
-            UpdateExpression = "SET validationStatus = :status, validatedAmount = :amount, validationComments = :comments, validatedAt = :validatedAt",
+            UpdateExpression = "SET validation_status = :status, validated_by = :userId, validated_at = :validatedAt, comments = :comments",
             ExpressionAttributeValues = new Dictionary<string, AttributeValue>
             {
                 { ":status", new AttributeValue(validationStatus) },
-                { ":amount", validatedAmount.HasValue ? new AttributeValue { N = validatedAmount.Value.ToString() } : new AttributeValue { NULL = true } },
-                { ":comments", new AttributeValue(comments ?? "") },
-                { ":validatedAt", new AttributeValue(DateTime.UtcNow.ToString("O")) }
+                { ":userId", new AttributeValue(userId) },
+                { ":validatedAt", new AttributeValue(DateTime.UtcNow.ToString("O")) },
+                { ":comments", new AttributeValue(comments ?? "") }
             }
         };
 
@@ -501,10 +504,10 @@ public class SingleTableService : ISingleTableService
             AddedBy = item.GetValueOrDefault("added_by")?.S ?? "",
             AddedAt = item.GetValueOrDefault("added_at")?.S ?? "",
             UpdatedAt = item.GetValueOrDefault("updated_at")?.S,
-            ValidationStatus = item.GetValueOrDefault("validationStatus")?.S,
-            ValidatedAmount = decimal.TryParse(item.GetValueOrDefault("validatedAmount")?.N, out var amount) ? amount : null,
-            ValidationComments = item.GetValueOrDefault("validationComments")?.S,
-            ValidatedAt = item.GetValueOrDefault("validatedAt")?.S
+            ValidationStatus = item.GetValueOrDefault("validation_status")?.S,
+            ValidatedBy = item.GetValueOrDefault("validated_by")?.S,
+            ValidatedAt = item.GetValueOrDefault("validated_at")?.S,
+            Comments = item.GetValueOrDefault("comments")?.S
         };
     }
 

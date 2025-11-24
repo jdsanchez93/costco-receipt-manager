@@ -21,15 +21,15 @@ import { getReceiptDownloadUrl, getReceiptGeometry, validateReceiptSubtotal } fr
 import { ReceiptMember } from '../types/singleTableTypes';
 
 interface BoundingBox {
-  Width: number;
-  Height: number;
-  Left: number;
-  Top: number;
+  width: number;
+  height: number;
+  left: number;
+  top: number;
 }
 
 interface Point {
-  X: number;
-  Y: number;
+  x: number;
+  y: number;
 }
 
 interface ReceiptGeometry {
@@ -157,10 +157,10 @@ const ReceiptValidation: React.FC<ReceiptValidationProps> = ({
     // Render subtotal label and value boxes
     if (geometryData.subtotal?.label) {
       const { bounding_box } = geometryData.subtotal.label;
-      const left = (bounding_box.Left * imageDimensions.width) - padding;
-      const top = (bounding_box.Top * imageDimensions.height) - padding;
-      const width = (bounding_box.Width * imageDimensions.width) + (padding * 2);
-      const height = (bounding_box.Height * imageDimensions.height) + (padding * 2);
+      const left = (bounding_box.left * imageDimensions.width) - padding;
+      const top = (bounding_box.top * imageDimensions.height) - padding;
+      const width = (bounding_box.width * imageDimensions.width) + (padding * 2);
+      const height = (bounding_box.height * imageDimensions.height) + (padding * 2);
 
       boxes.push(
         <div
@@ -182,10 +182,10 @@ const ReceiptValidation: React.FC<ReceiptValidationProps> = ({
 
     if (geometryData.subtotal?.value) {
       const { bounding_box } = geometryData.subtotal.value;
-      const left = (bounding_box.Left * imageDimensions.width) - padding;
-      const top = (bounding_box.Top * imageDimensions.height) - padding;
-      const width = (bounding_box.Width * imageDimensions.width) + (padding * 2);
-      const height = (bounding_box.Height * imageDimensions.height) + (padding * 2);
+      const left = (bounding_box.left * imageDimensions.width) - padding;
+      const top = (bounding_box.top * imageDimensions.height) - padding;
+      const width = (bounding_box.width * imageDimensions.width) + (padding * 2);
+      const height = (bounding_box.height * imageDimensions.height) + (padding * 2);
 
       boxes.push(
         <div
@@ -290,13 +290,13 @@ const ReceiptValidation: React.FC<ReceiptValidationProps> = ({
           />
         </Stack>
 
-        {receipt.validationStatus && (
-          <Alert 
-            severity={receipt.validationStatus === 'confirmed' ? 'success' : 'warning'}
+        {receipt.validation_status && (
+          <Alert
+            severity={receipt.validation_status === 'confirmed' ? 'success' : 'warning'}
             sx={{ mb: 2 }}
           >
-            This receipt has been {receipt.validationStatus} 
-            {receipt.validatedAt && ` on ${new Date(receipt.validatedAt).toLocaleDateString()}`}
+            This receipt has been {receipt.validation_status}
+            {receipt.validated_at && ` on ${new Date(receipt.validated_at).toLocaleDateString()}`}
           </Alert>
         )}
       </Box>
@@ -329,7 +329,7 @@ const ReceiptValidation: React.FC<ReceiptValidationProps> = ({
             variant="contained"
             color="success"
             onClick={() => setValidationDialogOpen(true)}
-            disabled={!geometryData.subtotal?.value || receipt.validationStatus === 'confirmed'}
+            disabled={!geometryData.subtotal?.value || receipt.validation_status === 'confirmed'}
           >
             {validationStatus.status === 'match' ? 'Confirm Match' : 'Confirm Anyway'}
           </Button>
@@ -337,7 +337,7 @@ const ReceiptValidation: React.FC<ReceiptValidationProps> = ({
             variant="outlined"
             color="error"
             onClick={() => setValidationDialogOpen(true)}
-            disabled={!geometryData.subtotal?.value || receipt.validationStatus === 'disputed'}
+            disabled={!geometryData.subtotal?.value || receipt.validation_status === 'disputed'}
           >
             Report Issue
           </Button>

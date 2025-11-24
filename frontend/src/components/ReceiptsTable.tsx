@@ -44,29 +44,29 @@ const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receiptMembers }) => {
       headerName: 'Your Role', 
       width: 150,
     },
-    { 
-      field: 'validationStatus', 
-      headerName: 'Validation', 
+    {
+      field: 'validation_status',
+      headerName: 'Validation',
       width: 130,
       renderCell: (params) => {
         const status = params.value as 'pending' | 'confirmed' | 'disputed' | undefined;
         if (!status) {
           return (
-            <Chip 
-              label="Pending" 
-              color="warning" 
-              size="small" 
+            <Chip
+              label="Pending"
+              color="warning"
+              size="small"
               icon={<PendingIcon />}
             />
           );
         }
-        
+
         const config = {
           confirmed: { label: 'Confirmed', color: 'success' as const, icon: <CheckCircleIcon /> },
           disputed: { label: 'Disputed', color: 'error' as const, icon: <ErrorIcon /> },
           pending: { label: 'Pending', color: 'warning' as const, icon: <PendingIcon /> },
         };
-        
+
         const { label, color, icon } = config[status] || config.pending;
         return <Chip label={label} color={color} size="small" icon={icon} />;
       },
@@ -78,7 +78,7 @@ const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receiptMembers }) => {
       sortable: false,
       renderCell: (params) => {
         const receiptId = params.row.receipt_id;
-        const needsValidation = !params.row.validationStatus;
+        const needsValidation = !params.row.validation_status;
         return (
           <Button 
             variant={needsValidation ? "contained" : "outlined"}

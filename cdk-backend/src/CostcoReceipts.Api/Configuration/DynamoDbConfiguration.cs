@@ -2,8 +2,17 @@ namespace CostcoReceipts.Api.Configuration;
 
 public class DynamoDbConfiguration
 {
-    public static string MainTableName => Environment.GetEnvironmentVariable("DYNAMODB_TABLE_MAIN") 
-        ?? "costco-receipt-parser-main";
+    private readonly IConfiguration _configuration;
+    
+    public DynamoDbConfiguration(IConfiguration configuration)
+    {
+        _configuration = configuration;
+    }
+    
+    public string MainTableName => _configuration["DYNAMODB_TABLE_MAIN"]
+        ?? throw new InvalidOperationException(
+            "DYNAMODB_TABLE_MAIN configuration is required but not found. " +
+            "Set it via environment variable, user secrets, or appsettings.json");
 
     public static class GSI
     {

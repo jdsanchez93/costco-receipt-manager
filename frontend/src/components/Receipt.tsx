@@ -288,27 +288,27 @@ const Receipt: React.FC = () => {
             </Typography>
           </Box>
 
-          {receiptMember.validationStatus && (
+          {receiptMember.validation_status && (
             <Box>
               <Typography variant="subtitle2" color="text.secondary">
                 Your Validation
               </Typography>
-              <Chip 
-                label={receiptMember.validationStatus} 
-                color={receiptMember.validationStatus === 'confirmed' ? 'success' : 
-                       receiptMember.validationStatus === 'disputed' ? 'error' : 'default'}
+              <Chip
+                label={receiptMember.validation_status}
+                color={receiptMember.validation_status === 'confirmed' ? 'success' :
+                       receiptMember.validation_status === 'disputed' ? 'error' : 'default'}
                 size="small"
               />
             </Box>
           )}
 
-          {receiptMember.validatedAt && (
+          {receiptMember.validated_at && (
             <Box>
               <Typography variant="subtitle2" color="text.secondary">
                 Validated On
               </Typography>
               <Typography variant="body1">
-                {new Date(receiptMember.validatedAt).toLocaleDateString()}
+                {new Date(receiptMember.validated_at).toLocaleDateString()}
               </Typography>
             </Box>
           )}

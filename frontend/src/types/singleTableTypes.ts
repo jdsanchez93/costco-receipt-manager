@@ -51,9 +51,9 @@ export interface ReceiptMember {
   claimed_at?: string;
   
   // Validation fields
-  validationStatus?: 'pending' | 'confirmed' | 'disputed';
-  validatedBy?: string;
-  validatedAt?: string;
+  validation_status?: 'pending' | 'confirmed' | 'disputed';
+  validated_by?: string;
+  validated_at?: string;
   comments?: string;
 }
 

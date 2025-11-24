@@ -15,15 +15,18 @@ public class ReceiptsController : ControllerBase
     private readonly ISingleTableService _singleTableService;
     private readonly ILogger<ReceiptsController> _logger;
     private readonly HttpClient _httpClient;
+    private readonly AppConfiguration _appConfig;
 
     public ReceiptsController(
         ISingleTableService singleTableService, 
         ILogger<ReceiptsController> logger,
-        HttpClient httpClient)
+        HttpClient httpClient,
+        AppConfiguration appConfig)
     {
         _singleTableService = singleTableService;
         _logger = logger;
         _httpClient = httpClient;
+        _appConfig = appConfig;
     }
 
     private string? GetUserId()
@@ -64,7 +67,7 @@ public class ReceiptsController : ControllerBase
             var contentType = request?.ContentType ?? "image/jpeg";
 
             // Call external S3 upload API
-            var uploadApiUrl = AppConfiguration.S3UploadApiUrl;
+            var uploadApiUrl = _appConfig.S3UploadApiUrl;
             if (string.IsNullOrEmpty(uploadApiUrl))
             {
                 return StatusCode(500, new { error = "S3 upload API URL not configured" });
@@ -135,7 +138,7 @@ public class ReceiptsController : ControllerBase
             }
 
             // Call external S3 download API
-            var downloadApiUrl = AppConfiguration.S3DownloadApiUrl;
+            var downloadApiUrl = _appConfig.S3DownloadApiUrl;
             if (string.IsNullOrEmpty(downloadApiUrl))
             {
                 return StatusCode(500, new { error = "S3 download API URL not configured" });
@@ -266,7 +269,6 @@ public class ReceiptsController : ControllerBase
                 receiptId, 
                 userId, 
                 validationStatus, 
-                request.ValidatedAmount, 
                 request.Comments);
 
             return Ok(new
@@ -479,7 +481,7 @@ public class ReceiptsController : ControllerBase
             var expiresInDays = request?.ExpiresInDays ?? 30;
             var share = await _singleTableService.CreateReceiptShareAsync(receiptId, userId, expiresInDays);
 
-            var cloudFrontDomain = AppConfiguration.CloudFrontDomain;
+            var cloudFrontDomain = _appConfig.CloudFrontDomain;
             var frontendUrl = !string.IsNullOrEmpty(cloudFrontDomain) 
                 ? $"https://{cloudFrontDomain}" 
                 : "http://localhost:3000";
@@ -489,7 +491,7 @@ public class ReceiptsController : ControllerBase
                 message = "Share link created successfully",
                 shareToken = share.ShareToken,
                 shareUrl = $"{frontendUrl}/shared-receipt/{share.ShareToken}",
-                expiresAt = DateTimeOffset.FromUnixTimeSeconds(share.ExpiresAt).ToString("O")
+                expiresAt = share.ExpiresAt
             });
         }
         catch (Exception ex)
@@ -527,7 +529,7 @@ public class ReceiptsController : ControllerBase
 
             var shares = await _singleTableService.GetReceiptSharesAsync(receiptId);
 
-            var cloudFrontDomain = AppConfiguration.CloudFrontDomain;
+            var cloudFrontDomain = _appConfig.CloudFrontDomain;
             var frontendUrl = !string.IsNullOrEmpty(cloudFrontDomain) 
                 ? $"https://{cloudFrontDomain}" 
                 : "http://localhost:3000";
@@ -544,8 +546,7 @@ public class ReceiptsController : ControllerBase
                 share.ExpiresAt,
                 share.IsActive,
                 share.CurrentUses,
-                shareUrl = $"{frontendUrl}/shared-receipt/{share.ShareToken}",
-                expiresAt = DateTimeOffset.FromUnixTimeSeconds(share.ExpiresAt).ToString("O")
+                shareUrl = $"{frontendUrl}/shared-receipt/{share.ShareToken}"
             });
 
             return Ok(result);

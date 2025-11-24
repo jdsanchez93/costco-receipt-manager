@@ -24,7 +24,7 @@ public interface ISingleTableService
 
     // Receipt Validation Methods
     Task ValidateReceiptSubtotalAsync(string receiptId, string userId, string validationStatus, 
-        decimal? validatedAmount, string? comments);
+        string? comments);
 
     // Receipt Sharing Methods
     Task<ReceiptShare> CreateReceiptShareAsync(string receiptId, string userId, int expiresInDays = 30);

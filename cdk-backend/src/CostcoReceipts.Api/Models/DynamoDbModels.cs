@@ -111,17 +111,17 @@ public class ReceiptMember : IDynamoDbEntity
     public string? UpdatedAt { get; set; }
 
     // Validation fields
-    [DynamoDBProperty("validationStatus")]
+    [DynamoDBProperty("validation_status")]
     public string? ValidationStatus { get; set; }
 
-    [DynamoDBProperty("validatedAmount")]
-    public decimal? ValidatedAmount { get; set; }
+    [DynamoDBProperty("validated_by")]
+    public string? ValidatedBy { get; set; }
 
-    [DynamoDBProperty("validationComments")]
-    public string? ValidationComments { get; set; }
-
-    [DynamoDBProperty("validatedAt")]
+    [DynamoDBProperty("validated_at")]
     public string? ValidatedAt { get; set; }
+
+    [DynamoDBProperty("comments")]
+    public string? Comments { get; set; }
 }
 
 // Receipt Share

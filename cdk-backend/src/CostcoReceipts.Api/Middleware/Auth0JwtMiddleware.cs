@@ -9,8 +9,11 @@ public static class Auth0JwtExtensions
 {
     public static IServiceCollection AddAuth0Jwt(this IServiceCollection services)
     {
-        var domain = AppConfiguration.Auth0Domain;
-        var audience = AppConfiguration.Auth0Audience;
+        var serviceProvider = services.BuildServiceProvider();
+        var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+        
+        var domain = configuration["AUTH0_DOMAIN"] ?? "";
+        var audience = configuration["AUTH0_AUDIENCE"] ?? "";
 
         if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(audience))
         {
