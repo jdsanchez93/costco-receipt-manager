@@ -18,16 +18,16 @@ const ItemsTable: React.FC<ItemsTableProps> = ({
 }) => {
   // Helper function to get member display name from user ID
   const getMemberDisplayName = (userId: string): string => {
-    const member = members.find(m => 
-      (m.user_id === userId) || (m.placeholder_id === userId)
+    const member = members.find(m =>
+      (m.userId === userId) || (m.placeholderId === userId)
     );
-    return member?.display_name || userId;
+    return member?.displayName || userId;
   };
   // Mobile-responsive column configuration
   const baseColumns: GridColDef[] = [
-    { 
-      field: 'item_number', 
-      headerName: 'Item #', 
+    {
+      field: 'itemNumber',
+      headerName: 'Item #',
       width: 100,
       hideable: true,
       // Hide on mobile for shared view
@@ -35,9 +35,9 @@ const ItemsTable: React.FC<ItemsTableProps> = ({
         hideable: true,
       })
     },
-    { 
-      field: 'item_name', 
-      headerName: 'Item Name', 
+    {
+      field: 'itemName',
+      headerName: 'Item Name',
       minWidth: 200,
       flex: 2, // Give more space on mobile
     },
@@ -58,18 +58,18 @@ const ItemsTable: React.FC<ItemsTableProps> = ({
         return value ? `-$${Number(value).toFixed(2)}` : '-';
       },
     },
-    { 
-      field: 'final_price', 
-      headerName: 'Total', 
+    {
+      field: 'finalPrice',
+      headerName: 'Total',
       width: 100,
       valueGetter: (value, row) => row.price - (row.discount || 0),
       valueFormatter: (value) => {
         return `$${Number(value).toFixed(2)}`;
       },
     },
-    { 
-      field: 'assigned_users', 
-      headerName: 'Assigned To', 
+    {
+      field: 'assignedUsers',
+      headerName: 'Assigned To',
       minWidth: 180,
       flex: 1.5,
       renderCell: (params) => {
@@ -119,9 +119,9 @@ const ItemsTable: React.FC<ItemsTableProps> = ({
           },
           columns: {
             columnVisibilityModel: {
-              // Hide item_number on mobile for shared view
+              // Hide itemNumber on mobile for shared view
               ...(isSharedView && {
-                item_number: false, // Hidden by default, can be toggled
+                itemNumber: false, // Hidden by default, can be toggled
               }),
             },
           },

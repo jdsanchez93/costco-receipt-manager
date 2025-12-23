@@ -38,8 +38,8 @@ const SharedReceipt: React.FC = () => {
   // Helper function to get consistent color for a member
   const getMemberColor = (memberId: string) => {
     if (!sharedReceipt) return 'default';
-    const memberIndex = sharedReceipt.members.findIndex(m => 
-      (m.user_id === memberId) || (m.placeholder_id === memberId)
+    const memberIndex = sharedReceipt.members.findIndex(m =>
+      (m.userId === memberId) || (m.placeholderId === memberId)
     );
     return memberIndex >= 0 ? memberColors[memberIndex % memberColors.length] : 'default';
   };
@@ -71,7 +71,7 @@ const SharedReceipt: React.FC = () => {
   }, [shareToken]);
 
   const getMemberIcon = (member: ReceiptMember) => {
-    if (member.user_type === 'authenticated') {
+    if (member.userType === 'authenticated') {
       return <AccountCircleIcon color="primary" />;
     } else {
       return <PersonIcon color="action" />;
@@ -187,7 +187,7 @@ const SharedReceipt: React.FC = () => {
             gap: 2 
           }}>
             {sharedReceipt.members.map((member, index) => {
-              const memberId = member.user_id || member.placeholder_id || '';
+              const memberId = member.userId || member.placeholderId || '';
               const memberColor = memberColors[index % memberColors.length];
               
               return (
@@ -219,16 +219,16 @@ const SharedReceipt: React.FC = () => {
                   <Box>
                     <Box display="flex" alignItems="center" gap={1}>
                       <Typography variant="body2" fontWeight="medium">
-                        {member.display_name}
+                        {member.displayName}
                       </Typography>
                       <Chip
-                        label={member.user_type === 'authenticated' ? 'User' : 'Guest'}
+                        label={member.userType === 'authenticated' ? 'User' : 'Guest'}
                         color={memberColor}
                         size="small"
                         sx={{ height: 20, fontSize: '0.75rem' }}
                       />
                     </Box>
-                    {member.user_type === 'authenticated' && member.email && (
+                    {member.userType === 'authenticated' && member.email && (
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                         {member.email}
                       </Typography>

@@ -35,14 +35,14 @@ interface Point {
 interface ReceiptGeometry {
   PK: string;
   SK: string;
-  receipt_id: string;
-  field_name: string;
-  field_type: 'label' | 'value';
+  receiptId: string;
+  fieldName: string;
+  fieldType: 'label' | 'value';
   text: string;
   confidence: number;
-  bounding_box: BoundingBox;
+  boundingBox: BoundingBox;
   polygon: Point[];
-  created_at: string;
+  createdAt: string;
 }
 
 interface GeometryData {
@@ -156,11 +156,11 @@ const ReceiptValidation: React.FC<ReceiptValidationProps> = ({
     
     // Render subtotal label and value boxes
     if (geometryData.subtotal?.label) {
-      const { bounding_box } = geometryData.subtotal.label;
-      const left = (bounding_box.left * imageDimensions.width) - padding;
-      const top = (bounding_box.top * imageDimensions.height) - padding;
-      const width = (bounding_box.width * imageDimensions.width) + (padding * 2);
-      const height = (bounding_box.height * imageDimensions.height) + (padding * 2);
+      const { boundingBox } = geometryData.subtotal.label;
+      const left = (boundingBox.left * imageDimensions.width) - padding;
+      const top = (boundingBox.top * imageDimensions.height) - padding;
+      const width = (boundingBox.width * imageDimensions.width) + (padding * 2);
+      const height = (boundingBox.height * imageDimensions.height) + (padding * 2);
 
       boxes.push(
         <div
@@ -181,11 +181,11 @@ const ReceiptValidation: React.FC<ReceiptValidationProps> = ({
     }
 
     if (geometryData.subtotal?.value) {
-      const { bounding_box } = geometryData.subtotal.value;
-      const left = (bounding_box.left * imageDimensions.width) - padding;
-      const top = (bounding_box.top * imageDimensions.height) - padding;
-      const width = (bounding_box.width * imageDimensions.width) + (padding * 2);
-      const height = (bounding_box.height * imageDimensions.height) + (padding * 2);
+      const { boundingBox } = geometryData.subtotal.value;
+      const left = (boundingBox.left * imageDimensions.width) - padding;
+      const top = (boundingBox.top * imageDimensions.height) - padding;
+      const width = (boundingBox.width * imageDimensions.width) + (padding * 2);
+      const height = (boundingBox.height * imageDimensions.height) + (padding * 2);
 
       boxes.push(
         <div
@@ -290,13 +290,13 @@ const ReceiptValidation: React.FC<ReceiptValidationProps> = ({
           />
         </Stack>
 
-        {receipt.validation_status && (
+        {receipt.validationStatus && (
           <Alert
-            severity={receipt.validation_status === 'confirmed' ? 'success' : 'warning'}
+            severity={receipt.validationStatus === 'confirmed' ? 'success' : 'warning'}
             sx={{ mb: 2 }}
           >
-            This receipt has been {receipt.validation_status}
-            {receipt.validated_at && ` on ${new Date(receipt.validated_at).toLocaleDateString()}`}
+            This receipt has been {receipt.validationStatus}
+            {receipt.validatedAt && ` on ${new Date(receipt.validatedAt).toLocaleDateString()}`}
           </Alert>
         )}
       </Box>
@@ -329,7 +329,7 @@ const ReceiptValidation: React.FC<ReceiptValidationProps> = ({
             variant="contained"
             color="success"
             onClick={() => setValidationDialogOpen(true)}
-            disabled={!geometryData.subtotal?.value || receipt.validation_status === 'confirmed'}
+            disabled={!geometryData.subtotal?.value || receipt.validationStatus === 'confirmed'}
           >
             {validationStatus.status === 'match' ? 'Confirm Match' : 'Confirm Anyway'}
           </Button>
@@ -337,7 +337,7 @@ const ReceiptValidation: React.FC<ReceiptValidationProps> = ({
             variant="outlined"
             color="error"
             onClick={() => setValidationDialogOpen(true)}
-            disabled={!geometryData.subtotal?.value || receipt.validation_status === 'disputed'}
+            disabled={!geometryData.subtotal?.value || receipt.validationStatus === 'disputed'}
           >
             Report Issue
           </Button>

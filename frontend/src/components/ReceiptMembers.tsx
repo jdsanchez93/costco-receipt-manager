@@ -118,7 +118,7 @@ const ReceiptMembers: React.FC<ReceiptMembersProps> = ({
   };
 
   const getMemberIcon = (member: ReceiptMember) => {
-    if (member.user_type === 'authenticated') {
+    if (member.userType === 'authenticated') {
       return <AccountCircleIcon color="primary" />;
     } else {
       return <PersonIcon color="action" />;
@@ -127,15 +127,15 @@ const ReceiptMembers: React.FC<ReceiptMembersProps> = ({
 
   const getMemberSubtitle = (member: ReceiptMember) => {
     const parts = [];
-    
-    if (member.user_type === 'authenticated' && member.email) {
+
+    if (member.userType === 'authenticated' && member.email) {
       parts.push(member.email);
-    } else if (member.user_type === 'placeholder') {
+    } else if (member.userType === 'placeholder') {
       parts.push('Placeholder user');
     }
-    
-    parts.push(`Added ${new Date(member.added_at).toLocaleDateString()}`);
-    
+
+    parts.push(`Added ${new Date(member.addedAt).toLocaleDateString()}`);
+
     return parts.join(' • ');
   };
 
@@ -201,14 +201,14 @@ const ReceiptMembers: React.FC<ReceiptMembersProps> = ({
                 primary={
                   <Box display="flex" alignItems="center" gap={1}>
                     <Typography variant="body1">
-                      {member.display_name}
+                      {member.displayName}
                     </Typography>
                     <Chip
-                      label={member.user_type === 'authenticated' ? 'User' : 'Placeholder'}
-                      color={member.user_type === 'authenticated' ? 'primary' : 'default'}
+                      label={member.userType === 'authenticated' ? 'User' : 'Placeholder'}
+                      color={member.userType === 'authenticated' ? 'primary' : 'default'}
                       size="small"
                     />
-                    {member.claimed_from_placeholder && (
+                    {member.claimedFromPlaceholder && (
                       <Chip
                         label="Claimed"
                         color="success"

@@ -32,11 +32,11 @@ interface MemberTotal {
 const MemberTotals: React.FC<MemberTotalsProps> = ({ items, members, getMemberColor }) => {
   // Calculate totals for each member
   const memberTotals: MemberTotal[] = members.map(member => {
-    const memberId = member.user_id || member.placeholder_id || '';
-    
+    const memberId = member.userId || member.placeholderId || '';
+
     // Find all items assigned to this member
-    const assignedItems = items.filter(item => 
-      item.assigned_users.includes(memberId)
+    const assignedItems = items.filter(item =>
+      item.assignedUsers.includes(memberId)
     );
 
     // Calculate totals with proper splitting for shared items
@@ -44,7 +44,7 @@ const MemberTotals: React.FC<MemberTotalsProps> = ({ items, members, getMemberCo
     let totalDiscount = 0;
 
     assignedItems.forEach(item => {
-      const assignedUserCount = item.assigned_users.length;
+      const assignedUserCount = item.assignedUsers.length;
       if (assignedUserCount > 0) {
         // Split the price and discount equally among assigned users
         const itemPrice = (item.price || 0) / assignedUserCount;
@@ -68,10 +68,10 @@ const MemberTotals: React.FC<MemberTotalsProps> = ({ items, members, getMemberCo
   });
 
   // Calculate shared items (items assigned to multiple members)
-  const sharedItems = items.filter(item => item.assigned_users.length > 1);
-  
+  const sharedItems = items.filter(item => item.assignedUsers.length > 1);
+
   // Calculate unassigned items
-  const unassignedItems = items.filter(item => item.assigned_users.length === 0);
+  const unassignedItems = items.filter(item => item.assignedUsers.length === 0);
   const unassignedSubtotal = unassignedItems.reduce((sum, item) => sum + (item.price || 0), 0);
   const unassignedDiscount = unassignedItems.reduce((sum, item) => sum + (item.discount || 0), 0);
   const unassignedTotal = unassignedSubtotal - unassignedDiscount;
@@ -86,7 +86,7 @@ const MemberTotals: React.FC<MemberTotalsProps> = ({ items, members, getMemberCo
   const totalDiscrepancy = Math.abs(receiptTotal - assignedTotal);
 
   const getMemberIcon = (member: ReceiptMember) => {
-    return member.user_type === 'authenticated' ? (
+    return member.userType === 'authenticated' ? (
       <AccountCircleIcon fontSize="small" />
     ) : (
       <PersonIcon fontSize="small" />
@@ -94,7 +94,7 @@ const MemberTotals: React.FC<MemberTotalsProps> = ({ items, members, getMemberCo
   };
 
   const getMemberDisplayName = (member: ReceiptMember) => {
-    return member.display_name || 'Unknown Member';
+    return member.displayName || 'Unknown Member';
   };
 
   return (
@@ -115,9 +115,9 @@ const MemberTotals: React.FC<MemberTotalsProps> = ({ items, members, getMemberCo
       }}>
         {/* Individual Member Totals */}
         {memberTotals.map((memberTotal) => {
-          const memberId = memberTotal.member.user_id || memberTotal.member.placeholder_id || '';
-          const memberColor = getMemberColor ? getMemberColor(memberId) : 
-            (memberTotal.member.user_type === 'authenticated' ? 'primary' : 'default');
+          const memberId = memberTotal.member.userId || memberTotal.member.placeholderId || '';
+          const memberColor = getMemberColor ? getMemberColor(memberId) :
+            (memberTotal.member.userType === 'authenticated' ? 'primary' : 'default');
           
           return (
             <Paper variant="outlined" sx={{ p: 2, height: '100%' }} key={memberTotal.member.SK}>

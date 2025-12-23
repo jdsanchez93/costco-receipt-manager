@@ -4,7 +4,6 @@ using CostcoReceipts.Api.Services;
 using CostcoReceipts.Api.Middleware;
 using CostcoReceipts.Api.Configuration;
 using Amazon.Extensions.NETCore.Setup;
-using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,13 +11,9 @@ var builder = WebApplication.CreateBuilder(args);
 var isLambda = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AWS_LAMBDA_FUNCTION_NAME"));
 
 // Add services to the container
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
-    {
-        // Configure JSON serialization to use snake_case consistently
-        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
-        options.JsonSerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.SnakeCaseLower;
-    });
+// JSON serialization uses default camelCase for API responses
+// DynamoDB uses snake_case via [DynamoDBProperty] attributes (separate concern)
+builder.Services.AddControllers();
 
 // Configure CORS - single configuration for all environments
 builder.Services.AddCors(options =>

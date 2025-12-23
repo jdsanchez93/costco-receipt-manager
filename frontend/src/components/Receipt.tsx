@@ -39,8 +39,8 @@ const Receipt: React.FC = () => {
 
   // Helper function to get consistent color for a member
   const getMemberColor = (memberId: string) => {
-    const memberIndex = members.findIndex(m => 
-      (m.user_id === memberId) || (m.placeholder_id === memberId)
+    const memberIndex = members.findIndex(m =>
+      (m.userId === memberId) || (m.placeholderId === memberId)
     );
     return memberIndex >= 0 ? memberColors[memberIndex % memberColors.length] : 'default';
   };
@@ -70,8 +70,8 @@ const Receipt: React.FC = () => {
 
       // Get user's membership in receipts
       const receiptMembers = await getUserReceipts(token);
-      const currentMembership = receiptMembers.find((m: ReceiptMember) => 
-        m.receipt_id === receiptId
+      const currentMembership = receiptMembers.find((m: ReceiptMember) =>
+        m.receiptId === receiptId
       );
       
       if (!currentMembership) {
@@ -107,12 +107,12 @@ const Receipt: React.FC = () => {
 
       // Check if current user's member details need updating
       if (user?.sub && user?.email) {
-        const currentUserMember = membersData.find((member: ReceiptMember) => 
-          member.user_id === user.sub && member.user_type === 'authenticated'
+        const currentUserMember = membersData.find((member: ReceiptMember) =>
+          member.userId === user.sub && member.userType === 'authenticated'
         );
-        
-        // If the member exists but has empty display_name, update it
-        if (currentUserMember && (!currentUserMember.display_name || currentUserMember.display_name === '')) {
+
+        // If the member exists but has empty displayName, update it
+        if (currentUserMember && (!currentUserMember.displayName || currentUserMember.displayName === '')) {
           try {
             await updateMemberDetails(
               receiptId, 
@@ -246,27 +246,27 @@ const Receipt: React.FC = () => {
               Your Role
             </Typography>
             <Typography variant="body1">
-              {receiptMember.display_name}
+              {receiptMember.displayName}
             </Typography>
           </Box>
-          
+
           <Box>
             <Typography variant="subtitle2" color="text.secondary">
               Member Type
             </Typography>
-            <Chip 
-              label={receiptMember.user_type === 'authenticated' ? 'User' : 'Placeholder'} 
-              color={receiptMember.user_type === 'authenticated' ? 'primary' : 'default'}
+            <Chip
+              label={receiptMember.userType === 'authenticated' ? 'User' : 'Placeholder'}
+              color={receiptMember.userType === 'authenticated' ? 'primary' : 'default'}
               size="small"
             />
           </Box>
-          
+
           <Box>
             <Typography variant="subtitle2" color="text.secondary">
               Joined Date
             </Typography>
             <Typography variant="body1">
-              {receiptMember.added_at ? new Date(receiptMember.added_at).toLocaleDateString() : 'Unknown'}
+              {receiptMember.addedAt ? new Date(receiptMember.addedAt).toLocaleDateString() : 'Unknown'}
             </Typography>
           </Box>
           
@@ -288,27 +288,27 @@ const Receipt: React.FC = () => {
             </Typography>
           </Box>
 
-          {receiptMember.validation_status && (
+          {receiptMember.validationStatus && (
             <Box>
               <Typography variant="subtitle2" color="text.secondary">
                 Your Validation
               </Typography>
               <Chip
-                label={receiptMember.validation_status}
-                color={receiptMember.validation_status === 'confirmed' ? 'success' :
-                       receiptMember.validation_status === 'disputed' ? 'error' : 'default'}
+                label={receiptMember.validationStatus}
+                color={receiptMember.validationStatus === 'confirmed' ? 'success' :
+                       receiptMember.validationStatus === 'disputed' ? 'error' : 'default'}
                 size="small"
               />
             </Box>
           )}
 
-          {receiptMember.validated_at && (
+          {receiptMember.validatedAt && (
             <Box>
               <Typography variant="subtitle2" color="text.secondary">
                 Validated On
               </Typography>
               <Typography variant="body1">
-                {new Date(receiptMember.validated_at).toLocaleDateString()}
+                {new Date(receiptMember.validatedAt).toLocaleDateString()}
               </Typography>
             </Box>
           )}

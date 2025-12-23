@@ -489,9 +489,9 @@ public class ReceiptsController : ControllerBase
             return CreatedAtAction(nameof(GetReceiptShares), new { receiptId }, new
             {
                 message = "Share link created successfully",
-                share_token = share.ShareToken,
-                share_url = $"{frontendUrl}/shared-receipt/{share.ShareToken}",
-                expires_at = DateTimeOffset.FromUnixTimeSeconds(share.ExpiresAt).ToString("O")
+                shareToken = share.ShareToken,
+                shareUrl = $"{frontendUrl}/shared-receipt/{share.ShareToken}",
+                expiresAt = DateTimeOffset.FromUnixTimeSeconds(share.ExpiresAt).ToString("O")
             });
         }
         catch (Exception ex)
@@ -534,21 +534,14 @@ public class ReceiptsController : ControllerBase
                 ? $"https://{cloudFrontDomain}"
                 : "http://localhost:3000";
 
-            var result = shares.Select(share => new ReceiptShareResponse
+            // Set computed properties for API response
+            foreach (var share in shares)
             {
-                PK = share.PK,
-                SK = share.SK,
-                share_token = share.ShareToken,
-                owner_user_id = share.OwnerUserId,
-                receipt_id = share.ReceiptId,
-                created_at = share.CreatedAt,
-                expires_at = DateTimeOffset.FromUnixTimeSeconds(share.ExpiresAt).ToString("O"),
-                is_active = share.IsActive,
-                current_uses = share.CurrentUses,
-                share_url = $"{frontendUrl}/shared-receipt/{share.ShareToken}"
-            });
+                share.ShareUrl = $"{frontendUrl}/shared-receipt/{share.ShareToken}";
+                share.ExpiresAtIso = DateTimeOffset.FromUnixTimeSeconds(share.ExpiresAt).ToString("O");
+            }
 
-            return Ok(result);
+            return Ok(shares);
         }
         catch (Exception ex)
         {

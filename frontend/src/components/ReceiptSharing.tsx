@@ -196,7 +196,7 @@ const ReceiptSharing: React.FC<ReceiptSharingProps> = ({ receiptId }) => {
         ) : (
           <List>
             {shares.map((share) => (
-              <ListItem key={share.share_token} divider>
+              <ListItem key={share.shareToken} divider>
                 <ListItemText
                   primaryTypographyProps={{ component: 'div' }}
                   secondaryTypographyProps={{ component: 'div' }}
@@ -207,14 +207,14 @@ const ReceiptSharing: React.FC<ReceiptSharingProps> = ({ receiptId }) => {
                         Share Link
                       </Box>
                       <Chip
-                        label={formatExpirationDate(share.expires_at)}
-                        color={getExpirationColor(share.expires_at)}
+                        label={formatExpirationDate(share.expiresAtIso || '')}
+                        color={getExpirationColor(share.expiresAtIso || '')}
                         size="small"
                         icon={<AccessTimeIcon />}
                       />
-                      {share.current_uses > 0 && (
+                      {share.currentUses > 0 && (
                         <Chip
-                          label={`${share.current_uses} view${share.current_uses === 1 ? '' : 's'}`}
+                          label={`${share.currentUses} view${share.currentUses === 1 ? '' : 's'}`}
                           size="small"
                           icon={<VisibilityIcon />}
                           variant="outlined"
@@ -225,18 +225,18 @@ const ReceiptSharing: React.FC<ReceiptSharingProps> = ({ receiptId }) => {
                   secondary={
                     <Box>
                       <Box sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>
-                        Created {new Date(share.created_at).toLocaleDateString()}
+                        Created {new Date(share.createdAt).toLocaleDateString()}
                       </Box>
-                      <Box 
-                        sx={{ 
-                          fontFamily: 'monospace', 
+                      <Box
+                        sx={{
+                          fontFamily: 'monospace',
                           fontSize: '0.75rem',
                           wordBreak: 'break-all',
                           mt: 0.5,
                           color: 'text.secondary'
                         }}
                       >
-                        {share.share_url}
+                        {share.shareUrl}
                       </Box>
                     </Box>
                   }
@@ -244,7 +244,7 @@ const ReceiptSharing: React.FC<ReceiptSharingProps> = ({ receiptId }) => {
                 <ListItemSecondaryAction>
                   <Tooltip title="Copy link">
                     <IconButton
-                      onClick={() => handleCopyLink(share.share_url)}
+                      onClick={() => handleCopyLink(share.shareUrl || '')}
                       color="primary"
                     >
                       <CopyIcon />

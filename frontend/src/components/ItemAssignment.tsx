@@ -51,8 +51,8 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Get current user's member info
-  const currentUserMember = members.find(member => 
-    member.user_type === 'authenticated' && member.email === user?.email
+  const currentUserMember = members.find(member =>
+    member.userType === 'authenticated' && member.email === user?.email
   );
 
   const handleItemSelect = useCallback((itemSK: string, selected: boolean) => {
@@ -86,7 +86,7 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
   }, []);
 
   const getMemberIcon = (member: ReceiptMember) => {
-    return member.user_type === 'authenticated' ? (
+    return member.userType === 'authenticated' ? (
       <AccountCircleIcon fontSize="small" />
     ) : (
       <PersonIcon fontSize="small" />
@@ -94,14 +94,14 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
   };
 
   const getMemberDisplayName = (member: ReceiptMember) => {
-    if (member.user_type === 'authenticated' && member.email === user?.email) {
+    if (member.userType === 'authenticated' && member.email === user?.email) {
       return 'You';
     }
-    return member.display_name;
+    return member.displayName;
   };
 
   const isItemAssignedToMember = (item: ReceiptItem, memberId: string) => {
-    return item.assigned_users.includes(memberId);
+    return item.assignedUsers.includes(memberId);
   };
 
   const toggleItemAssignment = async (itemSK: string, memberId: string) => {
@@ -119,12 +119,12 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
       if (!item) return;
 
       let updatedAssignedUsers: string[];
-      if (item.assigned_users.includes(memberId)) {
+      if (item.assignedUsers.includes(memberId)) {
         // Remove assignment
-        updatedAssignedUsers = item.assigned_users.filter(id => id !== memberId);
+        updatedAssignedUsers = item.assignedUsers.filter(id => id !== memberId);
       } else {
         // Add assignment
-        updatedAssignedUsers = [...item.assigned_users, memberId];
+        updatedAssignedUsers = [...item.assignedUsers, memberId];
       }
 
       // Extract item index from SK (e.g., "ITEM#001" -> "001")
@@ -154,7 +154,7 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
 
       const updates = Array.from(selectedItems).map(itemSK => {
         const item = items.find(i => i.SK === itemSK);
-        const currentUsers = item ? item.assigned_users : [];
+        const currentUsers = item ? item.assignedUsers : [];
         const updatedAssignedUsers = Array.from(new Set([...currentUsers, memberId]));
         // Extract item index from SK (e.g., "ITEM#001" -> "001")
         const itemIndex = itemSK.replace('ITEM#', '');
@@ -177,12 +177,12 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
   const assignAllToMe = async () => {
     if (!currentUserMember) return;
     
-    const unassignedItems = items.filter(item => item.assigned_users.length === 0);
+    const unassignedItems = items.filter(item => item.assignedUsers.length === 0);
     if (unassignedItems.length === 0) return;
 
     setLoading(true);
     setError(null);
-    
+
     try {
       const token = await getAccessTokenSilently({
         authorizationParams: {
@@ -190,7 +190,7 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
         },
       });
 
-      const myUserId = currentUserMember.user_id || currentUserMember.placeholder_id || '';
+      const myUserId = currentUserMember.userId || currentUserMember.placeholderId || '';
       const updates = unassignedItems.map(item => {
         // Extract item index from SK (e.g., "ITEM#001" -> "001")
         const itemIndex = item.SK.replace('ITEM#', '');
@@ -223,7 +223,7 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
         },
       });
 
-      const memberIds = members.map(m => m.user_id || m.placeholder_id || '').filter(id => id);
+      const memberIds = members.map(m => m.userId || m.placeholderId || '').filter(id => id);
       const updates = Array.from(selectedItems).map(itemSK => {
         // Extract item index from SK (e.g., "ITEM#001" -> "001")
         const itemIndex = itemSK.replace('ITEM#', '');
@@ -298,7 +298,7 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
     }
   };
 
-  const unassignedItems = items.filter(item => item.assigned_users.length === 0);
+  const unassignedItems = items.filter(item => item.assignedUsers.length === 0);
   const hasSelected = selectedItems.size > 0;
   const allSelected = selectedItems.size === items.length;
 
@@ -397,7 +397,7 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
               <Box sx={{ flexGrow: 1, ml: 1 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
                   <Typography variant="body1" fontWeight="medium">
-                    {item.item_name}
+                    {item.itemName}
                   </Typography>
                   <Typography variant="body1" color="primary" fontWeight="bold">
                     ${(item.price || 0).toFixed(2)}
@@ -411,7 +411,7 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
                 
                 {/* Assignment Chips */}
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  {item.assigned_users.length === 0 ? (
+                  {item.assignedUsers.length === 0 ? (
                     <Chip
                       label="Unassigned"
                       size="small"
@@ -419,20 +419,20 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
                       color="default"
                     />
                   ) : (
-                    item.assigned_users.map((userId) => {
-                      const member = members.find(m => 
-                        (m.user_id === userId) || (m.placeholder_id === userId)
+                    item.assignedUsers.map((usrId) => {
+                      const member = members.find(m =>
+                        (m.userId === usrId) || (m.placeholderId === usrId)
                       );
                       if (!member) return null;
-                      
+
                       return (
                         <Chip
-                          key={userId}
+                          key={usrId}
                           label={getMemberDisplayName(member)}
                           size="small"
                           icon={getMemberIcon(member)}
-                          onDelete={() => toggleItemAssignment(item.SK, userId)}
-                          color={getMemberColor ? getMemberColor(userId) as any : (member.user_type === 'authenticated' ? 'primary' : 'default')}
+                          onDelete={() => toggleItemAssignment(item.SK, usrId)}
+                          color={getMemberColor ? getMemberColor(usrId) as any : (member.userType === 'authenticated' ? 'primary' : 'default')}
                         />
                       );
                     })
@@ -465,7 +465,7 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
                             },
                           });
 
-                          const memberIds = members.map(m => m.user_id || m.placeholder_id || '').filter(id => id);
+                          const memberIds = members.map(m => m.userId || m.placeholderId || '').filter(id => id);
                           // Extract item index from SK (e.g., "ITEM#001" -> "001")
                           const itemIndex = item.SK.replace('ITEM#', '');
                           await updateItemAssignment(receiptId, itemIndex, memberIds, token);
@@ -513,7 +513,7 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
             key={member.SK}
             onClick={() => {
               if (menuContext.itemSK) {
-                toggleItemAssignment(menuContext.itemSK, member.user_id || member.placeholder_id || '');
+                toggleItemAssignment(menuContext.itemSK, member.userId || member.placeholderId || '');
               }
               handleMenuClose();
             }}
@@ -525,11 +525,11 @@ const ItemAssignment: React.FC<ItemAssignmentProps> = ({
             </Box>
           </MenuItem>
         ))}
-        
+
         {menuContext?.action === 'assignSelected' && members.map((member) => (
           <MenuItem
             key={member.SK}
-            onClick={() => assignSelectedToMember(member.user_id || member.placeholder_id || '')}
+            onClick={() => assignSelectedToMember(member.userId || member.placeholderId || '')}
             disabled={loading}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

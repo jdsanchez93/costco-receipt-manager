@@ -445,14 +445,14 @@ public class SingleTableService : ISingleTableService
             {
                 text = geometry.Text,
                 confidence = geometry.Confidence,
-                bounding_box = new
+                boundingBox = new
                 {
-                    Width = geometry.BoundingBox.Width,
-                    Height = geometry.BoundingBox.Height,
-                    Left = geometry.BoundingBox.Left,
-                    Top = geometry.BoundingBox.Top
+                    width = geometry.BoundingBox.Width,
+                    height = geometry.BoundingBox.Height,
+                    left = geometry.BoundingBox.Left,
+                    top = geometry.BoundingBox.Top
                 },
-                polygon = geometry.Polygon.Select(p => new { X = p.X, Y = p.Y }).ToList()
+                polygon = geometry.Polygon.Select(p => new { x = p.X, y = p.Y }).ToList()
             };
         }
 

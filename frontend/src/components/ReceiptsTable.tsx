@@ -15,15 +15,15 @@ const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receiptMembers }) => {
   const navigate = useNavigate();
 
   const columns: GridColDef[] = [
-    { 
-      field: 'receipt_id', 
-      headerName: 'Receipt ID', 
+    {
+      field: 'receiptId',
+      headerName: 'Receipt ID',
       width: 200,
-      valueGetter: (value, row) => row.receipt_id,
+      valueGetter: (value, row) => row.receiptId,
     },
-    { 
-      field: 'user_type', 
-      headerName: 'Member Type', 
+    {
+      field: 'userType',
+      headerName: 'Member Type',
       width: 120,
       renderCell: (params) => {
         const userType = params.value as string;
@@ -31,21 +31,21 @@ const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receiptMembers }) => {
         return <Chip label={userType === 'authenticated' ? 'User' : 'Placeholder'} color={color} size="small" />;
       },
     },
-    { 
-      field: 'added_at', 
-      headerName: 'Joined Date', 
+    {
+      field: 'addedAt',
+      headerName: 'Joined Date',
       width: 180,
       valueFormatter: (value) => {
         return new Date(value).toLocaleDateString();
       },
     },
-    { 
-      field: 'display_name', 
-      headerName: 'Your Role', 
+    {
+      field: 'displayName',
+      headerName: 'Your Role',
       width: 150,
     },
     {
-      field: 'validation_status',
+      field: 'validationStatus',
       headerName: 'Validation',
       width: 130,
       renderCell: (params) => {
@@ -77,10 +77,10 @@ const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receiptMembers }) => {
       width: 140,
       sortable: false,
       renderCell: (params) => {
-        const receiptId = params.row.receipt_id;
-        const needsValidation = !params.row.validation_status;
+        const receiptId = params.row.receiptId;
+        const needsValidation = !params.row.validationStatus;
         return (
-          <Button 
+          <Button
             variant={needsValidation ? "contained" : "outlined"}
             color={needsValidation ? "primary" : "inherit"}
             size="small"
@@ -108,7 +108,7 @@ const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receiptMembers }) => {
             paginationModel: { page: 0, pageSize: 10 },
           },
           sorting: {
-            sortModel: [{ field: 'created_at', sort: 'desc' }],
+            sortModel: [{ field: 'createdAt', sort: 'desc' }],
           },
         }}
         pageSizeOptions={[10, 25, 50]}
