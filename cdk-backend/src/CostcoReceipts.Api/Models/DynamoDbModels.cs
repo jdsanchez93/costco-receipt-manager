@@ -173,13 +173,6 @@ public class ReceiptShare : IDynamoDbEntity
 
     [DynamoDBProperty("current_uses")]
     public int CurrentUses { get; set; } = 0;
-
-    // Computed property for API responses
-    [DynamoDBIgnore]
-    public string? ShareUrl { get; set; }
-
-    [DynamoDBIgnore]
-    public string? ExpiresAtIso { get; set; }
 }
 
 // Receipt Geometry
@@ -220,6 +213,25 @@ public class ReceiptGeometry : IDynamoDbEntity
 
     [DynamoDBProperty("created_at")]
     public string CreatedAt { get; set; } = string.Empty;
+}
+
+// Receipt Share Response DTO (for API responses with proper snake_case serialization)
+public class ReceiptShareResponse
+{
+    [JsonPropertyName("PK")]
+    public string PK { get; set; } = string.Empty;
+
+    [JsonPropertyName("SK")]
+    public string SK { get; set; } = string.Empty;
+
+    public string share_token { get; set; } = string.Empty;
+    public string owner_user_id { get; set; } = string.Empty;
+    public string receipt_id { get; set; } = string.Empty;
+    public string created_at { get; set; } = string.Empty;
+    public string expires_at { get; set; } = string.Empty;  // ISO string format
+    public bool is_active { get; set; }
+    public int current_uses { get; set; }
+    public string share_url { get; set; } = string.Empty;  // Computed field
 }
 
 // Placeholder User

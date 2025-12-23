@@ -489,9 +489,9 @@ public class ReceiptsController : ControllerBase
             return CreatedAtAction(nameof(GetReceiptShares), new { receiptId }, new
             {
                 message = "Share link created successfully",
-                shareToken = share.ShareToken,
-                shareUrl = $"{frontendUrl}/shared-receipt/{share.ShareToken}",
-                expiresAt = share.ExpiresAt
+                share_token = share.ShareToken,
+                share_url = $"{frontendUrl}/shared-receipt/{share.ShareToken}",
+                expires_at = DateTimeOffset.FromUnixTimeSeconds(share.ExpiresAt).ToString("O")
             });
         }
         catch (Exception ex)
@@ -530,23 +530,22 @@ public class ReceiptsController : ControllerBase
             var shares = await _singleTableService.GetReceiptSharesAsync(receiptId);
 
             var cloudFrontDomain = _appConfig.CloudFrontDomain;
-            var frontendUrl = !string.IsNullOrEmpty(cloudFrontDomain) 
-                ? $"https://{cloudFrontDomain}" 
+            var frontendUrl = !string.IsNullOrEmpty(cloudFrontDomain)
+                ? $"https://{cloudFrontDomain}"
                 : "http://localhost:3000";
 
-            var result = shares.Select(share => new
+            var result = shares.Select(share => new ReceiptShareResponse
             {
-                share.PK,
-                share.SK,
-                share.EntityType,
-                share.ReceiptId,
-                share.OwnerUserId,
-                share.ShareToken,
-                share.CreatedAt,
-                share.ExpiresAt,
-                share.IsActive,
-                share.CurrentUses,
-                shareUrl = $"{frontendUrl}/shared-receipt/{share.ShareToken}"
+                PK = share.PK,
+                SK = share.SK,
+                share_token = share.ShareToken,
+                owner_user_id = share.OwnerUserId,
+                receipt_id = share.ReceiptId,
+                created_at = share.CreatedAt,
+                expires_at = DateTimeOffset.FromUnixTimeSeconds(share.ExpiresAt).ToString("O"),
+                is_active = share.IsActive,
+                current_uses = share.CurrentUses,
+                share_url = $"{frontendUrl}/shared-receipt/{share.ShareToken}"
             });
 
             return Ok(result);

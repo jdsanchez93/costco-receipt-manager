@@ -58,25 +58,18 @@ export interface ReceiptMember {
 }
 
 
-// Receipt Share
+// Receipt Share (response DTO from API)
 export interface ReceiptShare {
   PK: string; // SHARE#{share_token}
   SK: string; // RECEIPT#{receipt_id}
-  entity_type: 'RECEIPT_SHARE';
-  GSI2PK: string; // RECEIPT#{receipt_id}
-  GSI2SK: string; // SHARE#{share_token}
   receipt_id: string;
   owner_user_id: string;
   share_token: string;
   created_at: string;
-  expires_at: number; // TTL timestamp
+  expires_at: string; // ISO string format
   is_active: boolean;
   current_uses: number;
-  max_uses?: number;
-  
-  // Frontend computed fields
-  shareUrl?: string;
-  expiresAt?: string; // ISO string
+  share_url: string; // Computed by backend
 }
 
 // Receipt Geometry
@@ -147,7 +140,7 @@ export interface CreateShareRequest {
 
 export interface CreateShareResponse {
   message: string;
-  shareToken: string;
-  shareUrl: string;
-  expiresAt: string;
+  share_token: string;
+  share_url: string;
+  expires_at: string;
 }

@@ -207,8 +207,8 @@ const ReceiptSharing: React.FC<ReceiptSharingProps> = ({ receiptId }) => {
                         Share Link
                       </Box>
                       <Chip
-                        label={formatExpirationDate(share.expiresAt || '')}
-                        color={getExpirationColor(share.expiresAt || '')}
+                        label={formatExpirationDate(share.expires_at)}
+                        color={getExpirationColor(share.expires_at)}
                         size="small"
                         icon={<AccessTimeIcon />}
                       />
@@ -236,15 +236,15 @@ const ReceiptSharing: React.FC<ReceiptSharingProps> = ({ receiptId }) => {
                           color: 'text.secondary'
                         }}
                       >
-                        {share.shareUrl}
+                        {share.share_url}
                       </Box>
                     </Box>
                   }
                 />
                 <ListItemSecondaryAction>
                   <Tooltip title="Copy link">
-                    <IconButton 
-                      onClick={() => handleCopyLink(share.shareUrl || '')}
+                    <IconButton
+                      onClick={() => handleCopyLink(share.share_url)}
                       color="primary"
                     >
                       <CopyIcon />
