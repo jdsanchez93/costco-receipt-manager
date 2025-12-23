@@ -263,7 +263,7 @@ const Receipt: React.FC = () => {
 
           <Box>
             <Typography variant="subtitle2" color="text.secondary">
-              Joined Date
+              Date
             </Typography>
             <Typography variant="body1">
               {receiptMember.addedAt ? new Date(receiptMember.addedAt).toLocaleDateString() : 'Unknown'}

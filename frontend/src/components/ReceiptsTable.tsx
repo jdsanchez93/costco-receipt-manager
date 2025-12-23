@@ -33,7 +33,7 @@ const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receiptMembers }) => {
     },
     {
       field: 'addedAt',
-      headerName: 'Joined Date',
+      headerName: 'Date',
       width: 180,
       valueFormatter: (value) => {
         return new Date(value).toLocaleDateString();
@@ -108,7 +108,7 @@ const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receiptMembers }) => {
             paginationModel: { page: 0, pageSize: 10 },
           },
           sorting: {
-            sortModel: [{ field: 'createdAt', sort: 'desc' }],
+            sortModel: [{ field: 'addedAt', sort: 'desc' }],
           },
         }}
         pageSizeOptions={[10, 25, 50]}
