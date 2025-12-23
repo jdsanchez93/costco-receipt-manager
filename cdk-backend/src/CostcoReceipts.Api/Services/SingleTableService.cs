@@ -11,15 +11,20 @@ public class SingleTableService : ISingleTableService
     private readonly IAmazonDynamoDB _dynamoDb;
     private readonly string _tableName;
     private readonly ILogger<SingleTableService> _logger;
+    private readonly JsonSerializerOptions _jsonOptions;
 
     public SingleTableService(
-        IAmazonDynamoDB dynamoDb, 
+        IAmazonDynamoDB dynamoDb,
         ILogger<SingleTableService> logger,
         DynamoDbConfiguration dbConfig)
     {
         _dynamoDb = dynamoDb;
         _tableName = dbConfig.MainTableName;
         _logger = logger;
+        _jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+        };
     }
 
     // User Receipts Methods
@@ -567,9 +572,9 @@ public class SingleTableService : ISingleTableService
         };
     }
 
-    private static Dictionary<string, AttributeValue> ConvertToAttributeValues(object obj)
+    private Dictionary<string, AttributeValue> ConvertToAttributeValues(object obj)
     {
-        var json = JsonSerializer.Serialize(obj);
+        var json = JsonSerializer.Serialize(obj, _jsonOptions);
         var document = JsonDocument.Parse(json);
         return ConvertJsonToAttributeValues(document.RootElement);
     }

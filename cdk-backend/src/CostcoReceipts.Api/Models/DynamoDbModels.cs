@@ -31,9 +31,11 @@ public class Point
 public class ReceiptItem : IDynamoDbEntity
 {
     [DynamoDBHashKey]
+    [JsonPropertyName("PK")]
     public string PK { get; set; } = string.Empty;  // RECEIPT#{receipt_id}
 
     [DynamoDBRangeKey]
+    [JsonPropertyName("SK")]
     public string SK { get; set; } = string.Empty;  // ITEM#{item_id}
 
     [DynamoDBProperty("entity_type")]
@@ -69,15 +71,19 @@ public class ReceiptItem : IDynamoDbEntity
 public class ReceiptMember : IDynamoDbEntity
 {
     [DynamoDBHashKey]
+    [JsonPropertyName("PK")]
     public string PK { get; set; } = string.Empty;  // RECEIPT#{receipt_id}
 
     [DynamoDBRangeKey]
+    [JsonPropertyName("SK")]
     public string SK { get; set; } = string.Empty;  // USER#{user_id}
 
     [DynamoDBGlobalSecondaryIndexHashKey("GSI1")]
+    [JsonPropertyName("GSI1PK")]
     public string GSI1PK { get; set; } = string.Empty;  // USER#{user_id}
 
     [DynamoDBGlobalSecondaryIndexRangeKey("GSI1")]
+    [JsonPropertyName("GSI1SK")]
     public string GSI1SK { get; set; } = string.Empty;  // RECEIPT#{receipt_id}
 
     [DynamoDBProperty("entity_type")]
@@ -129,15 +135,19 @@ public class ReceiptMember : IDynamoDbEntity
 public class ReceiptShare : IDynamoDbEntity
 {
     [DynamoDBHashKey]
+    [JsonPropertyName("PK")]
     public string PK { get; set; } = string.Empty;  // SHARE#{share_token}
 
     [DynamoDBRangeKey]
+    [JsonPropertyName("SK")]
     public string SK { get; set; } = string.Empty;  // RECEIPT#{receipt_id}
 
     [DynamoDBGlobalSecondaryIndexHashKey("GSI2")]
+    [JsonPropertyName("GSI2PK")]
     public string GSI2PK { get; set; } = string.Empty;  // RECEIPT#{receipt_id}
 
     [DynamoDBGlobalSecondaryIndexRangeKey("GSI2")]
+    [JsonPropertyName("GSI2SK")]
     public string GSI2SK { get; set; } = string.Empty;  // SHARE#{share_token}
 
     [DynamoDBProperty("entity_type")]
@@ -177,9 +187,11 @@ public class ReceiptShare : IDynamoDbEntity
 public class ReceiptGeometry : IDynamoDbEntity
 {
     [DynamoDBHashKey]
+    [JsonPropertyName("PK")]
     public string PK { get; set; } = string.Empty;  // RECEIPT#{receipt_id}
 
     [DynamoDBRangeKey]
+    [JsonPropertyName("SK")]
     public string SK { get; set; } = string.Empty;  // GEOMETRY#{field}#{type}
 
     [DynamoDBProperty("entity_type")]
@@ -215,9 +227,11 @@ public class ReceiptGeometry : IDynamoDbEntity
 public class PlaceholderUser : IDynamoDbEntity
 {
     [DynamoDBHashKey]
+    [JsonPropertyName("PK")]
     public string PK { get; set; } = string.Empty;  // USER#{placeholder_id}
 
     [DynamoDBRangeKey]
+    [JsonPropertyName("SK")]
     public string SK { get; set; } = string.Empty;  // RECEIPT#{receipt_id}
 
     [DynamoDBProperty("entity_type")]
