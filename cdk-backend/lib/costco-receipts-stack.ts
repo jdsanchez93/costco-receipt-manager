@@ -105,7 +105,6 @@ export class CostcoReceiptsStack extends cdk.Stack {
       S3_UPLOAD_API_URL: envVars.s3UploadApiUrl,
       S3_DOWNLOAD_API_URL: envVars.s3DownloadApiUrl,
       CLOUDFRONT_DOMAIN: envVars.customDomainName || '',
-      AWS_REGION: this.region,
     };
 
     // Configure CORS allowed origins for production
@@ -114,6 +113,12 @@ export class CostcoReceiptsStack extends cdk.Stack {
       // Set CORS to allow the custom domain where frontend is hosted
       environment['Cors__AllowedOrigins__0'] = `https://${envVars.customDomainName}`;
     }
+
+    const logGroup = new logs.LogGroup(this, 'CostcoReceiptsApiFunctionLogGroup', {
+      logGroupName: `/aws/lambda/${this.stackName}-api`,
+      retention: logs.RetentionDays.ONE_WEEK,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
 
     const apiFunction = new lambda.Function(this, 'CostcoReceiptsApiFunction', {
       functionName: `${this.stackName}-api`,
@@ -124,7 +129,7 @@ export class CostcoReceiptsStack extends cdk.Stack {
           command: [
             '/bin/sh',
             '-c',
-            'cd /asset-input && dotnet restore && dotnet publish CostcoReceipts.Api/CostcoReceipts.Api.csproj -c Release -o /asset-output --no-restore'
+            'cd /asset-input && dotnet restore CostcoReceipts.Api/CostcoReceipts.Api.csproj && dotnet publish CostcoReceipts.Api/CostcoReceipts.Api.csproj -c Release -o /asset-output --no-restore'
           ],
         },
       }),
@@ -132,7 +137,7 @@ export class CostcoReceiptsStack extends cdk.Stack {
       environment,
       timeout: cdk.Duration.seconds(30),
       memorySize: 1024, // .NET typically needs more memory than Node.js
-      logRetention: logs.RetentionDays.ONE_WEEK,
+      logGroup,
       description: 'Costco Receipts API - .NET 8 ASP.NET Core Lambda',
     });
 
@@ -213,6 +218,9 @@ export class CostcoReceiptsStack extends cdk.Stack {
       certificate = acm.Certificate.fromCertificateArn(this, 'ImportedCertificate', certificateArn);
     }
 
+    // Single API origin reused for all API behaviors
+    const apiOrigin = new origins.RestApiOrigin(this.api);
+
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
       domainNames: customDomainName ? [customDomainName] : undefined,
       certificate: certificate,
@@ -226,7 +234,7 @@ export class CostcoReceiptsStack extends cdk.Stack {
       },
       additionalBehaviors: {
         '/api/*': {
-          origin: new origins.RestApiOrigin(this.api),
+          origin: apiOrigin,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
           originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
@@ -234,7 +242,7 @@ export class CostcoReceiptsStack extends cdk.Stack {
           compress: false,
         },
         '/health': {
-          origin: new origins.RestApiOrigin(this.api),
+          origin: apiOrigin,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
           compress: false,
