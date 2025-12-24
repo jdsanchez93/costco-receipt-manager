@@ -159,7 +159,8 @@ export class CostcoReceiptsStack extends cdk.Stack {
   }
 
   private createApiGateway(apiFunction: lambda.Function): apigateway.RestApi {
-    const api = new apigateway.RestApi(this, 'CostcoReceiptsApi', {
+    // Changed logical ID to force recreation and remove stale Node.js routes
+    const api = new apigateway.RestApi(this, 'CostcoReceiptsApiV2', {
       restApiName: `${this.stackName}-api`,
       description: 'Costco Receipt Management API (.NET)',
       defaultCorsPreflightOptions: {
