@@ -234,7 +234,7 @@ public class SingleTableService : ISingleTableService
             UpdateExpression = "SET assigned_users = :users, updated_at = :updatedAt",
             ExpressionAttributeValues = new Dictionary<string, AttributeValue>
             {
-                { ":users", new AttributeValue { SS = assignedUsers } },
+                { ":users", new AttributeValue { L = assignedUsers.Select(u => new AttributeValue(u)).ToList() } },
                 { ":updatedAt", new AttributeValue(DateTime.UtcNow.ToString("O")) }
             }
         };
@@ -485,7 +485,7 @@ public class SingleTableService : ISingleTableService
             ItemName = item.GetValueOrDefault("item_name")?.S ?? "",
             Price = decimal.TryParse(item.GetValueOrDefault("price")?.N, out var price) ? price : 0,
             Discount = decimal.TryParse(item.GetValueOrDefault("discount")?.N, out var discount) ? discount : null,
-            AssignedUsers = item.GetValueOrDefault("assigned_users")?.SS ?? new List<string>(),
+            AssignedUsers = item.GetValueOrDefault("assigned_users")?.L?.Select(v => v.S).ToList() ?? new List<string>(),
             CreatedAt = item.GetValueOrDefault("created_at")?.S ?? "",
             UpdatedAt = item.GetValueOrDefault("updated_at")?.S
         };
