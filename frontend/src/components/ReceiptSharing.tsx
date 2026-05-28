@@ -32,16 +32,18 @@ import {
   Visibility as VisibilityIcon,
 } from '@mui/icons-material';
 import { createReceiptShare, getReceiptShares } from '../services/api';
-import { ReceiptShare } from '../types/singleTableTypes';
+import { ReceiptShare, ReceiptRole } from '../types/singleTableTypes';
 
 interface ReceiptSharingProps {
   receiptId: string;
+  currentUserRole?: ReceiptRole;
 }
 
-const ReceiptSharing: React.FC<ReceiptSharingProps> = ({ receiptId }) => {
+const ReceiptSharing: React.FC<ReceiptSharingProps> = ({ receiptId, currentUserRole }) => {
+  const isOwner = currentUserRole === 'owner';
   const { getAccessTokenSilently } = useAuth0();
   const [shares, setShares] = useState<ReceiptShare[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(isOwner);
   const [error, setError] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -70,8 +72,10 @@ const ReceiptSharing: React.FC<ReceiptSharingProps> = ({ receiptId }) => {
   };
 
   useEffect(() => {
-    fetchShares();
-  }, [receiptId]);
+    if (isOwner) {
+      fetchShares();
+    }
+  }, [receiptId, isOwner]);
 
   const handleCreateShare = async () => {
     setSubmitting(true);
@@ -88,8 +92,10 @@ const ReceiptSharing: React.FC<ReceiptSharingProps> = ({ receiptId }) => {
       setExpiresInDays(30);
       setCreateDialogOpen(false);
 
-      // Refresh shares list
-      await fetchShares();
+      // Refresh shares list (owner-only endpoint)
+      if (isOwner) {
+        await fetchShares();
+      }
     } catch (err) {
       console.error('Error creating share:', err);
       setError('Failed to create share link');
@@ -165,7 +171,7 @@ const ReceiptSharing: React.FC<ReceiptSharingProps> = ({ receiptId }) => {
       <Paper sx={{ p: 3 }}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
           <Typography variant="h6">
-            Share Links ({shares.length})
+            {isOwner ? `Share Links (${shares.length})` : 'Share Links'}
           </Typography>
           <Button
             variant="contained"
@@ -183,7 +189,11 @@ const ReceiptSharing: React.FC<ReceiptSharingProps> = ({ receiptId }) => {
           </Alert>
         )}
 
-        {shares.length === 0 ? (
+        {!isOwner ? (
+          <Typography variant="body2" color="text.secondary">
+            Only the receipt owner can view existing share links. You can still create new ones.
+          </Typography>
+        ) : shares.length === 0 ? (
           <Box textAlign="center" py={4}>
             <ShareIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
             <Typography variant="body1" color="text.secondary" mb={2}>

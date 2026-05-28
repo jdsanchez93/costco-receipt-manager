@@ -1,6 +1,9 @@
 // Single Table Design Types for Frontend
 // API uses camelCase serialization (matches C# property names)
 
+// Receipt Member Roles
+export type ReceiptRole = 'owner' | 'editor';
+
 export interface BoundingBox {
   width: number;
   height: number;
@@ -56,6 +59,9 @@ export interface ReceiptMember {
   validatedBy?: string;
   validatedAt?: string;
   comments?: string;
+
+  // Role-based access control
+  role: ReceiptRole;
 }
 
 
@@ -138,6 +144,11 @@ export interface AddMemberRequest {
   displayName: string;
   email?: string;
   userType: 'authenticated' | 'placeholder';
+  role?: ReceiptRole;
+}
+
+export interface UpdateMemberRoleRequest {
+  role: ReceiptRole;
 }
 
 export interface CreateShareRequest {

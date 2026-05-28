@@ -32,17 +32,20 @@ import {
   Close as CloseIcon,
 } from '@mui/icons-material';
 import { getReceiptMembers, addReceiptMember } from '../services/api';
-import { ReceiptMember } from '../types/singleTableTypes';
+import { ReceiptMember, ReceiptRole } from '../types/singleTableTypes';
 
 interface ReceiptMembersProps {
   receiptId: string;
+  currentUserRole?: ReceiptRole;
   onMembersChange?: () => void;
 }
 
-const ReceiptMembers: React.FC<ReceiptMembersProps> = ({ 
-  receiptId, 
-  onMembersChange 
+const ReceiptMembers: React.FC<ReceiptMembersProps> = ({
+  receiptId,
+  currentUserRole,
+  onMembersChange
 }) => {
+  const isOwner = currentUserRole === 'owner';
   const { getAccessTokenSilently } = useAuth0();
   const [members, setMembers] = useState<ReceiptMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,6 +98,7 @@ const ReceiptMembers: React.FC<ReceiptMembersProps> = ({
         displayName: displayName.trim(),
         email: email.trim() || undefined,
         userType,
+        role: 'editor',
       }, token);
 
       // Reset form
@@ -162,14 +166,16 @@ const ReceiptMembers: React.FC<ReceiptMembersProps> = ({
         <Typography variant="h6">
           Receipt Members ({members.length})
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<PersonAddIcon />}
-          onClick={() => setAddDialogOpen(true)}
-          size="small"
-        >
-          Add Member
-        </Button>
+        {isOwner && (
+          <Button
+            variant="contained"
+            startIcon={<PersonAddIcon />}
+            onClick={() => setAddDialogOpen(true)}
+            size="small"
+          >
+            Add Member
+          </Button>
+        )}
       </Box>
 
       {error && (
@@ -203,6 +209,11 @@ const ReceiptMembers: React.FC<ReceiptMembersProps> = ({
                     <Typography variant="body1">
                       {member.displayName}
                     </Typography>
+                    {member.role === 'owner' ? (
+                      <Chip label="Owner" color="primary" size="small" />
+                    ) : (
+                      <Chip label="Editor" variant="outlined" size="small" />
+                    )}
                     <Chip
                       label={member.userType === 'authenticated' ? 'User' : 'Placeholder'}
                       color={member.userType === 'authenticated' ? 'primary' : 'default'}

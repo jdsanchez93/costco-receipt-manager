@@ -148,11 +148,45 @@ public class SingleTableService : ISingleTableService
         }
     }
 
-    public async Task<ReceiptMember> CreateReceiptMemberAsync(string receiptId, string userId, string displayName, 
-        string? email, string addedByUserId, string userType = "authenticated")
+    public async Task<ReceiptMember?> GetUserReceiptMembershipAsync(string userId, string receiptId)
     {
-        _logger.LogInformation("Creating receipt member: receiptId={ReceiptId}, userId={UserId}, userType={UserType}", 
-            receiptId, userId, userType);
+        _logger.LogInformation("Getting user receipt membership: userId={UserId}, receiptId={ReceiptId}", userId, receiptId);
+
+        var request = new GetItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                { "PK", new AttributeValue($"RECEIPT#{receiptId}") },
+                { "SK", new AttributeValue($"USER#{userId}") }
+            }
+        };
+
+        try
+        {
+            var response = await _dynamoDb.GetItemAsync(request);
+            if (response.Item == null || response.Item.Count == 0)
+            {
+                _logger.LogInformation("No membership found for user {UserId} on receipt {ReceiptId}", userId, receiptId);
+                return null;
+            }
+
+            var member = ConvertToReceiptMember(response.Item);
+            _logger.LogInformation("Found membership with role: {Role}", member.Role);
+            return member;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting user receipt membership");
+            throw;
+        }
+    }
+
+    public async Task<ReceiptMember> CreateReceiptMemberAsync(string receiptId, string userId, string displayName,
+        string? email, string addedByUserId, string userType = "authenticated", string role = ReceiptRoles.Editor)
+    {
+        _logger.LogInformation("Creating receipt member: receiptId={ReceiptId}, userId={UserId}, userType={UserType}, role={Role}",
+            receiptId, userId, userType, role);
 
         var member = new ReceiptMember
         {
@@ -168,7 +202,8 @@ public class SingleTableService : ISingleTableService
             DisplayName = displayName,
             Email = email,
             AddedBy = addedByUserId,
-            AddedAt = DateTime.UtcNow.ToString("O")
+            AddedAt = DateTime.UtcNow.ToString("O"),
+            Role = role
         };
 
         var request = new PutItemRequest
@@ -178,7 +213,7 @@ public class SingleTableService : ISingleTableService
         };
 
         await _dynamoDb.PutItemAsync(request);
-        _logger.LogInformation("Successfully created receipt member");
+        _logger.LogInformation("Successfully created receipt member with role {Role}", role);
         return member;
     }
 
@@ -214,6 +249,76 @@ public class SingleTableService : ISingleTableService
         {
             _logger.LogError(ex, "Error updating member details");
             throw;
+        }
+    }
+
+    public async Task UpdateMemberRoleAsync(string receiptId, string userId, string newRole)
+    {
+        _logger.LogInformation("Updating member role: receiptId={ReceiptId}, userId={UserId}, newRole={NewRole}",
+            receiptId, userId, newRole);
+
+        if (!ReceiptRoles.IsValid(newRole))
+        {
+            throw new ArgumentException($"Invalid role: {newRole}");
+        }
+
+        var request = new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                { "PK", new AttributeValue($"RECEIPT#{receiptId}") },
+                { "SK", new AttributeValue($"USER#{userId}") }
+            },
+            UpdateExpression = "SET #role = :role, updated_at = :updatedAt",
+            ExpressionAttributeNames = new Dictionary<string, string>
+            {
+                { "#role", "role" }  // role is a reserved word in DynamoDB
+            },
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                { ":role", new AttributeValue(newRole) },
+                { ":updatedAt", new AttributeValue(DateTime.UtcNow.ToString("O")) }
+            },
+            ConditionExpression = "attribute_exists(PK) AND attribute_exists(SK)"
+        };
+
+        try
+        {
+            await _dynamoDb.UpdateItemAsync(request);
+            _logger.LogInformation("Successfully updated member role to {NewRole}", newRole);
+        }
+        catch (ConditionalCheckFailedException)
+        {
+            _logger.LogWarning("Member not found for role update: receiptId={ReceiptId}, userId={UserId}", receiptId, userId);
+            throw new KeyNotFoundException($"Member not found: {userId}");
+        }
+    }
+
+    public async Task RemoveReceiptMemberAsync(string receiptId, string userId)
+    {
+        _logger.LogInformation("Removing receipt member: receiptId={ReceiptId}, userId={UserId}", receiptId, userId);
+
+        var request = new DeleteItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                { "PK", new AttributeValue($"RECEIPT#{receiptId}") },
+                { "SK", new AttributeValue($"USER#{userId}") }
+            },
+            ConditionExpression = "attribute_exists(PK) AND attribute_exists(SK)"
+        };
+
+        try
+        {
+            await _dynamoDb.DeleteItemAsync(request);
+            _logger.LogInformation("Successfully removed member {UserId} from receipt {ReceiptId}", userId, receiptId);
+        }
+        catch (ConditionalCheckFailedException)
+        {
+            _logger.LogWarning("Member not found for removal: receiptId={ReceiptId}, userId={UserId}", receiptId, userId);
+            throw new KeyNotFoundException($"Member not found: {userId}");
         }
     }
 
@@ -404,6 +509,123 @@ public class SingleTableService : ISingleTableService
         return share;
     }
 
+    public async Task DeactivateShareAsync(string receiptId, string shareToken)
+    {
+        _logger.LogInformation("Deactivating share: receiptId={ReceiptId}, shareToken={ShareToken}", receiptId, shareToken);
+
+        var request = new UpdateItemRequest
+        {
+            TableName = _tableName,
+            Key = new Dictionary<string, AttributeValue>
+            {
+                { "PK", new AttributeValue($"SHARE#{shareToken}") },
+                { "SK", new AttributeValue($"RECEIPT#{receiptId}") }
+            },
+            UpdateExpression = "SET is_active = :isActive, updated_at = :updatedAt",
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                { ":isActive", new AttributeValue { BOOL = false } },
+                { ":updatedAt", new AttributeValue(DateTime.UtcNow.ToString("O")) }
+            },
+            ConditionExpression = "attribute_exists(PK) AND attribute_exists(SK)"
+        };
+
+        try
+        {
+            await _dynamoDb.UpdateItemAsync(request);
+            _logger.LogInformation("Successfully deactivated share {ShareToken}", shareToken);
+        }
+        catch (ConditionalCheckFailedException)
+        {
+            _logger.LogWarning("Share not found for deactivation: shareToken={ShareToken}", shareToken);
+            throw new KeyNotFoundException($"Share not found: {shareToken}");
+        }
+    }
+
+    public async Task DeleteReceiptAsync(string receiptId)
+    {
+        _logger.LogInformation("Deleting receipt and all associated data: receiptId={ReceiptId}", receiptId);
+
+        // Query all items with PK = RECEIPT#{receiptId} (items, members, geometry)
+        var queryRequest = new QueryRequest
+        {
+            TableName = _tableName,
+            KeyConditionExpression = "PK = :pk",
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                { ":pk", new AttributeValue($"RECEIPT#{receiptId}") }
+            }
+        };
+
+        var queryResponse = await _dynamoDb.QueryAsync(queryRequest);
+        var deleteRequests = new List<WriteRequest>();
+
+        foreach (var item in queryResponse.Items)
+        {
+            deleteRequests.Add(new WriteRequest
+            {
+                DeleteRequest = new DeleteRequest
+                {
+                    Key = new Dictionary<string, AttributeValue>
+                    {
+                        { "PK", item["PK"] },
+                        { "SK", item["SK"] }
+                    }
+                }
+            });
+        }
+
+        // Also delete shares (PK = SHARE#{token}, SK = RECEIPT#{receiptId})
+        var sharesRequest = new QueryRequest
+        {
+            TableName = _tableName,
+            IndexName = DynamoDbConfiguration.GSI.GSI2,
+            KeyConditionExpression = "GSI2PK = :pk",
+            ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+            {
+                { ":pk", new AttributeValue($"RECEIPT#{receiptId}") }
+            }
+        };
+
+        var sharesResponse = await _dynamoDb.QueryAsync(sharesRequest);
+        foreach (var share in sharesResponse.Items)
+        {
+            deleteRequests.Add(new WriteRequest
+            {
+                DeleteRequest = new DeleteRequest
+                {
+                    Key = new Dictionary<string, AttributeValue>
+                    {
+                        { "PK", share["PK"] },
+                        { "SK", share["SK"] }
+                    }
+                }
+            });
+        }
+
+        // Batch delete in chunks of 25 (DynamoDB limit)
+        var batches = deleteRequests
+            .Select((item, index) => new { item, index })
+            .GroupBy(x => x.index / 25)
+            .Select(g => g.Select(x => x.item).ToList())
+            .ToList();
+
+        foreach (var batch in batches)
+        {
+            var batchRequest = new BatchWriteItemRequest
+            {
+                RequestItems = new Dictionary<string, List<WriteRequest>>
+                {
+                    { _tableName, batch }
+                }
+            };
+
+            await _dynamoDb.BatchWriteItemAsync(batchRequest);
+        }
+
+        _logger.LogInformation("Successfully deleted receipt {ReceiptId} with {ItemCount} items", receiptId, deleteRequests.Count);
+    }
+
     // Receipt Geometry Methods
     public async Task<Dictionary<string, object>> GetReceiptGeometryAsync(string receiptId)
     {
@@ -512,7 +734,8 @@ public class SingleTableService : ISingleTableService
             ValidationStatus = item.GetValueOrDefault("validation_status")?.S,
             ValidatedBy = item.GetValueOrDefault("validated_by")?.S,
             ValidatedAt = item.GetValueOrDefault("validated_at")?.S,
-            Comments = item.GetValueOrDefault("comments")?.S
+            Comments = item.GetValueOrDefault("comments")?.S,
+            Role = item.GetValueOrDefault("role")?.S ?? ReceiptRoles.Editor  // Default to editor for backwards compatibility
         };
     }
 

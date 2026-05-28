@@ -200,7 +200,7 @@ public class ReceiptsController : ControllerBase
     // ==================== RECEIPT DATA ====================
 
     [HttpGet("receipt/{receiptId}/items")]
-    [Authorize]
+    [Authorize(Policy = "ReceiptMember")]
     public async Task<IActionResult> GetReceiptItems(string receiptId)
     {
         try
@@ -216,31 +216,12 @@ public class ReceiptsController : ControllerBase
     }
 
     [HttpGet("receipt/{receiptId}/geometry")]
-    [Authorize]
+    [Authorize(Policy = "ReceiptMember")]
     public async Task<IActionResult> GetReceiptGeometry(string receiptId)
     {
         try
         {
-            var userId = GetUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(new { error = "User not authenticated" });
-            }
-
-            if (string.IsNullOrEmpty(receiptId))
-            {
-                return BadRequest(new { error = "Receipt ID is required" });
-            }
-
-            // Verify user is a member of this receipt
-            var receiptMembers = await _singleTableService.GetUserReceiptsAsync(userId);
-            var membership = receiptMembers.FirstOrDefault(r => r.ReceiptId == receiptId);
-
-            if (membership == null)
-            {
-                return NotFound(new { error = "Receipt not found or access denied" });
-            }
-
+            // Authorization handler already verified membership
             var geometryData = await _singleTableService.GetReceiptGeometryAsync(receiptId);
             return Ok(geometryData);
         }
@@ -252,7 +233,7 @@ public class ReceiptsController : ControllerBase
     }
 
     [HttpPost("validate/{receiptId}")]
-    [Authorize]
+    [Authorize(Policy = "ReceiptEditor")]
     public async Task<IActionResult> ValidateReceipt(string receiptId, [FromBody] ValidateReceiptRequest request)
     {
         try
@@ -287,31 +268,12 @@ public class ReceiptsController : ControllerBase
     // ==================== RECEIPT MEMBERS ====================
 
     [HttpGet("receipt/{receiptId}/members")]
-    [Authorize]
+    [Authorize(Policy = "ReceiptMember")]
     public async Task<IActionResult> GetReceiptMembers(string receiptId)
     {
         try
         {
-            var userId = GetUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(new { error = "User not authenticated" });
-            }
-
-            if (string.IsNullOrEmpty(receiptId))
-            {
-                return BadRequest(new { error = "Receipt ID is required" });
-            }
-
-            // Verify user is a member of this receipt
-            var receiptMembers = await _singleTableService.GetUserReceiptsAsync(userId);
-            var membership = receiptMembers.FirstOrDefault(r => r.ReceiptId == receiptId);
-
-            if (membership == null)
-            {
-                return NotFound(new { error = "Receipt not found or access denied" });
-            }
-
+            // Authorization handler already verified membership
             var members = await _singleTableService.GetReceiptMembersAsync(receiptId);
             return Ok(members);
         }
@@ -323,7 +285,7 @@ public class ReceiptsController : ControllerBase
     }
 
     [HttpPost("receipt/{receiptId}/members")]
-    [Authorize]
+    [Authorize(Policy = "ReceiptOwner")]
     public async Task<IActionResult> AddReceiptMember(string receiptId, [FromBody] AddReceiptMemberRequest request)
     {
         try
@@ -332,11 +294,6 @@ public class ReceiptsController : ControllerBase
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized(new { error = "User not authenticated" });
-            }
-
-            if (string.IsNullOrEmpty(receiptId))
-            {
-                return BadRequest(new { error = "Receipt ID is required" });
             }
 
             if (string.IsNullOrEmpty(request.DisplayName))
@@ -349,16 +306,14 @@ public class ReceiptsController : ControllerBase
                 return BadRequest(new { error = "Valid user type is required (authenticated or placeholder)" });
             }
 
-            // Verify user is a member of this receipt
-            var receiptMembers = await _singleTableService.GetUserReceiptsAsync(userId);
-            var membership = receiptMembers.FirstOrDefault(r => r.ReceiptId == receiptId);
-
-            if (membership == null)
-            {
-                return NotFound(new { error = "Receipt not found or access denied" });
-            }
-
+            // Authorization handler already verified ownership
             ReceiptMember member;
+            var role = request.Role ?? ReceiptRoles.Editor;  // Default new members to editor
+
+            if (!ReceiptRoles.IsValid(role))
+            {
+                return BadRequest(new { error = "Invalid role. Must be owner, editor, or viewer" });
+            }
 
             if (request.UserType == "authenticated")
             {
@@ -366,25 +321,27 @@ public class ReceiptsController : ControllerBase
                 {
                     return BadRequest(new { error = "Email is required for authenticated users" });
                 }
-                
+
                 member = await _singleTableService.CreateReceiptMemberAsync(
-                    receiptId, 
-                    request.Email, // Using email as userId for now
-                    request.DisplayName, 
-                    request.Email, 
-                    userId, 
-                    "authenticated");
+                    receiptId,
+                    request.Email,
+                    request.DisplayName,
+                    request.Email,
+                    userId,
+                    "authenticated",
+                    role);
             }
             else
             {
                 var placeholderUserId = Guid.NewGuid().ToString();
                 member = await _singleTableService.CreateReceiptMemberAsync(
-                    receiptId, 
-                    placeholderUserId, 
-                    request.DisplayName, 
-                    null, 
-                    userId, 
-                    "placeholder");
+                    receiptId,
+                    placeholderUserId,
+                    request.DisplayName,
+                    null,
+                    userId,
+                    "placeholder",
+                    role);
             }
 
             return CreatedAtAction(nameof(GetReceiptMembers), new { receiptId }, new
@@ -400,8 +357,90 @@ public class ReceiptsController : ControllerBase
         }
     }
 
+    [HttpPut("receipt/{receiptId}/members/{memberId}/role")]
+    [Authorize(Policy = "ReceiptOwner")]
+    public async Task<IActionResult> UpdateMemberRole(string receiptId, string memberId, [FromBody] UpdateMemberRoleRequest request)
+    {
+        try
+        {
+            var userId = GetUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { error = "User not authenticated" });
+            }
+
+            if (string.IsNullOrEmpty(request.Role) || !ReceiptRoles.IsValid(request.Role))
+            {
+                return BadRequest(new { error = "Invalid role. Must be owner, editor, or viewer" });
+            }
+
+            // Prevent owner from changing their own role
+            if (memberId == userId && request.Role != ReceiptRoles.Owner)
+            {
+                return BadRequest(new { error = "Cannot change your own role. Transfer ownership first." });
+            }
+
+            await _singleTableService.UpdateMemberRoleAsync(receiptId, memberId, request.Role);
+
+            return Ok(new
+            {
+                message = "Member role updated successfully",
+                receiptId,
+                memberId,
+                role = request.Role
+            });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { error = "Member not found" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating member role for receipt {ReceiptId}, member {MemberId}", receiptId, memberId);
+            return StatusCode(500, new { error = "Failed to update member role" });
+        }
+    }
+
+    [HttpDelete("receipt/{receiptId}/members/{memberId}")]
+    [Authorize(Policy = "ReceiptOwner")]
+    public async Task<IActionResult> RemoveReceiptMember(string receiptId, string memberId)
+    {
+        try
+        {
+            var userId = GetUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { error = "User not authenticated" });
+            }
+
+            // Prevent owner from removing themselves
+            if (memberId == userId)
+            {
+                return BadRequest(new { error = "Cannot remove yourself from the receipt. Transfer ownership or delete the receipt." });
+            }
+
+            await _singleTableService.RemoveReceiptMemberAsync(receiptId, memberId);
+
+            return Ok(new
+            {
+                message = "Member removed successfully",
+                receiptId,
+                memberId
+            });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { error = "Member not found" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing member {MemberId} from receipt {ReceiptId}", memberId, receiptId);
+            return StatusCode(500, new { error = "Failed to remove member" });
+        }
+    }
+
     [HttpPut("receipt/{receiptId}/members/update-details")]
-    [Authorize]
+    [Authorize(Policy = "ReceiptMember")]
     public async Task<IActionResult> UpdateMemberDetails(string receiptId, [FromBody] UpdateMemberDetailsRequest request)
     {
         try
@@ -417,20 +456,7 @@ public class ReceiptsController : ControllerBase
                 return BadRequest(new { error = "Email is required" });
             }
 
-            if (string.IsNullOrEmpty(receiptId))
-            {
-                return BadRequest(new { error = "Receipt ID is required" });
-            }
-
-            // Verify user is a member of this receipt
-            var receiptMembers = await _singleTableService.GetUserReceiptsAsync(userId);
-            var membership = receiptMembers.FirstOrDefault(r => r.ReceiptId == receiptId);
-
-            if (membership == null)
-            {
-                return NotFound(new { error = "Receipt not found or access denied" });
-            }
-
+            // Authorization handler verified membership, only update own details
             var displayName = request.Name ?? request.Email.Split('@')[0];
             await _singleTableService.UpdateMemberDetailsAsync(receiptId, userId, displayName, request.Email);
 
@@ -453,7 +479,7 @@ public class ReceiptsController : ControllerBase
     // ==================== RECEIPT SHARING ====================
 
     [HttpPost("receipt/{receiptId}/share")]
-    [Authorize]
+    [Authorize(Policy = "ReceiptEditor")]
     public async Task<IActionResult> CreateReceiptShare(string receiptId, [FromBody] CreateReceiptShareRequest? request)
     {
         try
@@ -464,26 +490,13 @@ public class ReceiptsController : ControllerBase
                 return Unauthorized(new { error = "User not authenticated" });
             }
 
-            if (string.IsNullOrEmpty(receiptId))
-            {
-                return BadRequest(new { error = "Receipt ID is required" });
-            }
-
-            // Verify user is a member of this receipt
-            var receiptMembers = await _singleTableService.GetUserReceiptsAsync(userId);
-            var membership = receiptMembers.FirstOrDefault(r => r.ReceiptId == receiptId);
-
-            if (membership == null)
-            {
-                return NotFound(new { error = "Receipt not found or access denied" });
-            }
-
+            // Authorization handler already verified membership and role
             var expiresInDays = request?.ExpiresInDays ?? 30;
             var share = await _singleTableService.CreateReceiptShareAsync(receiptId, userId, expiresInDays);
 
             var cloudFrontDomain = _appConfig.CloudFrontDomain;
-            var frontendUrl = !string.IsNullOrEmpty(cloudFrontDomain) 
-                ? $"https://{cloudFrontDomain}" 
+            var frontendUrl = !string.IsNullOrEmpty(cloudFrontDomain)
+                ? $"https://{cloudFrontDomain}"
                 : "http://localhost:3000";
 
             return CreatedAtAction(nameof(GetReceiptShares), new { receiptId }, new
@@ -502,31 +515,12 @@ public class ReceiptsController : ControllerBase
     }
 
     [HttpGet("receipt/{receiptId}/shares")]
-    [Authorize]
+    [Authorize(Policy = "ReceiptOwner")]
     public async Task<IActionResult> GetReceiptShares(string receiptId)
     {
         try
         {
-            var userId = GetUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(new { error = "User not authenticated" });
-            }
-
-            if (string.IsNullOrEmpty(receiptId))
-            {
-                return BadRequest(new { error = "Receipt ID is required" });
-            }
-
-            // Verify user is a member of this receipt
-            var receiptMembers = await _singleTableService.GetUserReceiptsAsync(userId);
-            var membership = receiptMembers.FirstOrDefault(r => r.ReceiptId == receiptId);
-
-            if (membership == null)
-            {
-                return NotFound(new { error = "Receipt not found or access denied" });
-            }
-
+            // Authorization handler already verified ownership
             var shares = await _singleTableService.GetReceiptSharesAsync(receiptId);
 
             var cloudFrontDomain = _appConfig.CloudFrontDomain;
@@ -550,34 +544,47 @@ public class ReceiptsController : ControllerBase
         }
     }
 
+    [HttpDelete("receipt/{receiptId}/shares/{shareToken}")]
+    [Authorize(Policy = "ReceiptOwner")]
+    public async Task<IActionResult> DeactivateShare(string receiptId, string shareToken)
+    {
+        try
+        {
+            // Authorization handler already verified ownership
+            await _singleTableService.DeactivateShareAsync(receiptId, shareToken);
+
+            return Ok(new
+            {
+                message = "Share link deactivated successfully",
+                receiptId,
+                shareToken
+            });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { error = "Share not found" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deactivating share {ShareToken} for receipt {ReceiptId}", shareToken, receiptId);
+            return StatusCode(500, new { error = "Failed to deactivate share" });
+        }
+    }
+
     // ==================== ITEM ASSIGNMENTS ====================
 
     [HttpPut("receipt/{receiptId}/items/{itemId}/assignment")]
-    [Authorize]
+    [Authorize(Policy = "ReceiptEditor")]
     public async Task<IActionResult> UpdateItemAssignment(string receiptId, string itemId, [FromBody] UpdateItemAssignmentRequest request)
     {
         try
         {
-            var userId = GetUserId();
-            if (string.IsNullOrEmpty(userId))
+            if (string.IsNullOrEmpty(itemId))
             {
-                return Unauthorized(new { error = "User not authenticated" });
+                return BadRequest(new { error = "Item ID is required" });
             }
 
-            if (string.IsNullOrEmpty(receiptId) || string.IsNullOrEmpty(itemId))
-            {
-                return BadRequest(new { error = "Receipt ID and Item ID are required" });
-            }
-
-            // Verify user is a member of this receipt
-            var receiptMembers = await _singleTableService.GetUserReceiptsAsync(userId);
-            var membership = receiptMembers.FirstOrDefault(r => r.ReceiptId == receiptId);
-
-            if (membership == null)
-            {
-                return NotFound(new { error = "Receipt not found or access denied" });
-            }
-
+            // Authorization handler already verified membership and role
             await _singleTableService.UpdateItemAssignmentAsync(receiptId, itemId, request.AssignedUsers);
 
             return Ok(new
@@ -596,31 +603,12 @@ public class ReceiptsController : ControllerBase
     }
 
     [HttpPut("receipt/{receiptId}/items/assignments/bulk")]
-    [Authorize]
+    [Authorize(Policy = "ReceiptEditor")]
     public async Task<IActionResult> BulkUpdateItemAssignments(string receiptId, [FromBody] BulkUpdateItemAssignmentsRequest request)
     {
         try
         {
-            var userId = GetUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(new { error = "User not authenticated" });
-            }
-
-            if (string.IsNullOrEmpty(receiptId))
-            {
-                return BadRequest(new { error = "Receipt ID is required" });
-            }
-
-            // Verify user is a member of this receipt
-            var receiptMembers = await _singleTableService.GetUserReceiptsAsync(userId);
-            var membership = receiptMembers.FirstOrDefault(r => r.ReceiptId == receiptId);
-
-            if (membership == null)
-            {
-                return NotFound(new { error = "Receipt not found or access denied" });
-            }
-
+            // Authorization handler already verified membership and role
             var updates = request.Updates.Select(u => (u.ItemId, u.AssignedUsers)).ToList();
             await _singleTableService.BulkUpdateItemAssignmentsAsync(receiptId, updates);
 
@@ -639,31 +627,12 @@ public class ReceiptsController : ControllerBase
     }
 
     [HttpDelete("receipt/{receiptId}/items/assignments/all")]
-    [Authorize]
+    [Authorize(Policy = "ReceiptEditor")]
     public async Task<IActionResult> ClearAllItemAssignments(string receiptId)
     {
         try
         {
-            var userId = GetUserId();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(new { error = "User not authenticated" });
-            }
-
-            if (string.IsNullOrEmpty(receiptId))
-            {
-                return BadRequest(new { error = "Receipt ID is required" });
-            }
-
-            // Verify user is a member of this receipt
-            var receiptMembers = await _singleTableService.GetUserReceiptsAsync(userId);
-            var membership = receiptMembers.FirstOrDefault(r => r.ReceiptId == receiptId);
-
-            if (membership == null)
-            {
-                return NotFound(new { error = "Receipt not found or access denied" });
-            }
-
+            // Authorization handler already verified membership and role
             await _singleTableService.ClearAllItemAssignmentsAsync(receiptId);
 
             return Ok(new
@@ -676,6 +645,30 @@ public class ReceiptsController : ControllerBase
         {
             _logger.LogError(ex, "Error clearing all assignments for receipt {ReceiptId}", receiptId);
             return StatusCode(500, new { error = "Failed to clear assignments" });
+        }
+    }
+
+    // ==================== RECEIPT DELETE ====================
+
+    [HttpDelete("receipt/{receiptId}")]
+    [Authorize(Policy = "ReceiptOwner")]
+    public async Task<IActionResult> DeleteReceipt(string receiptId)
+    {
+        try
+        {
+            // Authorization handler already verified ownership
+            await _singleTableService.DeleteReceiptAsync(receiptId);
+
+            return Ok(new
+            {
+                message = "Receipt and all associated data deleted successfully",
+                receiptId
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting receipt {ReceiptId}", receiptId);
+            return StatusCode(500, new { error = "Failed to delete receipt" });
         }
     }
 }

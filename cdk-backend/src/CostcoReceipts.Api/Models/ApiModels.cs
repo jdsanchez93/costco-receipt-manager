@@ -29,6 +29,13 @@ public class AddReceiptMemberRequest
     public string DisplayName { get; set; } = string.Empty;
     public string? Email { get; set; }
     public string UserType { get; set; } = "authenticated";  // authenticated | placeholder
+    public string? Role { get; set; }  // owner | editor | viewer (defaults to editor)
+}
+
+// Update Member Role Request
+public class UpdateMemberRoleRequest
+{
+    public string Role { get; set; } = string.Empty;  // owner | editor | viewer
 }
 
 // Update Member Details Request

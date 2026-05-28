@@ -128,6 +128,10 @@ public class ReceiptMember : IDynamoDbEntity
 
     [DynamoDBProperty("comments")]
     public string? Comments { get; set; }
+
+    // Role-based access control
+    [DynamoDBProperty("role")]
+    public string Role { get; set; } = ReceiptRoles.Editor;  // "owner" | "editor" | "viewer"
 }
 
 // Receipt Share

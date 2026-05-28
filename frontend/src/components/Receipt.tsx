@@ -10,15 +10,21 @@ import {
   Button,
   Paper,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import DeleteIcon from '@mui/icons-material/Delete';
 import ItemsTable from './ItemsTable';
 import ReceiptValidation from './ReceiptValidation';
 import ReceiptMembers from './ReceiptMembers';
 import ReceiptSharing from './ReceiptSharing';
 import ItemAssignment from './ItemAssignment';
 import MemberTotals from './MemberTotals';
-import { getReceiptItems, getUserReceipts, getReceiptMembers, updateMemberDetails } from '../services/api';
+import { getReceiptItems, getUserReceipts, getReceiptMembers, updateMemberDetails, deleteReceipt } from '../services/api';
 import { ReceiptMember, ReceiptItem as SingleTableReceiptItem } from '../types/singleTableTypes';
 
 // Use the single table types
@@ -31,6 +37,8 @@ const Receipt: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryStatus, setRetryStatus] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Color palette for members (cycling through colors)
   const memberColors = [
@@ -164,6 +172,25 @@ const Receipt: React.FC = () => {
     fetchReceiptData();
   };
 
+  const handleDeleteReceipt = async () => {
+    if (!receiptId) return;
+    setDeleting(true);
+    try {
+      const token = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: process.env.REACT_APP_AUTH0_AUDIENCE,
+        },
+      });
+      await deleteReceipt(receiptId, token);
+      navigate('/');
+    } catch (err) {
+      console.error('Failed to delete receipt:', err);
+      setError('Failed to delete receipt');
+      setDeleting(false);
+      setDeleteDialogOpen(false);
+    }
+  };
+
   if (loading) {
     return (
       <Container>
@@ -227,9 +254,21 @@ const Receipt: React.FC = () => {
       </Button>
 
       <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h4" gutterBottom>
-          Receipt Details
-        </Typography>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+          <Typography variant="h4">
+            Receipt Details
+          </Typography>
+          {receiptMember.role === 'owner' && (
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={() => setDeleteDialogOpen(true)}
+            >
+              Delete Receipt
+            </Button>
+          )}
+        </Box>
         
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 3 }}>
           <Box>
@@ -244,6 +283,17 @@ const Receipt: React.FC = () => {
           <Box>
             <Typography variant="subtitle2" color="text.secondary">
               Your Role
+            </Typography>
+            {receiptMember.role === 'owner' ? (
+              <Chip label="Owner" color="primary" size="small" />
+            ) : (
+              <Chip label="Editor" variant="outlined" size="small" />
+            )}
+          </Box>
+
+          <Box>
+            <Typography variant="subtitle2" color="text.secondary">
+              Display Name
             </Typography>
             <Typography variant="body1">
               {receiptMember.displayName}
@@ -331,8 +381,9 @@ const Receipt: React.FC = () => {
         <Typography variant="h5" gutterBottom>
           Receipt Members
         </Typography>
-        <ReceiptMembers 
+        <ReceiptMembers
           receiptId={receiptId || ''}
+          currentUserRole={receiptMember.role}
           onMembersChange={fetchReceiptData}
         />
       </Box>
@@ -341,8 +392,9 @@ const Receipt: React.FC = () => {
         <Typography variant="h5" gutterBottom>
           Share Receipt
         </Typography>
-        <ReceiptSharing 
+        <ReceiptSharing
           receiptId={receiptId || ''}
+          currentUserRole={receiptMember.role}
         />
       </Box>
 
@@ -361,7 +413,7 @@ const Receipt: React.FC = () => {
         <Typography variant="h5" gutterBottom>
           Assign Items to Members
         </Typography>
-        <ItemAssignment 
+        <ItemAssignment
           items={items}
           members={members}
           receiptId={receiptId || ''}
@@ -369,6 +421,23 @@ const Receipt: React.FC = () => {
           getMemberColor={getMemberColor}
         />
       </Box>
+
+      <Dialog open={deleteDialogOpen} onClose={() => !deleting && setDeleteDialogOpen(false)}>
+        <DialogTitle>Delete this receipt?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This permanently removes the receipt, its items, members, and any share links. This cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button onClick={handleDeleteReceipt} color="error" variant="contained" disabled={deleting}>
+            {deleting ? 'Deleting…' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

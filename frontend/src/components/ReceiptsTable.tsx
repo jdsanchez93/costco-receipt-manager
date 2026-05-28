@@ -41,8 +41,20 @@ const ReceiptsTable: React.FC<ReceiptsTableProps> = ({ receiptMembers }) => {
     },
     {
       field: 'displayName',
-      headerName: 'Your Role',
+      headerName: 'Display Name',
       width: 150,
+    },
+    {
+      field: 'role',
+      headerName: 'Your Role',
+      width: 110,
+      renderCell: (params) => {
+        const role = params.value as 'owner' | 'editor' | undefined;
+        if (role === 'owner') {
+          return <Chip label="Owner" color="primary" size="small" />;
+        }
+        return <Chip label="Editor" variant="outlined" size="small" />;
+      },
     },
     {
       field: 'validationStatus',

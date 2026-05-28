@@ -3,7 +3,10 @@ using Amazon.Runtime;
 using CostcoReceipts.Api.Services;
 using CostcoReceipts.Api.Middleware;
 using CostcoReceipts.Api.Configuration;
+using CostcoReceipts.Api.Authorization;
+using CostcoReceipts.Api.Models;
 using Amazon.Extensions.NETCore.Setup;
+using Microsoft.AspNetCore.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -70,6 +73,28 @@ builder.Services.AddHttpClient();
 
 // Add Auth0 JWT authentication
 builder.Services.AddAuth0Jwt();
+
+// Add HTTP context accessor for authorization handler
+builder.Services.AddHttpContextAccessor();
+
+// Add receipt role-based authorization
+builder.Services.AddScoped<IAuthorizationHandler, ReceiptRoleAuthorizationHandler>();
+builder.Services.AddAuthorization(options =>
+{
+    // Any member of the receipt can read its data
+    options.AddPolicy("ReceiptMember", policy =>
+        policy.Requirements.Add(new ReceiptRoleRequirement(
+            ReceiptRoles.Owner, ReceiptRoles.Editor)));
+
+    // Editors and owners can modify data (assignments, validation, shares)
+    options.AddPolicy("ReceiptEditor", policy =>
+        policy.Requirements.Add(new ReceiptRoleRequirement(
+            ReceiptRoles.Owner, ReceiptRoles.Editor)));
+
+    // Only owners can perform admin operations (delete, manage members)
+    options.AddPolicy("ReceiptOwner", policy =>
+        policy.Requirements.Add(new ReceiptRoleRequirement(ReceiptRoles.Owner)));
+});
 
 // Add configuration services
 builder.Services.AddSingleton<AppConfiguration>();

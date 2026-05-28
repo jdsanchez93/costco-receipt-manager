@@ -113,11 +113,12 @@ export const getReceiptMembers = async (receiptId: string, token: string) => {
 };
 
 export const addReceiptMember = async (
-  receiptId: string, 
+  receiptId: string,
   memberData: {
     displayName: string;
     email?: string;
     userType: 'authenticated' | 'placeholder';
+    role?: 'owner' | 'editor';
   },
   token: string
 ) => {
@@ -206,6 +207,15 @@ export const bulkUpdateItemAssignments = async (receiptId: string, updates: Arra
 
 export const clearAllItemAssignments = async (receiptId: string, token: string) => {
   const response = await api.delete(`/api/receipts/receipt/${receiptId}/items/assignments/all`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data;
+};
+
+export const deleteReceipt = async (receiptId: string, token: string) => {
+  const response = await api.delete(`/api/receipts/receipt/${receiptId}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
