@@ -1,0 +1,10 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# User secrets are stored outside the repo by ASP.NET Core,
+# but ignore any local appsettings overrides just in case
+appsettings.Local.json
+appsettings.*.Local.json
