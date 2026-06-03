@@ -9,10 +9,12 @@ namespace CostcoReceipts.Api.Controllers;
 public class HealthController : ControllerBase
 {
     private readonly AppDbContext _db;
+    private readonly IHostEnvironment _env;
 
-    public HealthController(AppDbContext db)
+    public HealthController(AppDbContext db, IHostEnvironment env)
     {
         _db = db;
+        _env = env;
     }
 
     /// <summary>
@@ -25,7 +27,7 @@ public class HealthController : ControllerBase
         {
             status = "healthy",
             timestamp = DateTime.UtcNow,
-            environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+            environment = _env.EnvironmentName,
         });
     }
 
