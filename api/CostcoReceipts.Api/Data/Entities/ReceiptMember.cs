@@ -7,6 +7,7 @@ public class ReceiptMember
     public string UserId { get; set; } = string.Empty;
     public string? PlaceholderId { get; set; }
     public string UserType { get; set; } = "authenticated";
+    public string Role { get; set; } = "editor";
     public string DisplayName { get; set; } = string.Empty;
     public string? Email { get; set; }
     public string AddedBy { get; set; } = string.Empty;

@@ -1,4 +1,5 @@
 using CostcoReceipts.Api.Authentication;
+using CostcoReceipts.Api.Authorization;
 using CostcoReceipts.Api.Configuration;
 using CostcoReceipts.Api.Data;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +20,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddControllers();
 builder.Services.AddHttpClient();
 builder.Services.AddAuth0Jwt(builder.Configuration);
+builder.Services.AddReceiptAuthorization();
 
 builder.Services.AddCors(options =>
 {

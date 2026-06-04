@@ -61,6 +61,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.UserId).HasMaxLength(128).IsRequired();
             e.Property(x => x.PlaceholderId).HasMaxLength(64);
             e.Property(x => x.UserType).HasMaxLength(32).IsRequired();
+            e.Property(x => x.Role).HasMaxLength(32).IsRequired().HasDefaultValue("editor");
             e.Property(x => x.DisplayName).HasMaxLength(256).IsRequired();
             e.Property(x => x.Email).HasMaxLength(256);
             e.Property(x => x.AddedBy).HasMaxLength(128).IsRequired();
