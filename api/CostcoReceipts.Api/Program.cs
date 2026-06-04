@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<S3Options>(builder.Configuration.GetSection(S3Options.SectionName));
+builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection(FrontendOptions.SectionName));
+builder.Services.AddProblemDetails();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
@@ -55,6 +57,12 @@ if (app.Environment.IsDevelopment())
     app.UseDeveloperExceptionPage();
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+else
+{
+    // In non-dev, surface unhandled exceptions as RFC 7807 ProblemDetails.
+    app.UseExceptionHandler();
+    app.UseStatusCodePages();
 }
 
 app.UseRouting();
