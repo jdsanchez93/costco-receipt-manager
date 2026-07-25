@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\CostcoReceipts.Api\CostcoReceipts.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.102" />
+    <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.100.6" />
+    <PackageReference Include="AWSSDK.SSO" Version="4.0.100.6" />
+    <PackageReference Include="AWSSDK.SSOOIDC" Version="4.0.100.6" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Both this project and CostcoReceipts.Api emit an implicit Program class
+         from top-level statements; the API project's is only "imported" through
+         the ProjectReference and never actually used from here. -->
+    <NoWarn>$(NoWarn);CS0436</NoWarn>
+  </PropertyGroup>
+
+</Project>
