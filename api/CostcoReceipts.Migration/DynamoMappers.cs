@@ -12,24 +12,39 @@ internal static class DynamoMappers
 {
     // ---------- ReceiptMember ----------
 
-    public static ReceiptMember ToReceiptMember(Dictionary<string, AttributeValue> item) => new()
+    public static ReceiptMember ToReceiptMember(Dictionary<string, AttributeValue> item)
     {
-        ReceiptId = S(item, "receipt_id"),
-        UserId = S(item, "user_id"),
-        PlaceholderId = SOrNull(item, "placeholder_id"),
-        UserType = S(item, "user_type", "authenticated"),
-        // Role is not present in old data; the Migrator backfills it after grouping.
-        Role = "editor",
-        DisplayName = S(item, "display_name"),
-        Email = SOrNull(item, "email"),
-        AddedBy = S(item, "added_by"),
-        AddedAt = ParseUtcDate(SOrNull(item, "added_at")) ?? DateTime.UtcNow,
-        UpdatedAt = ParseUtcDate(SOrNull(item, "updated_at")),
-        ValidationStatus = SOrNull(item, "validation_status"),
-        ValidatedBy = SOrNull(item, "validated_by"),
-        ValidatedAt = ParseUtcDate(SOrNull(item, "validated_at")),
-        Comments = SOrNull(item, "comments"),
-    };
+        var userId = SOrNull(item, "user_id");
+        var placeholderId = SOrNull(item, "placeholder_id");
+
+        // Self-heal legacy placeholder members: pre-refactor rows stored the
+        // identifier only in placeholder_id and left user_id empty. New code
+        // always writes both to the same GUID. Recovering the id here keeps
+        // the unique index (ReceiptId, UserId) happy.
+        if (string.IsNullOrEmpty(userId) && !string.IsNullOrEmpty(placeholderId))
+        {
+            userId = placeholderId;
+        }
+
+        return new ReceiptMember
+        {
+            ReceiptId = S(item, "receipt_id"),
+            UserId = userId ?? string.Empty,
+            PlaceholderId = placeholderId,
+            UserType = S(item, "user_type", "authenticated"),
+            // Role is not present in old data; the Migrator backfills it after grouping.
+            Role = "editor",
+            DisplayName = S(item, "display_name"),
+            Email = SOrNull(item, "email"),
+            AddedBy = S(item, "added_by"),
+            AddedAt = ParseUtcDate(SOrNull(item, "added_at")) ?? DateTime.UtcNow,
+            UpdatedAt = ParseUtcDate(SOrNull(item, "updated_at")),
+            ValidationStatus = SOrNull(item, "validation_status"),
+            ValidatedBy = SOrNull(item, "validated_by"),
+            ValidatedAt = ParseUtcDate(SOrNull(item, "validated_at")),
+            Comments = SOrNull(item, "comments"),
+        };
+    }
 
     // ---------- ReceiptItem (returns entity + assigned user ids) ----------
 
@@ -107,16 +122,10 @@ internal static class DynamoMappers
         };
     }
 
-    // ---------- PlaceholderUser ----------
-
-    public static PlaceholderUser ToPlaceholderUser(Dictionary<string, AttributeValue> item) => new()
-    {
-        ReceiptId = S(item, "receipt_id"),
-        PlaceholderId = S(item, "placeholder_id"),
-        DisplayName = S(item, "display_name"),
-        Status = S(item, "status", "unclaimed"),
-        CreatedAt = ParseUtcDate(SOrNull(item, "created_at")) ?? DateTime.UtcNow,
-    };
+    // Note: PLACEHOLDER_USER is a legacy entity type not written by the current
+    // API code. Placeholder participants are stored as RECEIPT_MEMBER rows with
+    // user_type="placeholder". The migrator ignores PLACEHOLDER_USER entities
+    // entirely, so no mapper is needed here.
 
     // ============================================================
     // Low-level attribute accessors

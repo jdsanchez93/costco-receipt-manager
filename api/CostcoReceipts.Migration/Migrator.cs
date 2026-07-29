@@ -15,7 +15,10 @@ public class Migrator
     private const string EntityReceiptItem = "RECEIPT_ITEM";
     private const string EntityReceiptGeometry = "RECEIPT_GEOMETRY";
     private const string EntityReceiptShare = "RECEIPT_SHARE";
-    private const string EntityPlaceholderUser = "PLACEHOLDER_USER";
+    // PLACEHOLDER_USER is a legacy entity_type from an older schema. The current
+    // API stores placeholder participants as RECEIPT_MEMBER with user_type="placeholder",
+    // so PLACEHOLDER_USER rows in dev DBs represent obsolete data and are ignored.
+    private const string EntityPlaceholderUserLegacy = "PLACEHOLDER_USER";
 
     private readonly IAmazonDynamoDB _dynamo;
     private readonly AppDbContext _db;
@@ -38,14 +41,12 @@ public class Migrator
         _logger.LogInformation("Scanned {Count} items from DynamoDB", scanned.Count);
 
         var groups = GroupByEntityType(scanned);
-        LogScanBreakdown(groups);
 
         // Group everything by receipt_id.
         var byReceipt = groups.Members
             .Concat(groups.Items)
             .Concat(groups.Geometry)
             .Concat(groups.Shares)
-            .Concat(groups.Placeholders)
             .Select(GetReceiptId)
             .Where(id => !string.IsNullOrEmpty(id))
             .Distinct()
@@ -104,16 +105,42 @@ public class Migrator
         bool dryRun,
         CancellationToken ct)
     {
-        var members = groups.Members
+        // Clear anything left tracked from a previous receipt — especially
+        // important after a SaveChangesAsync failure, where entities remain
+        // in the Added state even though the SQL transaction rolled back.
+        _db.ChangeTracker.Clear();
+
+        var rawMembers = groups.Members
             .Where(m => GetReceiptId(m) == receiptId)
             .Select(DynamoMappers.ToReceiptMember)
+            .ToList();
+
+        // Drop members that still have no identifier after the mapper's
+        // placeholder_id fallback — these are irrecoverably bad rows.
+        var identifiedMembers = rawMembers.Where(m => !string.IsNullOrEmpty(m.UserId)).ToList();
+        var droppedNoId = rawMembers.Count - identifiedMembers.Count;
+
+        // Dedupe by (ReceiptId, UserId) — matches the MySQL unique index. Keep
+        // the earliest AddedAt so the "owner" designation lands on the original
+        // member rather than a later duplicate row.
+        var members = identifiedMembers
+            .GroupBy(m => m.UserId)
+            .Select(g => g.OrderBy(m => m.AddedAt).First())
             .OrderBy(m => m.AddedAt)
             .ToList();
+        var droppedDupes = identifiedMembers.Count - members.Count;
+
+        if (droppedNoId > 0 || droppedDupes > 0)
+        {
+            _logger.LogWarning(
+                "Receipt {ReceiptId}: dropped {NoId} member(s) with no identifier, {Dupes} duplicate(s)",
+                receiptId, droppedNoId, droppedDupes);
+        }
 
         if (members.Count == 0)
         {
             _logger.LogWarning(
-                "Skipping receipt {ReceiptId}: no RECEIPT_MEMBER rows found (orphaned data)",
+                "Skipping receipt {ReceiptId}: no usable RECEIPT_MEMBER rows",
                 receiptId);
             return false;
         }
@@ -150,14 +177,9 @@ public class Migrator
             .Select(DynamoMappers.ToReceiptShare)
             .ToList();
 
-        var placeholders = groups.Placeholders
-            .Where(p => GetReceiptId(p) == receiptId)
-            .Select(DynamoMappers.ToPlaceholderUser)
-            .ToList();
-
         _logger.LogInformation(
-            "Receipt {ReceiptId}: owner={Owner} members={M} items={I} geometry={G} shares={S} placeholders={P}",
-            receiptId, owner.UserId, members.Count, items.Count, geometry.Count, shares.Count, placeholders.Count);
+            "Receipt {ReceiptId}: owner={Owner} members={M} items={I} geometry={G} shares={S}",
+            receiptId, owner.UserId, members.Count, items.Count, geometry.Count, shares.Count);
 
         if (dryRun) return true;
 
@@ -168,7 +190,6 @@ public class Migrator
         _db.ReceiptMembers.AddRange(members);
         _db.ReceiptGeometries.AddRange(geometry);
         _db.ReceiptShares.AddRange(shares);
-        _db.PlaceholderUsers.AddRange(placeholders);
 
         // Items need their generated Id before we can attach assignments.
         // Save items first, then wire up assignments.
@@ -235,39 +256,50 @@ public class Migrator
         List<Dictionary<string, AttributeValue>> Members,
         List<Dictionary<string, AttributeValue>> Items,
         List<Dictionary<string, AttributeValue>> Geometry,
-        List<Dictionary<string, AttributeValue>> Shares,
-        List<Dictionary<string, AttributeValue>> Placeholders);
+        List<Dictionary<string, AttributeValue>> Shares);
 
     private ScanGroups GroupByEntityType(List<Dictionary<string, AttributeValue>> items)
     {
-        var groups = new ScanGroups([], [], [], [], []);
-        var unknown = 0;
+        var groups = new ScanGroups([], [], [], []);
+        var countsByType = new Dictionary<string, int>();
 
         foreach (var item in items)
         {
-            var entityType = item.TryGetValue("entity_type", out var v) ? v.S : null;
+            var entityType = item.TryGetValue("entity_type", out var v) && v.S is not null
+                ? v.S
+                : "(missing)";
+            countsByType[entityType] = countsByType.GetValueOrDefault(entityType) + 1;
+
             switch (entityType)
             {
                 case EntityReceiptMember: groups.Members.Add(item); break;
                 case EntityReceiptItem: groups.Items.Add(item); break;
                 case EntityReceiptGeometry: groups.Geometry.Add(item); break;
                 case EntityReceiptShare: groups.Shares.Add(item); break;
-                case EntityPlaceholderUser: groups.Placeholders.Add(item); break;
-                default: unknown++; break;
+                case EntityPlaceholderUserLegacy: break; // legacy, intentionally ignored
+                default: break;                          // unknown, reported below
             }
         }
 
-        if (unknown > 0)
+        // Log every entity_type we saw and how the migrator treated it. This
+        // makes bad or stale data immediately visible instead of vanishing
+        // silently into a "skipped N unknown" count.
+        foreach (var (type, count) in countsByType.OrderByDescending(kv => kv.Value))
         {
-            _logger.LogWarning("Skipped {Count} items with unknown or missing entity_type", unknown);
+            var disposition = type switch
+            {
+                EntityReceiptMember or EntityReceiptItem or
+                    EntityReceiptGeometry or EntityReceiptShare => "migrated",
+                EntityPlaceholderUserLegacy => "ignored (legacy)",
+                _ => "SKIPPED (unrecognized entity_type)",
+            };
+            _logger.LogInformation(
+                "entity_type={Type,-24} count={Count,-6} {Disposition}",
+                type, count, disposition);
         }
 
         return groups;
     }
-
-    private void LogScanBreakdown(ScanGroups g) => _logger.LogInformation(
-        "Breakdown: members={M} items={I} geometry={G} shares={S} placeholders={P}",
-        g.Members.Count, g.Items.Count, g.Geometry.Count, g.Shares.Count, g.Placeholders.Count);
 
     private static string GetReceiptId(Dictionary<string, AttributeValue> item) =>
         item.TryGetValue("receipt_id", out var v) && v.S is not null ? v.S : string.Empty;
