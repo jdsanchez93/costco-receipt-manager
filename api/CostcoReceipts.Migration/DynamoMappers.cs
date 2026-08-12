@@ -26,6 +26,21 @@ internal static class DynamoMappers
             userId = placeholderId;
         }
 
+        // Last-ditch fallback for the oldest dev rows where both attributes are
+        // missing but the composite key survives. SK format is "USER#{userId}"
+        // per the current SingleTableService, so strip the prefix. Prod data
+        // never hits this branch; it exists to make dev migrations forgiving.
+        if (string.IsNullOrEmpty(userId))
+        {
+            var sk = SOrNull(item, "SK");
+            const string userSkPrefix = "USER#";
+            if (sk is not null && sk.StartsWith(userSkPrefix, StringComparison.Ordinal))
+            {
+                var candidate = sk[userSkPrefix.Length..];
+                if (!string.IsNullOrEmpty(candidate)) userId = candidate;
+            }
+        }
+
         return new ReceiptMember
         {
             ReceiptId = S(item, "receipt_id"),
@@ -76,10 +91,16 @@ internal static class DynamoMappers
 
     public static ReceiptGeometry ToReceiptGeometry(Dictionary<string, AttributeValue> item)
     {
-        var bb = MapOrEmpty(item, "bounding_box");
+        // The nested bounding_box and polygon maps use PascalCase keys
+        // (Width/Height/Left/Top, X/Y) because they're written by the external
+        // Textract Lambda whose input is Textract's native PascalCase JSON.
+        // Look them up case-insensitively so the same code also survives the
+        // codebase's own snake_case writer if it ever runs.
+        var bb = AsCaseInsensitive(MapOrEmpty(item, "bounding_box"));
+
         var polygonList = ListOfMaps(item, "polygon");
         var polygonJson = JsonSerializer.Serialize(
-            polygonList.Select(p => new
+            polygonList.Select(AsCaseInsensitive).Select(p => new
             {
                 x = MapNumber(p, "x"),
                 y = MapNumber(p, "y"),
@@ -100,6 +121,10 @@ internal static class DynamoMappers
             CreatedAt = ParseUtcDate(SOrNull(item, "created_at")) ?? DateTime.UtcNow,
         };
     }
+
+    private static Dictionary<string, AttributeValue> AsCaseInsensitive(
+        Dictionary<string, AttributeValue> src) =>
+        new(src, StringComparer.OrdinalIgnoreCase);
 
     // ---------- ReceiptShare ----------
 
