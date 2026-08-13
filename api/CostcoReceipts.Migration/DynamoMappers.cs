@@ -5,31 +5,53 @@ using CostcoReceipts.Api.Data.Entities;
 namespace CostcoReceipts.Migration;
 
 /// <summary>
-/// Converts raw DynamoDB items (Dictionary&lt;string, AttributeValue&gt;) from the
-/// legacy single-table schema into EF Core entities matching the new MySQL schema.
+/// Converts raw DynamoDB items into intermediate records or EF entities matching
+/// the new MySQL schema. RECEIPT_MEMBER rows flatten to a <see cref="ScannedMember"/>
+/// because their identity fields (UserId, DisplayName, Email) now live on
+/// <c>Contact</c>, not <c>ReceiptMember</c> — the Migrator constructs both from
+/// the intermediate record.
 /// </summary>
 internal static class DynamoMappers
 {
-    // ---------- ReceiptMember ----------
+    // ---------- ScannedMember (intermediate) ----------
 
-    public static ReceiptMember ToReceiptMember(Dictionary<string, AttributeValue> item)
+    /// <summary>
+    /// A RECEIPT_MEMBER row denormalized. The Migrator uses this to build
+    /// exactly one <c>Contact</c> per (owner, user) and one <c>ReceiptMember</c>
+    /// row pointing at that Contact.
+    /// </summary>
+    public record ScannedMember(
+        string ReceiptId,
+        string OldUserId,      // may be empty for irrecoverably bad rows
+        string? PlaceholderId,
+        string UserType,       // "authenticated" | "placeholder"
+        string DisplayName,
+        string? Email,
+        string AddedBy,
+        DateTime AddedAt,
+        DateTime? UpdatedAt,
+        string? ValidationStatus,
+        string? ValidatedBy,
+        DateTime? ValidatedAt,
+        string? Comments)
+    {
+        public bool IsAuthenticated =>
+            string.Equals(UserType, "authenticated", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static ScannedMember ToScannedMember(Dictionary<string, AttributeValue> item)
     {
         var userId = SOrNull(item, "user_id");
         var placeholderId = SOrNull(item, "placeholder_id");
 
         // Self-heal legacy placeholder members: pre-refactor rows stored the
-        // identifier only in placeholder_id and left user_id empty. New code
-        // always writes both to the same GUID. Recovering the id here keeps
-        // the unique index (ReceiptId, UserId) happy.
+        // identifier only in placeholder_id and left user_id empty.
         if (string.IsNullOrEmpty(userId) && !string.IsNullOrEmpty(placeholderId))
         {
             userId = placeholderId;
         }
 
-        // Last-ditch fallback for the oldest dev rows where both attributes are
-        // missing but the composite key survives. SK format is "USER#{userId}"
-        // per the current SingleTableService, so strip the prefix. Prod data
-        // never hits this branch; it exists to make dev migrations forgiving.
+        // Last-ditch fallback for the oldest dev rows: SK is "USER#{userId}".
         if (string.IsNullOrEmpty(userId))
         {
             var sk = SOrNull(item, "SK");
@@ -41,24 +63,20 @@ internal static class DynamoMappers
             }
         }
 
-        return new ReceiptMember
-        {
-            ReceiptId = S(item, "receipt_id"),
-            UserId = userId ?? string.Empty,
-            PlaceholderId = placeholderId,
-            UserType = S(item, "user_type", "authenticated"),
-            // Role is not present in old data; the Migrator backfills it after grouping.
-            Role = "editor",
-            DisplayName = S(item, "display_name"),
-            Email = SOrNull(item, "email"),
-            AddedBy = S(item, "added_by"),
-            AddedAt = ParseUtcDate(SOrNull(item, "added_at")) ?? DateTime.UtcNow,
-            UpdatedAt = ParseUtcDate(SOrNull(item, "updated_at")),
-            ValidationStatus = SOrNull(item, "validation_status"),
-            ValidatedBy = SOrNull(item, "validated_by"),
-            ValidatedAt = ParseUtcDate(SOrNull(item, "validated_at")),
-            Comments = SOrNull(item, "comments"),
-        };
+        return new ScannedMember(
+            ReceiptId: S(item, "receipt_id"),
+            OldUserId: userId ?? string.Empty,
+            PlaceholderId: placeholderId,
+            UserType: S(item, "user_type", "authenticated"),
+            DisplayName: S(item, "display_name"),
+            Email: SOrNull(item, "email"),
+            AddedBy: S(item, "added_by"),
+            AddedAt: ParseUtcDate(SOrNull(item, "added_at")) ?? DateTime.UtcNow,
+            UpdatedAt: ParseUtcDate(SOrNull(item, "updated_at")),
+            ValidationStatus: SOrNull(item, "validation_status"),
+            ValidatedBy: SOrNull(item, "validated_by"),
+            ValidatedAt: ParseUtcDate(SOrNull(item, "validated_at")),
+            Comments: SOrNull(item, "comments"));
     }
 
     // ---------- ReceiptItem (returns entity + assigned user ids) ----------

@@ -12,4 +12,5 @@ public class ReceiptShare
     public int CurrentUses { get; set; }
 
     public Receipt Receipt { get; set; } = null!;
+    public User Owner { get; set; } = null!;
 }

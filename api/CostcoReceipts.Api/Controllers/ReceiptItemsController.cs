@@ -48,7 +48,11 @@ public class ReceiptItemsController : ControllerBase
 
         if (item is null) return NotFound(new { error = "Item not found on this receipt" });
 
-        ReplaceAssignments(item, request.AssignedUsers);
+        var validMemberIds = await ValidMemberIdsAsync(receiptId, request.AssignedMemberIds, ct);
+        if (validMemberIds is null)
+            return BadRequest(new { error = "One or more assignee ids are not members of this receipt" });
+
+        ReplaceAssignments(item, validMemberIds);
         item.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
@@ -58,7 +62,7 @@ public class ReceiptItemsController : ControllerBase
             message = "Item assignment updated successfully",
             receiptId,
             itemId,
-            assignedUsers = request.AssignedUsers,
+            assignedMemberIds = validMemberIds,
         });
     }
 
@@ -69,8 +73,13 @@ public class ReceiptItemsController : ControllerBase
         [FromBody] BulkUpdateItemAssignmentsRequest request,
         CancellationToken ct)
     {
-        var itemIds = request.Updates.Select(u => u.ItemId).ToList();
+        // Validate all assignee ids against this receipt's membership up front.
+        var allAssignees = request.Updates.SelectMany(u => u.AssignedMemberIds).ToList();
+        var validated = await ValidMemberIdsAsync(receiptId, allAssignees, ct);
+        if (validated is null)
+            return BadRequest(new { error = "One or more assignee ids are not members of this receipt" });
 
+        var itemIds = request.Updates.Select(u => u.ItemId).ToList();
         var items = await _db.ReceiptItems
             .Include(i => i.Assignments)
             .Where(i => i.ReceiptId == receiptId && itemIds.Contains(i.Id))
@@ -83,7 +92,7 @@ public class ReceiptItemsController : ControllerBase
         foreach (var update in request.Updates)
         {
             if (!itemsById.TryGetValue(update.ItemId, out var item)) continue;
-            ReplaceAssignments(item, update.AssignedUsers);
+            ReplaceAssignments(item, update.AssignedMemberIds);
             item.UpdatedAt = now;
             applied++;
         }
@@ -109,11 +118,13 @@ public class ReceiptItemsController : ControllerBase
             .ToListAsync(ct);
 
         var now = DateTime.UtcNow;
+        var touched = 0;
         foreach (var item in items)
         {
             if (item.Assignments.Count == 0) continue;
             item.Assignments.Clear();
             item.UpdatedAt = now;
+            touched++;
         }
 
         await _db.SaveChangesAsync(ct);
@@ -122,20 +133,37 @@ public class ReceiptItemsController : ControllerBase
         {
             message = "All assignments cleared successfully",
             receiptId,
-            itemsTouched = items.Count(i => i.UpdatedAt == now),
+            itemsTouched = touched,
         });
     }
 
-    private static void ReplaceAssignments(ReceiptItem item, List<string> userIds)
+    private static void ReplaceAssignments(ReceiptItem item, IEnumerable<long> memberIds)
     {
         item.Assignments.Clear();
-        foreach (var userId in userIds.Distinct())
+        foreach (var memberId in memberIds.Distinct())
         {
             item.Assignments.Add(new ReceiptItemAssignment
             {
                 ReceiptItemId = item.Id,
-                UserId = userId,
+                ReceiptMemberId = memberId,
             });
         }
+    }
+
+    /// <summary>
+    /// Returns the distinct requested ids if all belong to the receipt, or null
+    /// if any id is not a member of this receipt.
+    /// </summary>
+    private async Task<List<long>?> ValidMemberIdsAsync(
+        string receiptId, IEnumerable<long> requested, CancellationToken ct)
+    {
+        var distinct = requested.Distinct().ToList();
+        if (distinct.Count == 0) return distinct;
+
+        var validCount = await _db.ReceiptMembers
+            .Where(m => m.ReceiptId == receiptId && distinct.Contains(m.Id))
+            .CountAsync(ct);
+
+        return validCount == distinct.Count ? distinct : null;
     }
 }

@@ -13,12 +13,10 @@ namespace CostcoReceipts.Api.Controllers;
 public class ReceiptMembersController : ControllerBase
 {
     private readonly AppDbContext _db;
-    private readonly ILogger<ReceiptMembersController> _logger;
 
-    public ReceiptMembersController(AppDbContext db, ILogger<ReceiptMembersController> logger)
+    public ReceiptMembersController(AppDbContext db)
     {
         _db = db;
-        _logger = logger;
     }
 
     [HttpGet]
@@ -27,6 +25,7 @@ public class ReceiptMembersController : ControllerBase
     {
         var members = await _db.ReceiptMembers
             .AsNoTracking()
+            .Include(m => m.Contact)
             .Where(m => m.ReceiptId == receiptId)
             .OrderBy(m => m.AddedAt)
             .Select(m => ReceiptMemberDto.From(m))
@@ -35,6 +34,12 @@ public class ReceiptMembersController : ControllerBase
         return Ok(members);
     }
 
+    /// <summary>
+    /// Adds a placeholder participant to a receipt. Always creates a fresh
+    /// Contact in the receipt owner's address book (no dedup by display name —
+    /// two "John"s are two Johns). Adding an authenticated user by picking
+    /// from the owner's existing contacts will be its own future endpoint.
+    /// </summary>
     [HttpPost]
     [Authorize(Policy = ReceiptPolicies.Owner)]
     public async Task<IActionResult> AddMember(
@@ -45,72 +50,60 @@ public class ReceiptMembersController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.DisplayName))
             return BadRequest(new { error = "Display name is required" });
 
-        if (request.UserType is not ("authenticated" or "placeholder"))
-            return BadRequest(new { error = "Valid user type is required (authenticated or placeholder)" });
-
         var role = request.Role ?? ReceiptRoles.Editor;
         if (!ReceiptRoles.IsValid(role))
             return BadRequest(new { error = $"Invalid role. Allowed: {string.Join(", ", ReceiptRoles.All)}" });
 
-        var addedBy = User.GetUserId()!;
+        var callerUserId = User.GetUserId()!;
+        var receiptOwnerUserId = await _db.Receipts
+            .Where(r => r.ReceiptId == receiptId)
+            .Select(r => r.OwnerUserId)
+            .FirstOrDefaultAsync(ct);
+        if (receiptOwnerUserId is null) return NotFound(new { error = "Receipt not found" });
+
+        // Locate the caller's member row on this receipt so we can record AddedByMemberId.
+        var callerMemberId = await _db.ReceiptMembers
+            .Where(m => m.ReceiptId == receiptId && m.Contact.UserId == callerUserId)
+            .Select(m => (long?)m.Id)
+            .FirstOrDefaultAsync(ct);
+
         var now = DateTime.UtcNow;
 
-        ReceiptMember member;
-        if (request.UserType == "authenticated")
+        // New placeholder contact in the receipt owner's address book.
+        var contact = new Contact
         {
-            if (string.IsNullOrWhiteSpace(request.Email))
-                return BadRequest(new { error = "Email is required for authenticated users" });
+            OwnerUserId = receiptOwnerUserId,
+            UserId = null,
+            DisplayName = request.DisplayName,
+            Email = request.Email,
+            CreatedAt = now,
+        };
+        _db.Contacts.Add(contact);
+        await _db.SaveChangesAsync(ct);
 
-            // NOTE: using email as the userId is a holdover from the old code. A
-            // real-world fix would map Auth0 sub to email at sign-in time; that
-            // refactor is out of scope for the migration.
-            var userId = request.Email;
-            var alreadyExists = await _db.ReceiptMembers
-                .AnyAsync(m => m.ReceiptId == receiptId && m.UserId == userId, ct);
-            if (alreadyExists) return Conflict(new { error = "User is already a member of this receipt" });
-
-            member = new ReceiptMember
-            {
-                ReceiptId = receiptId,
-                UserId = userId,
-                UserType = "authenticated",
-                Role = role,
-                DisplayName = request.DisplayName,
-                Email = request.Email,
-                AddedBy = addedBy,
-                AddedAt = now,
-            };
-        }
-        else
+        var member = new ReceiptMember
         {
-            var placeholderId = Guid.NewGuid().ToString();
-            member = new ReceiptMember
-            {
-                ReceiptId = receiptId,
-                UserId = placeholderId,
-                PlaceholderId = placeholderId,
-                UserType = "placeholder",
-                Role = role,
-                DisplayName = request.DisplayName,
-                AddedBy = addedBy,
-                AddedAt = now,
-            };
-        }
-
+            ReceiptId = receiptId,
+            ContactId = contact.ContactId,
+            Role = role,
+            AddedByMemberId = callerMemberId,
+            AddedAt = now,
+        };
         _db.ReceiptMembers.Add(member);
         await _db.SaveChangesAsync(ct);
 
-        var dto = ReceiptMemberDto.From(member);
+        member.Contact = contact;
         return CreatedAtAction(nameof(GetMembers), new { receiptId }, new
         {
             message = "Member added successfully",
-            member = dto,
+            member = ReceiptMemberDto.From(member),
         });
     }
 
     /// <summary>
-    /// A member updates their own display name + email on this receipt.
-    /// Anyone in the receipt can do this for themselves.
+    /// A member updates the display name / email on THEIR own Contact for this
+    /// receipt. Anyone in the receipt can edit their own row. Only touches the
+    /// contact, not the receipt_members metadata.
     /// </summary>
     [HttpPut("update-details")]
     [Authorize(Policy = ReceiptPolicies.Member)]
@@ -124,7 +117,8 @@ public class ReceiptMembersController : ControllerBase
 
         var userId = User.GetUserId()!;
         var member = await _db.ReceiptMembers
-            .FirstOrDefaultAsync(m => m.ReceiptId == receiptId && m.UserId == userId, ct);
+            .Include(m => m.Contact)
+            .FirstOrDefaultAsync(m => m.ReceiptId == receiptId && m.Contact.UserId == userId, ct);
 
         if (member is null) return NotFound(new { error = "Member record not found" });
 
@@ -132,8 +126,8 @@ public class ReceiptMembersController : ControllerBase
             ? request.Email.Split('@')[0]
             : request.Name;
 
-        member.DisplayName = displayName;
-        member.Email = request.Email;
+        member.Contact.DisplayName = displayName;
+        member.Contact.Email = request.Email;
         member.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
@@ -157,6 +151,7 @@ public class ReceiptMembersController : ControllerBase
             return BadRequest(new { error = $"Invalid role. Allowed: {string.Join(", ", ReceiptRoles.All)}" });
 
         var member = await _db.ReceiptMembers
+            .Include(m => m.Contact)
             .FirstOrDefaultAsync(m => m.Id == memberId && m.ReceiptId == receiptId, ct);
 
         if (member is null) return NotFound(new { error = "Member not found on this receipt" });
@@ -190,7 +185,6 @@ public class ReceiptMembersController : ControllerBase
 
         if (member is null) return NotFound(new { error = "Member not found on this receipt" });
 
-        // Guard: never remove the last owner.
         if (member.Role == ReceiptRoles.Owner)
         {
             var otherOwners = await _db.ReceiptMembers

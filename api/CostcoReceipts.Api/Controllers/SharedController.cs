@@ -60,6 +60,7 @@ public class SharedController : ControllerBase
 
         var members = await _db.ReceiptMembers
             .AsNoTracking()
+            .Include(m => m.Contact)
             .Where(m => m.ReceiptId == receiptId)
             .OrderBy(m => m.AddedAt)
             .Select(m => ReceiptMemberDto.From(m))

@@ -48,9 +48,12 @@ public class ReceiptRoleAuthorizationHandler : AuthorizationHandler<ReceiptRoleR
 
         var ct = _httpContextAccessor.HttpContext?.RequestAborted ?? CancellationToken.None;
 
+        // Membership is now indirect via Contact — the caller is a member of the
+        // receipt if any receipt_members row for this receipt has a Contact whose
+        // UserId matches the caller's Auth0 sub.
         var role = await _db.ReceiptMembers
             .AsNoTracking()
-            .Where(m => m.ReceiptId == receiptId && m.UserId == userId)
+            .Where(m => m.ReceiptId == receiptId && m.Contact.UserId == userId)
             .Select(m => m.Role)
             .FirstOrDefaultAsync(ct);
 

@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using CostcoReceipts.Api.Authorization;
 using CostcoReceipts.Api.Configuration;
 using CostcoReceipts.Api.Data;
-using CostcoReceipts.Api.Data.Entities;
 using CostcoReceipts.Api.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -42,10 +41,9 @@ public class ReceiptsController : ControllerBase
     // Upload / Download URL passthrough
     // ============================================================
 
-    // TODO(upload-pipeline): replace this passthrough with native logic once the
-    // upload + OCR + persistence pipeline moves into this repo. Currently forwards
-    // to an external AWS Lambda that writes parsed receipts to DynamoDB, not MySQL,
-    // so receipts created via this endpoint will not appear in this database.
+    // TODO(upload-pipeline): passthrough to the external Textract Lambda; the
+    // receipt row it produces still lands in DynamoDB. Replace with native
+    // logic when the upload/OCR/persistence stack moves into this repo.
     [HttpPost("get-upload-url")]
     [Authorize]
     public async Task<IActionResult> GetUploadUrl(
@@ -64,11 +62,7 @@ public class ReceiptsController : ControllerBase
 
         var contentType = request?.ContentType ?? "image/jpeg";
         var payload = await ForwardJsonAsync(
-            HttpMethod.Post,
-            url,
-            token,
-            new { content_type = contentType },
-            ct);
+            HttpMethod.Post, url, token, new { content_type = contentType }, ct);
 
         if (payload is null) return Problem("Failed to get upload URL", statusCode: StatusCodes.Status502BadGateway);
 
@@ -80,8 +74,6 @@ public class ReceiptsController : ControllerBase
         });
     }
 
-    // TODO(upload-pipeline): same as above — this passthrough goes away once
-    // the receipt image lives in this repo's control.
     [HttpGet("get-download-url/{receiptId}")]
     [Authorize(Policy = ReceiptPolicies.Member)]
     public async Task<IActionResult> GetDownloadUrl(string receiptId, CancellationToken ct)
@@ -106,11 +98,6 @@ public class ReceiptsController : ControllerBase
         });
     }
 
-    /// <summary>
-    /// JSON forwarder for the external S3 API. Uses a per-call HttpRequestMessage
-    /// so the shared HttpClient's DefaultRequestHeaders are never mutated
-    /// (the old code did and was racy under concurrent requests).
-    /// </summary>
     private async Task<System.Text.Json.JsonElement?> ForwardJsonAsync(
         HttpMethod method,
         string url,
@@ -137,7 +124,7 @@ public class ReceiptsController : ControllerBase
     }
 
     // ============================================================
-    // User's receipts
+    // User's receipts (chains: users -> contacts -> receipt_members -> receipts)
     // ============================================================
 
     [HttpGet("user-receipts")]
@@ -149,7 +136,8 @@ public class ReceiptsController : ControllerBase
 
         var memberships = await _db.ReceiptMembers
             .AsNoTracking()
-            .Where(m => m.UserId == userId)
+            .Include(m => m.Contact)
+            .Where(m => m.Contact.UserId == userId)
             .OrderByDescending(m => m.AddedAt)
             .Select(m => ReceiptMemberDto.From(m))
             .ToListAsync(ct);
@@ -180,16 +168,16 @@ public class ReceiptsController : ControllerBase
         [FromBody] ValidateReceiptRequest request,
         CancellationToken ct)
     {
-        var userId = User.GetUserId()!; // policy guarantees membership, so claim is non-null
+        var userId = User.GetUserId()!; // policy guarantees membership
 
         var member = await _db.ReceiptMembers
-            .FirstOrDefaultAsync(m => m.ReceiptId == receiptId && m.UserId == userId, ct);
+            .Include(m => m.Contact)
+            .FirstOrDefaultAsync(m => m.ReceiptId == receiptId && m.Contact.UserId == userId, ct);
 
         if (member is null) return NotFound(new { error = "Member record not found" });
 
         var status = request.IsValid ? "confirmed" : "disputed";
         member.ValidationStatus = status;
-        member.ValidatedBy = userId;
         member.ValidatedAt = DateTime.UtcNow;
         member.Comments = request.Comments;
         member.UpdatedAt = DateTime.UtcNow;
@@ -213,7 +201,7 @@ public class ReceiptsController : ControllerBase
         _db.Receipts.Remove(receipt);
         await _db.SaveChangesAsync(ct);
 
-        // TODO(upload-pipeline): once we own image storage, also delete the S3 object here.
+        // TODO(upload-pipeline): once we own image storage, delete the S3 object here.
         return NoContent();
     }
 }

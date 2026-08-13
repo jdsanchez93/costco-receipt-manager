@@ -1,7 +1,6 @@
 namespace CostcoReceipts.Api.Models;
 
 // Request DTOs for the receipts API.
-// Response shapes live in ReceiptDtos.cs.
 
 public class GetUploadUrlRequest
 {
@@ -27,12 +26,19 @@ public class ValidateReceiptRequest
     public string? Comments { get; set; }
 }
 
+/// <summary>
+/// Add a placeholder participant to a receipt. Always creates a fresh
+/// placeholder Contact in the receipt owner's address book (nothing gets
+/// deduped by display name — two "John"s are two Johns).
+///
+/// Adding an authenticated user by picking from the owner's existing
+/// contacts is a future flow that will use its own endpoint.
+/// </summary>
 public class AddReceiptMemberRequest
 {
     public string DisplayName { get; set; } = string.Empty;
     public string? Email { get; set; }
-    public string UserType { get; set; } = "authenticated"; // authenticated | placeholder
-    public string? Role { get; set; }                       // owner | editor (defaults to editor)
+    public string? Role { get; set; }
 }
 
 public class UpdateMemberDetailsRequest
@@ -43,12 +49,13 @@ public class UpdateMemberDetailsRequest
 
 public class UpdateMemberRoleRequest
 {
-    public string Role { get; set; } = string.Empty; // owner | editor
+    public string Role { get; set; } = string.Empty;
 }
 
 public class UpdateItemAssignmentRequest
 {
-    public List<string> AssignedUsers { get; set; } = new();
+    /// <summary>ReceiptMember ids (not user ids). Replaces the current assignment set.</summary>
+    public List<long> AssignedMemberIds { get; set; } = new();
 }
 
 public class BulkUpdateItemAssignmentsRequest
@@ -59,7 +66,7 @@ public class BulkUpdateItemAssignmentsRequest
 public class ItemAssignmentUpdate
 {
     public long ItemId { get; set; }
-    public List<string> AssignedUsers { get; set; } = new();
+    public List<long> AssignedMemberIds { get; set; } = new();
 }
 
 public class CreateReceiptShareRequest

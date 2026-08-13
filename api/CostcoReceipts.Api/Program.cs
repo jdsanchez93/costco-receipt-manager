@@ -2,6 +2,7 @@ using CostcoReceipts.Api.Authentication;
 using CostcoReceipts.Api.Authorization;
 using CostcoReceipts.Api.Configuration;
 using CostcoReceipts.Api.Data;
+using CostcoReceipts.Api.Middleware;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -68,6 +69,7 @@ else
 app.UseRouting();
 app.UseCors();
 app.UseAuthentication();
+app.UseMiddleware<UserProvisioningMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 

@@ -4,7 +4,8 @@ using CostcoReceipts.Api.Data.Entities;
 namespace CostcoReceipts.Api.Models;
 
 // Response DTOs shaped for the frontend.
-// Clean property names, no DynamoDB single-table fingerprints (no PK/SK/GSI*).
+// Identity fields (UserId, DisplayName, Email) come through the linked Contact,
+// which lives in the receipt owner's address book.
 
 public class ReceiptItemDto
 {
@@ -15,7 +16,8 @@ public class ReceiptItemDto
     public string ItemName { get; set; } = string.Empty;
     public decimal Price { get; set; }
     public decimal? Discount { get; set; }
-    public List<string> AssignedUsers { get; set; } = new();
+    /// <summary>ReceiptMember ids (not user ids) assigned to this item.</summary>
+    public List<long> AssignedMemberIds { get; set; } = new();
     public DateTime CreatedAt { get; set; }
 
     public static ReceiptItemDto From(ReceiptItem item) => new()
@@ -27,7 +29,7 @@ public class ReceiptItemDto
         ItemName = item.ItemName,
         Price = item.Price,
         Discount = item.Discount,
-        AssignedUsers = item.Assignments.Select(a => a.UserId).ToList(),
+        AssignedMemberIds = item.Assignments.Select(a => a.ReceiptMemberId).ToList(),
         CreatedAt = item.CreatedAt,
     };
 }
@@ -36,40 +38,39 @@ public class ReceiptMemberDto
 {
     public long Id { get; set; }
     public string ReceiptId { get; set; } = string.Empty;
-    public string UserId { get; set; } = string.Empty;
-    public string? PlaceholderId { get; set; }
-    public string UserType { get; set; } = string.Empty;
+    public long ContactId { get; set; }
+    /// <summary>Auth0 sub if this member is an authenticated user; null for placeholders.</summary>
+    public string? UserId { get; set; }
     public string DisplayName { get; set; } = string.Empty;
     public string? Email { get; set; }
-    public string AddedBy { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+    public long? AddedByMemberId { get; set; }
     public DateTime AddedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public string? ValidationStatus { get; set; }
-    public string? ValidatedBy { get; set; }
     public DateTime? ValidatedAt { get; set; }
     public string? Comments { get; set; }
 
+    /// <summary>Requires the ReceiptMember to be loaded with .Include(m => m.Contact).</summary>
     public static ReceiptMemberDto From(ReceiptMember m) => new()
     {
         Id = m.Id,
         ReceiptId = m.ReceiptId,
-        UserId = m.UserId,
-        PlaceholderId = m.PlaceholderId,
-        UserType = m.UserType,
-        DisplayName = m.DisplayName,
-        Email = m.Email,
-        AddedBy = m.AddedBy,
+        ContactId = m.ContactId,
+        UserId = m.Contact?.UserId,
+        DisplayName = m.Contact?.DisplayName ?? string.Empty,
+        Email = m.Contact?.Email,
+        Role = m.Role,
+        AddedByMemberId = m.AddedByMemberId,
         AddedAt = m.AddedAt,
         UpdatedAt = m.UpdatedAt,
         ValidationStatus = m.ValidationStatus,
-        ValidatedBy = m.ValidatedBy,
         ValidatedAt = m.ValidatedAt,
         Comments = m.Comments,
     };
 }
 
-// Geometry shape: strongly-typed wrapper over the three known OCR fields
-// (subtotal, tax, total) each with optional label + value entries.
+// ---- Geometry (unchanged) ----
 
 public class GeometryDto
 {

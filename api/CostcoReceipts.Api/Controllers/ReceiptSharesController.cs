@@ -12,8 +12,8 @@ using Microsoft.Extensions.Options;
 namespace CostcoReceipts.Api.Controllers;
 
 /// <summary>
-/// Receipt sharing: create / list / deactivate. Anonymous read access for a
-/// given share token lives in <see cref="SharedController"/>.
+/// Receipt sharing: create / list / deactivate. Anonymous read access lives
+/// in <see cref="SharedController"/>.
 /// </summary>
 [ApiController]
 [Route("api/receipts/receipt/{receiptId}")]
@@ -108,7 +108,6 @@ public class ReceiptSharesController : ControllerBase
 
     private static string GenerateShareToken()
     {
-        // 32 url-safe bytes ≈ 43 chars of base64url. Plenty of entropy.
         var bytes = RandomNumberGenerator.GetBytes(32);
         return Convert.ToBase64String(bytes)
             .Replace('+', '-')
