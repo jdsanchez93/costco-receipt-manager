@@ -45,6 +45,7 @@ builder.Services.AddDbContext<AppDbContext>(o =>
     o.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
 builder.Services.AddScoped<Migrator>();
+builder.Services.AddScoped<PlaceholderContactMerger>();
 
 var app = builder.Build();
 
@@ -52,17 +53,25 @@ var app = builder.Build();
 // Run
 // ============================================================
 using var scope = app.Services.CreateScope();
-var migrator = scope.ServiceProvider.GetRequiredService<Migrator>();
 
 try
 {
-    await migrator.RunAsync(new MigratorOptions(cli.TableName, cli.DryRun), CancellationToken.None);
+    if (cli.MergePlaceholdersByName)
+    {
+        var merger = scope.ServiceProvider.GetRequiredService<PlaceholderContactMerger>();
+        await merger.RunAsync(cli.DryRun, CancellationToken.None);
+    }
+    else
+    {
+        var migrator = scope.ServiceProvider.GetRequiredService<Migrator>();
+        await migrator.RunAsync(new MigratorOptions(cli.TableName, cli.DryRun), CancellationToken.None);
+    }
     return 0;
 }
 catch (Exception ex)
 {
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    logger.LogCritical(ex, "Migration failed");
+    logger.LogCritical(ex, "Command failed");
     return 2;
 }
 
@@ -93,6 +102,9 @@ static CliOptions? ParseArgs(string[] args)
             case "--dry-run":
                 cli.DryRun = true;
                 break;
+            case "--merge-placeholders-by-name":
+                cli.MergePlaceholdersByName = true;
+                break;
             case "--help" or "-h":
                 PrintUsage();
                 return null;
@@ -109,18 +121,27 @@ static CliOptions? ParseArgs(string[] args)
 static void PrintUsage()
 {
     Console.WriteLine("""
-        DynamoDB -> MySQL migration for CostcoReceipts.
+        Data tools for CostcoReceipts. Runs the DynamoDB -> MySQL migration by
+        default; pass --merge-placeholders-by-name to run the placeholder-contact
+        merge cleanup instead.
 
         Usage:
           dotnet run --project api/CostcoReceipts.Migration -- [OPTIONS]
 
-        Options:
-          --table <name>              DynamoDB table name (default: dev-costco-receipt-parser-main)
+        Migration options (default command):
+          --table <name>              DynamoDB table (default: dev-costco-receipt-parser-main)
           --profile <name>            AWS profile (default: uses default credential chain)
           --region <name>             AWS region (default: us-east-1)
+
+        Merge options:
+          --merge-placeholders-by-name  Collapse same-owner placeholder contacts
+                                        whose display names match (post-migration
+                                        cleanup). Ignores DynamoDB entirely.
+
+        Common:
           --connection-string <cs>    MySQL connection string
                                       (default: appsettings ConnectionStrings:MySql)
-          --dry-run                   Scan and report, don't write anything
+          --dry-run                   Report what would happen, don't write anything
           --help, -h                  Show this message
         """);
 }
@@ -132,4 +153,5 @@ internal sealed class CliOptions
     public string Region { get; set; } = "us-east-1";
     public string? ConnectionString { get; set; }
     public bool DryRun { get; set; }
+    public bool MergePlaceholdersByName { get; set; }
 }
