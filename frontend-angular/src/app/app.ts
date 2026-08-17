@@ -1,18 +1,10 @@
-import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { AuthService } from '@auth0/auth0-angular';
 
 @Component({
   selector: 'app-root',
-  imports: [
-    RouterOutlet,
-    CommonModule
-  ],
+  imports: [RouterOutlet],
   templateUrl: './app.html',
-  styleUrl: './app.scss'
+  styleUrl: './app.scss',
 })
-export class App {
-  protected readonly window = window;
-  protected auth = inject(AuthService);
-}
+export class App {}
