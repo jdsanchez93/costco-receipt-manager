@@ -1,0 +1,37 @@
+:host {
+  display: block;
+  padding: 1.5rem;
+}
+
+.page {
+  max-width: 800px;
+  margin: 0 auto;
+
+  h1 {
+    font: var(--mat-sys-headline-medium);
+    margin: 0 0 1.5rem;
+  }
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 0;
+}
+
+.error {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1.5rem;
+  border: 1px solid var(--mat-sys-error);
+  border-radius: 8px;
+  color: var(--mat-sys-on-error-container);
+  background: var(--mat-sys-error-container);
+}
+
+.empty {
+  font: var(--mat-sys-body-large);
+  color: var(--mat-sys-on-surface-variant);
+}

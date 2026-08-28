@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter } from '@angular/router';
+import { AuthService } from '@auth0/auth0-angular';
 import { of } from 'rxjs';
 
 import { ShellComponent } from './shell.component';
@@ -9,8 +10,11 @@ import { ShellComponent } from './shell.component';
 describe('ShellComponent', () => {
   let component: ShellComponent;
   let fixture: ComponentFixture<ShellComponent>;
+  let authSpy: { logout: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
+    authSpy = { logout: vi.fn() };
+
     await TestBed.configureTestingModule({
       imports: [ShellComponent],
       providers: [
@@ -25,6 +29,7 @@ describe('ShellComponent', () => {
             observe: () => of({ matches: false, breakpoints: {} }),
           },
         },
+        { provide: AuthService, useValue: authSpy },
       ],
     }).compileComponents();
 
@@ -35,5 +40,12 @@ describe('ShellComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('logout() calls AuthService.logout with returnTo = origin', () => {
+    component.logout();
+    expect(authSpy.logout).toHaveBeenCalledWith({
+      logoutParams: { returnTo: window.location.origin },
+    });
   });
 });

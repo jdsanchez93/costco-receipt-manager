@@ -29,14 +29,17 @@ describe('Landing', () => {
     expect(component).toBeTruthy();
   });
 
-  it('login() calls loginWithRedirect with no args', () => {
+  it('login() calls loginWithRedirect with appState target /app', () => {
     component.login();
-    expect(authSpy.loginWithRedirect).toHaveBeenCalledWith();
+    expect(authSpy.loginWithRedirect).toHaveBeenCalledWith({
+      appState: { target: '/app' },
+    });
   });
 
-  it('signup() calls loginWithRedirect with signup screen_hint', () => {
+  it('signup() calls loginWithRedirect with appState target /app and signup screen_hint', () => {
     component.signup();
     expect(authSpy.loginWithRedirect).toHaveBeenCalledWith({
+      appState: { target: '/app' },
       authorizationParams: { screen_hint: 'signup' },
     });
   });

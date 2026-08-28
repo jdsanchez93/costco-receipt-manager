@@ -5,7 +5,12 @@
       [opened]="(isHandset$ | async) === false">
     <mat-toolbar>Menu</mat-toolbar>
     <mat-nav-list>
-      <a mat-list-item href="#">Dashboard</a>
+      <a mat-list-item
+         routerLink="/app/receipts"
+         routerLinkActive="active-link"
+         (click)="closeIfMobile(drawer)">
+        Receipts
+      </a>
     </mat-nav-list>
   </mat-sidenav>
   <mat-sidenav-content>
@@ -19,7 +24,15 @@
           <mat-icon aria-label="Side nav toggle icon">menu</mat-icon>
         </button>
       }
-      <span>Costco Receipt Manager</span>
+      <span class="app-name">Costco Receipt Manager</span>
+      <span class="spacer"></span>
+      <button
+        type="button"
+        matIconButton
+        aria-label="Log out"
+        (click)="logout()">
+        <mat-icon>logout</mat-icon>
+      </button>
     </mat-toolbar>
     <router-outlet />
   </mat-sidenav-content>

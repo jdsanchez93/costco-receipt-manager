@@ -1,0 +1,34 @@
+<section class="page">
+  <h1>Your receipts</h1>
+
+  @let s = state();
+  @switch (s.kind) {
+    @case ('loading') {
+      <div class="center">
+        <mat-spinner diameter="40" />
+      </div>
+    }
+    @case ('error') {
+      <div class="error">
+        <p>{{ s.message }}</p>
+        <button mat-flat-button (click)="load()">Retry</button>
+      </div>
+    }
+    @case ('ok') {
+      @if (s.data.length === 0) {
+        <p class="empty">You don't have any receipts yet.</p>
+      } @else {
+        <mat-list>
+          @for (m of s.data; track m.id) {
+            <mat-list-item [routerLink]="['/app/receipt', m.receiptId]">
+              <span matListItemTitle>Receipt {{ m.receiptId }}</span>
+              <span matListItemLine>
+                Added {{ m.addedAt | date:'mediumDate' }} · {{ m.role }}
+              </span>
+            </mat-list-item>
+          }
+        </mat-list>
+      }
+    }
+  }
+</section>
