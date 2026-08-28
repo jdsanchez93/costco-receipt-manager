@@ -1,0 +1,44 @@
+<main class="landing">
+  <mat-card class="hero" appearance="outlined">
+    <div class="hero__content">
+      <p class="brand">Costco Receipt Manager</p>
+      <h1 class="headline">Split every warehouse run.</h1>
+      <p class="tagline">Upload the receipt, assign the items, know who owes what.</p>
+      <div class="cta">
+        <button mat-flat-button color="primary" (click)="signup()">Get started</button>
+        <button mat-button (click)="login()">Log in</button>
+      </div>
+    </div>
+    <figure class="hero__visual">
+      <!--
+        Placeholder until a hero photo lands. To use a real image:
+          1. Drop it at frontend-angular/public/receipt-hero.jpg
+             (portrait-ish 3:4 or 4:5 works best)
+          2. Replace this <div class="hero__visual-placeholder"> with:
+               <img src="receipt-hero.jpg" alt="A Costco receipt." />
+             The shared box styles apply to both.
+      -->
+      <div class="hero__visual-placeholder" aria-hidden="true">
+        <span>Receipt photo</span>
+      </div>
+    </figure>
+  </mat-card>
+
+  <section class="how" aria-label="How it works">
+    <article class="step">
+      <span class="step__num">01</span>
+      <h3>Snap</h3>
+      <p>Upload a photo. Items, prices, and totals get parsed automatically.</p>
+    </article>
+    <article class="step">
+      <span class="step__num">02</span>
+      <h3>Split</h3>
+      <p>Add members and assign each item to whoever paid for what.</p>
+    </article>
+    <article class="step">
+      <span class="step__num">03</span>
+      <h3>Settle</h3>
+      <p>Share a link so anyone can see the breakdown — no account needed to view.</p>
+    </article>
+  </section>
+</main>

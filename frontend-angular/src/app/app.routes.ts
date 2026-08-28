@@ -1,3 +1,8 @@
 import { Routes } from '@angular/router';
 
-export const routes: Routes = [];
+import { Landing } from './landing/landing';
+
+export const routes: Routes = [
+  { path: '', component: Landing, pathMatch: 'full' },
+  { path: '**', redirectTo: '' },
+];
