@@ -28,3 +28,21 @@ export interface ReceiptMemberDto {
   validatedAt: string | null;
   comments: string | null;
 }
+
+/**
+ * One item on a receipt. `assignedMemberIds` holds ReceiptMember ids
+ * (not user ids) — resolve them against the receipt's members list to
+ * get display names.
+ */
+export interface ReceiptItemDto {
+  id: number;
+  receiptId: string;
+  itemIndex: number;
+  itemNumber: string | null;
+  itemName: string;
+  price: number;
+  discount: number | null;
+  assignedMemberIds: number[];
+  /** ISO-8601 timestamp. */
+  createdAt: string;
+}

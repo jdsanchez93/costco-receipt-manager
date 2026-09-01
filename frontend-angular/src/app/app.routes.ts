@@ -3,6 +3,7 @@ import { AuthGuard } from '@auth0/auth0-angular';
 
 import { skipLandingIfAuthed } from './auth/skip-landing-if-authed.guard';
 import { Landing } from './landing/landing';
+import { Receipt } from './receipt/receipt';
 import { Receipts } from './receipts/receipts';
 import { ShellComponent } from './shell/shell.component';
 
@@ -26,6 +27,7 @@ export const routes: Routes = [
     children: [
       { path: '', redirectTo: 'receipts', pathMatch: 'full' },
       { path: 'receipts', component: Receipts },
+      { path: 'receipts/:receiptId', component: Receipt },
     ],
   },
 

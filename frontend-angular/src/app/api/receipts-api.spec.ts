@@ -25,4 +25,25 @@ describe('ReceiptsApi', () => {
     expect(req.request.method).toBe('GET');
     req.flush([]);
   });
+
+  it('getReceiptItems issues GET /api/receipts/receipt/{id}/items', () => {
+    api.getReceiptItems('abc123').subscribe();
+
+    const req = httpMock.expectOne('/api/receipts/receipt/abc123/items');
+    expect(req.request.method).toBe('GET');
+    req.flush([]);
+  });
+
+  it('getReceiptMembers issues GET /api/receipts/receipt/{id}/members', () => {
+    api.getReceiptMembers('abc123').subscribe();
+
+    const req = httpMock.expectOne('/api/receipts/receipt/abc123/members');
+    expect(req.request.method).toBe('GET');
+    req.flush([]);
+  });
+
+  it('URL-encodes the receiptId', () => {
+    api.getReceiptItems('a b/c').subscribe();
+    httpMock.expectOne('/api/receipts/receipt/a%20b%2Fc/items').flush([]);
+  });
 });

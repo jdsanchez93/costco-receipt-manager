@@ -20,7 +20,7 @@
       } @else {
         <mat-list>
           @for (m of s.data; track m.id) {
-            <mat-list-item [routerLink]="['/app/receipt', m.receiptId]">
+            <mat-list-item [routerLink]="['/app/receipts', m.receiptId]">
               <span matListItemTitle>Receipt {{ m.receiptId }}</span>
               <span matListItemLine>
                 Added {{ m.addedAt | date:'mediumDate' }} · {{ m.role }}

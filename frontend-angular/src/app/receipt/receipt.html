@@ -1,0 +1,68 @@
+<section class="page">
+  <header class="header">
+    <a mat-icon-button routerLink="/app/receipts" aria-label="Back to receipts">
+      <mat-icon>arrow_back</mat-icon>
+    </a>
+    <h1>Receipt {{ receiptId }}</h1>
+  </header>
+
+  @let s = state();
+  @switch (s.kind) {
+    @case ('loading') {
+      <div class="center"><mat-spinner diameter="40" /></div>
+    }
+    @case ('error') {
+      <div class="error">
+        <p>{{ s.message }}</p>
+        <button mat-flat-button (click)="load()">Retry</button>
+      </div>
+    }
+    @case ('ok') {
+      <section class="members">
+        <h2>Members ({{ s.data.members.length }})</h2>
+        <mat-chip-set>
+          @for (m of s.data.members; track m.id) {
+            <mat-chip>
+              {{ m.displayName }}@if (m.role === 'owner') { <span class="role"> · Owner</span> }
+            </mat-chip>
+          }
+        </mat-chip-set>
+      </section>
+
+      <section class="items">
+        <h2>Items ({{ s.data.items.length }})</h2>
+        <div class="items__list">
+          @for (item of s.data.items; track item.id) {
+            <article class="item">
+              <div class="item__main">
+                <div class="item__label">
+                  @if (item.itemNumber) {
+                    <span class="item__num">{{ item.itemNumber }}</span>
+                  }
+                  <span class="item__name">{{ item.itemName }}</span>
+                </div>
+                <div class="item__pricing">
+                  <span class="item__price">{{ item.price | currency }}</span>
+                  @if (item.discount) {
+                    <span class="item__discount">−{{ item.discount | currency }}</span>
+                  }
+                </div>
+              </div>
+              @if (item.assigneeNames.length > 0) {
+                <div class="item__assignees">
+                  <mat-icon inline="true">person</mat-icon>
+                  {{ item.assigneeNames.join(', ') }}
+                </div>
+              }
+            </article>
+          }
+        </div>
+
+        <footer class="total">
+          <span class="total__label">Total</span>
+          <span class="total__value">{{ total() | currency }}</span>
+        </footer>
+      </section>
+    }
+  }
+</section>
