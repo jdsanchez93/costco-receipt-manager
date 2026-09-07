@@ -35,4 +35,26 @@ body {
   margin: 0;
   height: 100%;
 }
+
+// Height of the shell's sticky app bar (see shell.component.scss). Tracks
+// Material's own toolbar-height breakpoint at 599px. Routed content that
+// pins headers below the app bar offsets by this token instead of
+// hardcoding the number.
+:root {
+  --app-bar-height: 64px;
+}
+@media (max-width: 599px) {
+  :root {
+    --app-bar-height: 56px;
+  }
+}
+
+// Suppress the default WebKit tap highlight everywhere. Without this, tapping
+// through the CDK overlay backdrop (behind an open mat-menu, mat-dialog, etc.)
+// flashes the whole screen because the backdrop is a full-viewport element and
+// receives the highlight color. Material components own their own ripple/hover
+// feedback so no meaningful touch affordance is lost.
+* {
+  -webkit-tap-highlight-color: transparent;
+}
 /* You can add global styles to this file, and also import other style files */

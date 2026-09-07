@@ -62,6 +62,61 @@
   margin: 0 0 0.75rem;
 }
 
+.items__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem 0.25rem 0.25rem;
+  margin-bottom: 0.75rem;
+  min-height: 48px;
+  border-radius: 8px;
+  transition: background-color 150ms ease;
+
+  // Keep the bulk-action bar reachable while scrolling a long item list:
+  // pin it just below the shell's sticky app bar. z-index sits above the
+  // z-index:1 that leaks out of Material controls in the rows scrolling
+  // underneath, and below the app bar's own z-index (10).
+  position: sticky;
+  top: var(--app-bar-height, 64px);
+  z-index: 2;
+  // Opaque so item rows don't show through as they scroll under it. The
+  // --active rule below swaps this for the selection tint.
+  background: var(--mat-sys-background);
+  // Faint drop shadow so the bar reads as a layer above the rows sliding
+  // under it. Subtle enough to be unobtrusive when the bar is at rest.
+  box-shadow: 0 2px 4px -2px rgb(0 0 0 / 0.2);
+}
+
+// Tint the toolbar when selections are active — matches the tinted
+// item rows so it reads as "bulk-action mode."
+.items__toolbar--active {
+  background: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+}
+
+.items__toolbar-count {
+  flex: 1;
+  // min-width: 0 lets this shrink past its text width so the action buttons
+  // stay on-row on narrow screens; the label then ellipsises rather than
+  // pushing them out of the toolbar.
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: var(--mat-sys-body-medium);
+  color: var(--mat-sys-on-surface-variant);
+  margin-left: 0.25rem;
+
+  .items__toolbar--active & {
+    color: var(--mat-sys-on-secondary-container);
+    font-weight: 500;
+  }
+}
+
+.items__toolbar-btn {
+  flex-shrink: 0;
+}
+
 .items__list {
   display: flex;
   flex-direction: column;
@@ -75,19 +130,33 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  transition: background-color 150ms ease;
+}
+
+.item--selected {
+  background: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
 }
 
 .item__main {
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
-  gap: 1rem;
+  gap: 0.75rem;
+}
+
+.item__select {
+  flex-shrink: 0;
+  // Nudge up so the checkbox aligns with the first line of item text
+  // rather than centering against the whole label block.
+  margin-top: -0.4rem;
+  margin-left: -0.4rem;
 }
 
 .item__label {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  flex: 1;
 }
 
 .item__num {
@@ -121,18 +190,25 @@
   font-variant-numeric: tabular-nums;
 }
 
-.item__assignees {
+.item__assign {
+  margin-top: 0.5rem;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.35rem;
-  font: var(--mat-sys-label-medium);
-  color: var(--mat-sys-on-surface-variant);
+}
 
-  mat-icon {
-    font-size: 1rem;
-    width: 1rem;
-    height: 1rem;
-  }
+.item__assign-empty {
+  opacity: 0.65;
+  font-style: italic;
+}
+
+.item__assign-add {
+  // The icon button's default 40x40 towers over the ~32px chips; scale it
+  // down so the "add" affordance sits inline with the chip row.
+  width: 32px;
+  height: 32px;
+  padding: 0;
 }
 
 // ---- Total ----

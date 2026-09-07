@@ -46,4 +46,26 @@ describe('ReceiptsApi', () => {
     api.getReceiptItems('a b/c').subscribe();
     httpMock.expectOne('/api/receipts/receipt/a%20b%2Fc/items').flush([]);
   });
+
+  it('updateItemAssignment PUTs the member id array to the assignment endpoint', () => {
+    api.updateItemAssignment('abc123', 42, [1, 2, 3]).subscribe();
+
+    const req = httpMock.expectOne('/api/receipts/receipt/abc123/items/42/assignment');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ assignedMemberIds: [1, 2, 3] });
+    req.flush(null);
+  });
+
+  it('bulkUpdateAssignments PUTs the updates array wrapped as { updates }', () => {
+    const updates = [
+      { itemId: 1, assignedMemberIds: [10, 20] },
+      { itemId: 2, assignedMemberIds: [] },
+    ];
+    api.bulkUpdateAssignments('abc123', updates).subscribe();
+
+    const req = httpMock.expectOne('/api/receipts/receipt/abc123/items/assignments/bulk');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ updates });
+    req.flush(null);
+  });
 });

@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../environments/environment';
-import { ReceiptItemDto, ReceiptMemberDto } from './types';
+import { ItemAssignmentUpdate, ReceiptItemDto, ReceiptMemberDto } from './types';
 
 @Injectable({ providedIn: 'root' })
 export class ReceiptsApi {
@@ -35,6 +35,40 @@ export class ReceiptsApi {
   getReceiptMembers(receiptId: string): Observable<ReceiptMemberDto[]> {
     return this.http.get<ReceiptMemberDto[]>(
       `${this.base}/receipts/receipt/${encodeURIComponent(receiptId)}/members`,
+    );
+  }
+
+  /**
+   * Replace the set of members assigned to a single receipt item.
+   * Backend: PUT /api/receipts/receipt/{receiptId}/items/{itemId}/assignment
+   * with body { assignedMemberIds: number[] }. Requires the caller to hold
+   * the ReceiptEditor policy (owner or editor).
+   */
+  updateItemAssignment(
+    receiptId: string,
+    itemId: number,
+    assignedMemberIds: number[],
+  ): Observable<void> {
+    return this.http.put<void>(
+      `${this.base}/receipts/receipt/${encodeURIComponent(receiptId)}/items/${itemId}/assignment`,
+      { assignedMemberIds },
+    );
+  }
+
+  /**
+   * Replace the assignment set on multiple items in one request.
+   * Backend: PUT /api/receipts/receipt/{receiptId}/items/assignments/bulk
+   * with body { updates: ItemAssignmentUpdate[] }. Requires ReceiptEditor.
+   * The backend applies all updates in a single transaction — either all
+   * land or none do.
+   */
+  bulkUpdateAssignments(
+    receiptId: string,
+    updates: ItemAssignmentUpdate[],
+  ): Observable<void> {
+    return this.http.put<void>(
+      `${this.base}/receipts/receipt/${encodeURIComponent(receiptId)}/items/assignments/bulk`,
+      { updates },
     );
   }
 }

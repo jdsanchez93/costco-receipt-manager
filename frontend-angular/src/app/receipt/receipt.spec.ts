@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
 
@@ -40,13 +41,34 @@ const item = (id: number, itemName: string, price: number, extra: Partial<Receip
 describe('Receipt', () => {
   let fixture: ComponentFixture<Receipt>;
   let component: Receipt;
+  let apiSpy: {
+    getReceiptItems: ReturnType<typeof vi.fn>;
+    getReceiptMembers: ReturnType<typeof vi.fn>;
+    updateItemAssignment: ReturnType<typeof vi.fn>;
+    bulkUpdateAssignments: ReturnType<typeof vi.fn>;
+  };
+  let snackSpy: { open: ReturnType<typeof vi.fn> };
 
   function setup(opts: {
     receiptId?: string | null;
     items?: Observable<ReceiptItemDto[]>;
     members?: Observable<ReceiptMemberDto[]>;
+    updateItemAssignment?: () => Observable<void>;
+    bulkUpdateAssignments?: () => Observable<void>;
   }): void {
     const receiptId = 'receiptId' in opts ? opts.receiptId : 'abc';
+    apiSpy = {
+      getReceiptItems: vi.fn().mockReturnValue(opts.items ?? of([])),
+      getReceiptMembers: vi.fn().mockReturnValue(opts.members ?? of([])),
+      updateItemAssignment: vi.fn().mockImplementation(
+        () => (opts.updateItemAssignment ?? (() => of(void 0)))(),
+      ),
+      bulkUpdateAssignments: vi.fn().mockImplementation(
+        () => (opts.bulkUpdateAssignments ?? (() => of(void 0)))(),
+      ),
+    };
+    snackSpy = { open: vi.fn() };
+
     TestBed.configureTestingModule({
       imports: [Receipt],
       providers: [
@@ -58,13 +80,8 @@ describe('Receipt', () => {
             snapshot: { paramMap: { get: (_: string) => receiptId } },
           },
         },
-        {
-          provide: ReceiptsApi,
-          useValue: {
-            getReceiptItems: () => opts.items ?? of([]),
-            getReceiptMembers: () => opts.members ?? of([]),
-          },
-        },
+        { provide: ReceiptsApi, useValue: apiSpy },
+        { provide: MatSnackBar, useValue: snackSpy },
       ],
     }).compileComponents();
 
@@ -75,8 +92,7 @@ describe('Receipt', () => {
 
   it('enters error state when the receiptId param is missing', () => {
     setup({ receiptId: null });
-    const s = component.state();
-    expect(s.kind).toBe('error');
+    expect(component.state().kind).toBe('error');
   });
 
   it('enters ok state after successful load and resolves assignee names', () => {
@@ -106,5 +122,207 @@ describe('Receipt', () => {
     const s = component.state();
     expect(s.kind).toBe('error');
     if (s.kind === 'error') expect(s.message).toBe('boom');
+  });
+
+  describe('onAssignmentChange', () => {
+    it('optimistically updates the item and calls the API', () => {
+      const members = [member(1, 'Alice'), member(2, 'Bob')];
+      const items = [item(10, 'Milk', 3.99, { assignedMemberIds: [1] })];
+      setup({ items: of(items), members: of(members) });
+
+      const enriched = (component.state() as { kind: 'ok'; data: { items: any[] } }).data.items[0];
+      component.onAssignmentChange(enriched, [1, 2]);
+
+      // State reflects new assignments immediately
+      const s = component.state() as { kind: 'ok'; data: { items: any[] } };
+      expect(s.data.items[0].assignedMemberIds).toEqual([1, 2]);
+      expect(s.data.items[0].assigneeNames).toEqual(['Alice', 'Bob']);
+      expect(apiSpy.updateItemAssignment).toHaveBeenCalledWith('abc', 10, [1, 2]);
+    });
+
+    it('skips the API call when nothing actually changed', () => {
+      const members = [member(1, 'Alice'), member(2, 'Bob')];
+      const items = [item(10, 'Milk', 3.99, { assignedMemberIds: [1, 2] })];
+      setup({ items: of(items), members: of(members) });
+
+      const enriched = (component.state() as { kind: 'ok'; data: { items: any[] } }).data.items[0];
+      // Same ids, different order — should still be a no-op.
+      component.onAssignmentChange(enriched, [2, 1]);
+
+      expect(apiSpy.updateItemAssignment).not.toHaveBeenCalled();
+    });
+
+    it('reverts the item and toasts the user when the API fails', () => {
+      const members = [member(1, 'Alice'), member(2, 'Bob')];
+      const items = [item(10, 'Milk', 3.99, { assignedMemberIds: [1] })];
+      setup({
+        items: of(items),
+        members: of(members),
+        updateItemAssignment: () => throwError(() => new Error('nope')),
+      });
+
+      const enriched = (component.state() as { kind: 'ok'; data: { items: any[] } }).data.items[0];
+      component.onAssignmentChange(enriched, [1, 2]);
+
+      const s = component.state() as { kind: 'ok'; data: { items: any[] } };
+      expect(s.data.items[0].assignedMemberIds).toEqual([1]);
+      expect(s.data.items[0].assigneeNames).toEqual(['Alice']);
+      expect(snackSpy.open).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('add / remove helpers', () => {
+    it('addAssignment appends the member id and triggers a PUT', () => {
+      const members = [member(1, 'Alice'), member(2, 'Bob')];
+      const items = [item(10, 'Milk', 3.99, { assignedMemberIds: [1] })];
+      setup({ items: of(items), members: of(members) });
+
+      const enriched = (component.state() as { kind: 'ok'; data: { items: any[] } }).data.items[0];
+      component.addAssignment(enriched, 2);
+
+      expect(apiSpy.updateItemAssignment).toHaveBeenCalledWith('abc', 10, [1, 2]);
+    });
+
+    it('addAssignment is idempotent — no PUT if member already assigned', () => {
+      const members = [member(1, 'Alice')];
+      const items = [item(10, 'Milk', 3.99, { assignedMemberIds: [1] })];
+      setup({ items: of(items), members: of(members) });
+
+      const enriched = (component.state() as { kind: 'ok'; data: { items: any[] } }).data.items[0];
+      component.addAssignment(enriched, 1);
+
+      expect(apiSpy.updateItemAssignment).not.toHaveBeenCalled();
+    });
+
+    it('removeAssignment filters out the member id and triggers a PUT', () => {
+      const members = [member(1, 'Alice'), member(2, 'Bob')];
+      const items = [item(10, 'Milk', 3.99, { assignedMemberIds: [1, 2] })];
+      setup({ items: of(items), members: of(members) });
+
+      const enriched = (component.state() as { kind: 'ok'; data: { items: any[] } }).data.items[0];
+      component.removeAssignment(enriched, 1);
+
+      expect(apiSpy.updateItemAssignment).toHaveBeenCalledWith('abc', 10, [2]);
+    });
+
+    it('availableMembers returns only unassigned members', () => {
+      const members = [member(1, 'Alice'), member(2, 'Bob'), member(3, 'Charlie')];
+      const items = [item(10, 'Milk', 3.99, { assignedMemberIds: [1, 3] })];
+      setup({ items: of(items), members: of(members) });
+
+      const enriched = (component.state() as { kind: 'ok'; data: { items: any[] } }).data.items[0];
+      const available = component.availableMembers(enriched, members);
+
+      expect(available.map(m => m.id)).toEqual([2]);
+    });
+  });
+
+  describe('bulk selection', () => {
+    it('toggleItemSelection adds and removes ids', () => {
+      setup({ items: of([item(1, 'A', 5), item(2, 'B', 10)]) });
+
+      component.toggleItemSelection(1);
+      expect(component.selectedItemIds().has(1)).toBe(true);
+      expect(component.someSelected()).toBe(true);
+      expect(component.partialSelection()).toBe(true);
+      expect(component.allSelected()).toBe(false);
+
+      component.toggleItemSelection(1);
+      expect(component.selectedItemIds().size).toBe(0);
+    });
+
+    it('toggleSelectAll adds every id then clears', () => {
+      setup({ items: of([item(1, 'A', 5), item(2, 'B', 10)]) });
+
+      component.toggleSelectAll();
+      expect(component.selectedItemIds().size).toBe(2);
+      expect(component.allSelected()).toBe(true);
+
+      component.toggleSelectAll();
+      expect(component.selectedItemIds().size).toBe(0);
+    });
+  });
+
+  describe('bulkAssignTo', () => {
+    it('adds the member to every selected item that does not yet have them', () => {
+      const members = [member(1, 'Alice')];
+      const items = [
+        item(10, 'A', 5, { assignedMemberIds: [] }),
+        item(20, 'B', 10, { assignedMemberIds: [1] }), // already has Alice
+        item(30, 'C', 15, { assignedMemberIds: [] }),
+      ];
+      setup({ items: of(items), members: of(members) });
+
+      component.toggleSelectAll();
+      component.bulkAssignTo(1);
+
+      expect(apiSpy.bulkUpdateAssignments).toHaveBeenCalledWith('abc', [
+        { itemId: 10, assignedMemberIds: [1] },
+        { itemId: 30, assignedMemberIds: [1] },
+      ]);
+      // Selection cleared on success
+      expect(component.selectedItemIds().size).toBe(0);
+    });
+
+    it('no-ops when everything selected already has the member', () => {
+      const members = [member(1, 'Alice')];
+      const items = [item(10, 'A', 5, { assignedMemberIds: [1] })];
+      setup({ items: of(items), members: of(members) });
+
+      component.toggleSelectAll();
+      component.bulkAssignTo(1);
+
+      expect(apiSpy.bulkUpdateAssignments).not.toHaveBeenCalled();
+      expect(component.selectedItemIds().size).toBe(0);
+    });
+  });
+
+  describe('splitEvenlySelected', () => {
+    it('replaces each selected item\'s assignments with the full member roster', () => {
+      const members = [member(1, 'Alice'), member(2, 'Bob')];
+      const items = [
+        item(10, 'A', 5, { assignedMemberIds: [1] }),
+        item(20, 'B', 10, { assignedMemberIds: [] }),
+      ];
+      setup({ items: of(items), members: of(members) });
+
+      component.toggleSelectAll();
+      component.splitEvenlySelected();
+
+      expect(apiSpy.bulkUpdateAssignments).toHaveBeenCalledWith('abc', [
+        { itemId: 10, assignedMemberIds: [1, 2] },
+        { itemId: 20, assignedMemberIds: [1, 2] },
+      ]);
+      expect(component.selectedItemIds().size).toBe(0);
+    });
+
+    it('skips items already assigned to everyone', () => {
+      const members = [member(1, 'Alice'), member(2, 'Bob')];
+      const items = [item(10, 'A', 5, { assignedMemberIds: [1, 2] })];
+      setup({ items: of(items), members: of(members) });
+
+      component.toggleSelectAll();
+      component.splitEvenlySelected();
+
+      expect(apiSpy.bulkUpdateAssignments).not.toHaveBeenCalled();
+      expect(component.selectedItemIds().size).toBe(0);
+    });
+
+    it('reverts state and toasts when the bulk PUT fails', () => {
+      const members = [member(1, 'Alice'), member(2, 'Bob')];
+      const items = [item(10, 'A', 5, { assignedMemberIds: [1] })];
+      setup({
+        items: of(items),
+        members: of(members),
+        bulkUpdateAssignments: () => throwError(() => new Error('nope')),
+      });
+
+      component.toggleSelectAll();
+      component.splitEvenlySelected();
+
+      const s = component.state() as { kind: 'ok'; data: { items: any[] } };
+      expect(s.data.items[0].assignedMemberIds).toEqual([1]); // reverted
+      expect(snackSpy.open).toHaveBeenCalledOnce();
+    });
   });
 });

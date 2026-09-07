@@ -46,3 +46,13 @@ export interface ReceiptItemDto {
   /** ISO-8601 timestamp. */
   createdAt: string;
 }
+
+/**
+ * A single row in a bulk-assignment PUT — replaces the assignment set
+ * on one item with the given ids. Matches the backend
+ * ItemAssignmentUpdate DTO exactly.
+ */
+export interface ItemAssignmentUpdate {
+  itemId: number;
+  assignedMemberIds: number[];
+}

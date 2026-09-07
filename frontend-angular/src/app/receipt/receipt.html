@@ -31,10 +31,58 @@
 
       <section class="items">
         <h2>Items ({{ s.data.items.length }})</h2>
+
+        @if (s.data.items.length > 0) {
+          <div class="items__toolbar" [class.items__toolbar--active]="someSelected()">
+            <mat-checkbox
+              [checked]="allSelected()"
+              [indeterminate]="partialSelection()"
+              (change)="toggleSelectAll()"
+              aria-label="Select all items">
+            </mat-checkbox>
+            <span class="items__toolbar-count">
+              @if (someSelected()) {
+                {{ selectedItemIds().size }} selected
+              } @else {
+                Select items for bulk actions
+              }
+            </span>
+            @if (someSelected() && s.data.members.length > 0) {
+              <button
+                mat-button
+                class="items__toolbar-btn"
+                [matMenuTriggerFor]="bulkAssignMenu">
+                Assign to
+              </button>
+              <mat-menu #bulkAssignMenu="matMenu">
+                @for (m of s.data.members; track m.id) {
+                  <button mat-menu-item (click)="bulkAssignTo(m.id)">
+                    {{ m.displayName }}
+                  </button>
+                }
+              </mat-menu>
+              @if (s.data.members.length > 1) {
+                <button
+                  mat-button
+                  class="items__toolbar-btn"
+                  (click)="splitEvenlySelected()">
+                  Split evenly
+                </button>
+              }
+            }
+          </div>
+        }
+
         <div class="items__list">
           @for (item of s.data.items; track item.id) {
-            <article class="item">
+            <article class="item" [class.item--selected]="selectedItemIds().has(item.id)">
               <div class="item__main">
+                <mat-checkbox
+                  class="item__select"
+                  [checked]="selectedItemIds().has(item.id)"
+                  (change)="toggleItemSelection(item.id)"
+                  [attr.aria-label]="'Select ' + item.itemName">
+                </mat-checkbox>
                 <div class="item__label">
                   @if (item.itemNumber) {
                     <span class="item__num">{{ item.itemNumber }}</span>
@@ -48,10 +96,36 @@
                   }
                 </div>
               </div>
-              @if (item.assigneeNames.length > 0) {
-                <div class="item__assignees">
-                  <mat-icon inline="true">person</mat-icon>
-                  {{ item.assigneeNames.join(', ') }}
+              @if (s.data.members.length > 0) {
+                <div class="item__assign" role="group" aria-label="Assigned members">
+                  @if (item.assignedMemberIds.length === 0) {
+                    <mat-chip disableRipple class="item__assign-empty">Unassigned</mat-chip>
+                  }
+                  @for (name of item.assigneeNames; track $index; let i = $index) {
+                    <mat-chip (removed)="removeAssignment(item, item.assignedMemberIds[i])">
+                      {{ name }}
+                      <button matChipRemove [attr.aria-label]="'Remove ' + name">
+                        <mat-icon>cancel</mat-icon>
+                      </button>
+                    </mat-chip>
+                  }
+                  @let available = availableMembers(item, s.data.members);
+                  @if (available.length > 0) {
+                    <button
+                      mat-icon-button
+                      class="item__assign-add"
+                      aria-label="Add member to this item"
+                      [matMenuTriggerFor]="assignMenu">
+                      <mat-icon>add</mat-icon>
+                    </button>
+                    <mat-menu #assignMenu="matMenu">
+                      @for (m of available; track m.id) {
+                        <button mat-menu-item (click)="addAssignment(item, m.id)">
+                          {{ m.displayName }}
+                        </button>
+                      }
+                    </mat-menu>
+                  }
                 </div>
               }
             </article>
