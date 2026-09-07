@@ -1,5 +1,5 @@
 import { CurrencyPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatChipsModule } from '@angular/material/chips';
@@ -45,6 +45,7 @@ type Loadable<T> =
     MatProgressSpinnerModule,
   ],
   templateUrl: './receipt.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './receipt.scss',
 })
 export class Receipt {

@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatListModule } from '@angular/material/list';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -28,6 +28,7 @@ type Loadable<T> =
     MatProgressSpinnerModule,
   ],
   templateUrl: './receipts.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './receipts.scss',
 })
 export class Receipts {
