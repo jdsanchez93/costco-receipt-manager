@@ -1,4 +1,4 @@
-import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { AuthService } from '@auth0/auth0-angular';
@@ -7,7 +7,6 @@ import { AuthService } from '@auth0/auth0-angular';
   selector: 'app-landing',
   imports: [MatButtonModule, MatCardModule],
   templateUrl: './landing.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './landing.scss',
 })
 export class Landing {
