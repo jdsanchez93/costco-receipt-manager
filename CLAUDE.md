@@ -18,11 +18,6 @@ The project is undergoing a migration from ASP.NET Core 8 Serverless API (Lambda
 
 ## Common Development Commands
 
-### New Angular Frontend
-
-The Angular workspace is at ./frontend-angular.
-Pass its absolute path as `workspacePath` when calling `get_best_practices`.
-
 ### Old React Frontend (from /frontend directory)
 ```bash
 npm start          # Start development server on port 3000

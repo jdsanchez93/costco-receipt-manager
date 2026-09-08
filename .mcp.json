@@ -8,6 +8,7 @@
         "@angular/cli",
         "mcp"
       ],
+      "cwd": "./frontend-angular",
       "env": {}
     }
   }
