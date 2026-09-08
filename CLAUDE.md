@@ -14,11 +14,16 @@ This is a full-stack Costco receipt management application with:
 - AWS API Gateway for API routing
 
 ### Migration Status
-The application was recently migrated from Node.js/Express to ASP.NET Core to improve maintainability and leverage .NET's robust ecosystem. The old `backend/` directory contains the legacy Node.js implementation for reference. All new development should focus on the `cdk-backend/` directory.
+The project is undergoing a migration from ASP.NET Core 8 Serverless API (Lambda + API Gateway) / React / DynamoDB to .NET 10 / Angular / MySQL stack targeted for self-hosted deployment. The old `cdk-backend/` directory contains the existing infrastructure for the serverless API. The `api/` directory contains the new .NET 10 api and a Migrations project to move DynamoDB data into MySQL. The `frontend/` directory contains the existing React implementation. The `frontend-angular/` directory contains the new frontend in progress.
 
 ## Common Development Commands
 
-### Frontend (from /frontend directory)
+### New Angular Frontend
+
+The Angular workspace is at ./frontend-angular.
+Pass its absolute path as `workspacePath` when calling `get_best_practices`.
+
+### Old React Frontend (from /frontend directory)
 ```bash
 npm start          # Start development server on port 3000
 npm run build      # Build production bundle
