@@ -94,4 +94,29 @@ describe('ReceiptsApi', () => {
     expect(req.request.body).toEqual({ updates });
     req.flush(null);
   });
+
+  it('getShares issues GET /api/receipts/receipt/{id}/shares', () => {
+    api.getShares('abc123').subscribe();
+
+    const req = httpMock.expectOne('/api/receipts/receipt/abc123/shares');
+    expect(req.request.method).toBe('GET');
+    req.flush([]);
+  });
+
+  it('createShare POSTs { expiresInDays } to the share endpoint', () => {
+    api.createShare('abc123', 30).subscribe();
+
+    const req = httpMock.expectOne('/api/receipts/receipt/abc123/share');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ expiresInDays: 30 });
+    req.flush({ shareToken: 't', shareUrl: 'u', expiresAt: '2026-01-01T00:00:00Z' });
+  });
+
+  it('deactivateShare DELETEs the share token endpoint, encoding the token', () => {
+    api.deactivateShare('abc123', 'tok/en+1').subscribe();
+
+    const req = httpMock.expectOne('/api/receipts/receipt/abc123/shares/tok%2Fen%2B1');
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
+  });
 });

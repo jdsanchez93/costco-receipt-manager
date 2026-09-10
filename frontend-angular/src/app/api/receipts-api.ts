@@ -5,11 +5,13 @@ import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
   AddReceiptMemberRequest,
+  CreateShareResponse,
   ItemAssignmentUpdate,
   ReceiptItemDto,
   ReceiptMemberDto,
   ReceiptMemberMutationResponse,
   ReceiptRole,
+  ReceiptShareDto,
 } from './types';
 
 @Injectable({ providedIn: 'root' })
@@ -119,6 +121,44 @@ export class ReceiptsApi {
     return this.http.put<void>(
       `${this.base}/receipts/receipt/${encodeURIComponent(receiptId)}/items/assignments/bulk`,
       { updates },
+    );
+  }
+
+  /**
+   * All active share links for a receipt, newest first. Requires the caller
+   * to hold the ReceiptOwner policy. Backend:
+   * GET /api/receipts/receipt/{receiptId}/shares.
+   */
+  getShares(receiptId: string): Observable<ReceiptShareDto[]> {
+    return this.http.get<ReceiptShareDto[]>(
+      `${this.base}/receipts/receipt/${encodeURIComponent(receiptId)}/shares`,
+    );
+  }
+
+  /**
+   * Create a public share link for a receipt. Requires ReceiptEditor.
+   * Backend: POST /api/receipts/receipt/{receiptId}/share with body
+   * { expiresInDays } — must be 1–365 or the backend returns a 400
+   * { error }. The response lacks id / createdAt, so callers re-fetch.
+   */
+  createShare(
+    receiptId: string,
+    expiresInDays: number,
+  ): Observable<CreateShareResponse> {
+    return this.http.post<CreateShareResponse>(
+      `${this.base}/receipts/receipt/${encodeURIComponent(receiptId)}/share`,
+      { expiresInDays },
+    );
+  }
+
+  /**
+   * Deactivate (soft-delete) a share link. Requires ReceiptOwner. Backend:
+   * DELETE /api/receipts/receipt/{receiptId}/shares/{shareToken}. Returns
+   * 204, or 404 { error } if the token is unknown.
+   */
+  deactivateShare(receiptId: string, shareToken: string): Observable<void> {
+    return this.http.delete<void>(
+      `${this.base}/receipts/receipt/${encodeURIComponent(receiptId)}/shares/${encodeURIComponent(shareToken)}`,
     );
   }
 }

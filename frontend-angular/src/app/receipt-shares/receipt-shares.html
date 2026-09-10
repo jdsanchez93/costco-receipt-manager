@@ -1,0 +1,134 @@
+<section class="shares">
+  @let s = state();
+
+  <div class="shares__head">
+    <h2>
+      Share links
+      @if (s.kind === 'ok') { ({{ s.data.length }}) }
+    </h2>
+    @if (s.kind === 'ok' && !formOpen()) {
+      <button mat-button (click)="openForm()" [disabled]="busy()">
+        <mat-icon>add_link</mat-icon>
+        Create link
+      </button>
+    }
+  </div>
+
+  @switch (s.kind) {
+    @case ('loading') {
+      <div class="shares__center"><mat-spinner diameter="32" /></div>
+    }
+
+    @case ('error') {
+      <div class="shares__error">
+        <p>{{ s.message }}</p>
+        <button mat-button (click)="load()">Retry</button>
+      </div>
+    }
+
+    @case ('ok') {
+      @if (formOpen()) {
+        <form class="share-form" (ngSubmit)="submitCreate()">
+          <mat-chip-listbox
+            class="share-form__presets"
+            name="preset"
+            [(ngModel)]="preset"
+            aria-label="Link expiry">
+            <mat-chip-option [value]="7" [disabled]="busy()">7 days</mat-chip-option>
+            <mat-chip-option [value]="30" [disabled]="busy()">30 days</mat-chip-option>
+            <mat-chip-option [value]="90" [disabled]="busy()">90 days</mat-chip-option>
+            <mat-chip-option value="custom" [disabled]="busy()">Custom</mat-chip-option>
+          </mat-chip-listbox>
+
+          @if (preset === 'custom') {
+            <mat-form-field appearance="outline" class="share-form__custom">
+              <mat-label>Days</mat-label>
+              <input
+                matInput
+                type="number"
+                name="customDays"
+                min="1"
+                max="365"
+                [(ngModel)]="customDays" />
+            </mat-form-field>
+          }
+
+          <p class="share-form__hint">
+            Link expires {{ resolvedExpiryDate() }}. Anyone with the link can
+            view this receipt read-only — no sign-in required.
+          </p>
+
+          <div class="share-form__actions">
+            <button mat-button type="button" (click)="closeForm()" [disabled]="busy()">
+              Cancel
+            </button>
+            <button mat-flat-button type="submit" [disabled]="busy()">
+              Create link
+            </button>
+          </div>
+        </form>
+      }
+
+      @if (s.data.length === 0) {
+        <p class="shares__empty">
+          No share links yet. Create one to let people view this receipt
+          without signing in.
+        </p>
+      } @else {
+        <ul class="shares__list">
+          @for (share of s.data; track share.shareToken) {
+            <li
+              class="share"
+              [class.share--pending]="pendingRevokeToken() === share.shareToken">
+              @if (pendingRevokeToken() === share.shareToken) {
+                <p class="share__confirm">Deactivate this link?</p>
+                <div class="share__confirm-actions">
+                  <button
+                    mat-button
+                    (click)="pendingRevokeToken.set(null)"
+                    [disabled]="busy()">
+                    Cancel
+                  </button>
+                  <button mat-flat-button (click)="confirmRevoke(share)" [disabled]="busy()">
+                    Deactivate
+                  </button>
+                </div>
+              } @else {
+                <div class="share__body">
+                  <div class="share__line">
+                    <mat-icon class="share__icon">link</mat-icon>
+                    <span class="share__title">Share link</span>
+                    <span
+                      class="share__expiry"
+                      [class.share__expiry--soon]="expiryState(share.expiresAt) === 'soon'"
+                      [class.share__expiry--expired]="expiryState(share.expiresAt) === 'expired'">
+                      {{ expiryLabel(share.expiresAt) }}
+                    </span>
+                  </div>
+                  <span class="share__url">{{ share.shareUrl }}</span>
+                </div>
+
+                <div class="share__actions">
+                  <button
+                    mat-icon-button
+                    aria-label="Copy link"
+                    (click)="copyLink(share)"
+                    [disabled]="busy()">
+                    <mat-icon>content_copy</mat-icon>
+                  </button>
+                  <button
+                    mat-icon-button
+                    aria-label="Deactivate link"
+                    (click)="pendingRevokeToken.set(share.shareToken)"
+                    [disabled]="busy()">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+              }
+            </li>
+          }
+        </ul>
+      }
+    }
+  }
+</section>

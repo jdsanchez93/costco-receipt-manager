@@ -25,6 +25,10 @@
         [canManage]="canManageMembers()"
         (membersChange)="onMembersChange($event)" />
 
+      @if (canManageShares()) {
+        <app-receipt-shares class="shares" [receiptId]="s.data.receiptId" />
+      }
+
       <section class="items">
         <h2>Items ({{ s.data.items.length }})</h2>
 

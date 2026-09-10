@@ -1,0 +1,181 @@
+:host {
+  display: block;
+}
+
+.shares {
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    min-height: 40px;
+
+    h2 {
+      font: var(--mat-sys-title-medium);
+      margin: 0;
+    }
+  }
+
+  &__center {
+    display: flex;
+    justify-content: center;
+    padding: 1.5rem 0;
+  }
+
+  &__error {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 1rem;
+    border-radius: 8px;
+    background: var(--mat-sys-error-container);
+    color: var(--mat-sys-on-error-container);
+
+    p {
+      margin: 0;
+      font: var(--mat-sys-body-medium);
+    }
+  }
+
+  &__empty {
+    font: var(--mat-sys-body-medium);
+    color: var(--mat-sys-on-surface-variant);
+    margin: 0;
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+
+// ---- Create form ----
+
+.share-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: var(--mat-sys-surface-container-low);
+  border-radius: 8px;
+
+  &__custom {
+    width: 8rem;
+  }
+
+  &__hint {
+    margin: 0;
+    font: var(--mat-sys-label-medium);
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  &__actions {
+    align-self: stretch;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+}
+
+// ---- Share row ----
+
+.share {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--mat-sys-surface-container-low);
+  border-radius: 8px;
+  min-height: 48px;
+
+  // The confirm state carries only a prompt + two buttons — let it wrap
+  // rather than overflow on a narrow screen (mirrors .member--pending).
+  &--pending {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    background: var(--mat-sys-error-container);
+    color: var(--mat-sys-on-error-container);
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  &__line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  &__icon {
+    color: var(--mat-sys-primary);
+    font-size: 1.15rem;
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+
+  &__title {
+    font: var(--mat-sys-body-large);
+    font-weight: 500;
+  }
+
+  &__expiry {
+    font: var(--mat-sys-label-small);
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    background: var(--mat-sys-surface-container-highest);
+    color: var(--mat-sys-on-surface-variant);
+
+    &--soon {
+      background: var(--mat-sys-tertiary-container);
+      color: var(--mat-sys-on-tertiary-container);
+    }
+
+    &--expired {
+      background: var(--mat-sys-error-container);
+      color: var(--mat-sys-on-error-container);
+    }
+  }
+
+  &__url {
+    font-family: monospace;
+    font-size: var(--mat-sys-label-medium-size, 0.75rem);
+    color: var(--mat-sys-on-surface-variant);
+    overflow-wrap: anywhere;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  &__confirm {
+    flex: 1 1 8rem;
+    min-width: 0;
+    margin: 0;
+    font: var(--mat-sys-body-medium);
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+
+  &__confirm-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+}

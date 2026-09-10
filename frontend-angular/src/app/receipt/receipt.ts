@@ -15,6 +15,7 @@ import { forkJoin, map } from 'rxjs';
 import { ReceiptsApi } from '../api/receipts-api';
 import { ItemAssignmentUpdate, ReceiptItemDto, ReceiptMemberDto } from '../api/types';
 import { ReceiptMembers } from '../receipt-members/receipt-members';
+import { ReceiptShares } from '../receipt-shares/receipt-shares';
 
 /**
  * Items already resolved against the members list so the template doesn't
@@ -47,6 +48,7 @@ type Loadable<T> =
     MatMenuModule,
     MatProgressSpinnerModule,
     ReceiptMembers,
+    ReceiptShares,
   ],
   templateUrl: './receipt.html',
   styleUrl: './receipt.scss',
@@ -72,6 +74,18 @@ export class Receipt {
    * placeholders see a read-only roster.
    */
   canManageMembers = computed(() => {
+    const s = this.state();
+    if (s.kind !== 'ok') return false;
+    const uid = this.currentUserId();
+    return !!uid && s.data.members.some(m => m.userId === uid && m.role === 'owner');
+  });
+
+  /**
+   * True when the signed-in user owns this receipt — gates the share-links
+   * panel. Deliberately the same predicate as {@link canManageMembers};
+   * kept separate so the two panels can diverge later without coupling.
+   */
+  canManageShares = computed(() => {
     const s = this.state();
     if (s.kind !== 'ok') return false;
     const uid = this.currentUserId();

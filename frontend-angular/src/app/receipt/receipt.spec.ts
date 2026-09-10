@@ -50,6 +50,7 @@ describe('Receipt', () => {
     addReceiptMember: ReturnType<typeof vi.fn>;
     updateMemberRole: ReturnType<typeof vi.fn>;
     removeReceiptMember: ReturnType<typeof vi.fn>;
+    getShares: ReturnType<typeof vi.fn>;
   };
   let snackSpy: { open: ReturnType<typeof vi.fn> };
 
@@ -74,6 +75,7 @@ describe('Receipt', () => {
       addReceiptMember: vi.fn(),
       updateMemberRole: vi.fn(),
       removeReceiptMember: vi.fn(),
+      getShares: vi.fn().mockReturnValue(of([])),
     };
     snackSpy = { open: vi.fn() };
 
@@ -358,6 +360,26 @@ describe('Receipt', () => {
         user: of(undefined),
       });
       expect(component.canManageMembers()).toBe(false);
+    });
+  });
+
+  describe('share-links panel', () => {
+    it('renders for an owner', () => {
+      setup({
+        members: of([member(1, 'Alice', { userId: 'auth0|me', role: 'owner' })]),
+        user: of({ sub: 'auth0|me' }),
+      });
+      expect(component.canManageShares()).toBe(true);
+      expect(fixture.nativeElement.querySelector('app-receipt-shares')).not.toBeNull();
+    });
+
+    it('is hidden for a non-owner', () => {
+      setup({
+        members: of([member(1, 'Alice', { userId: 'auth0|me', role: 'editor' })]),
+        user: of({ sub: 'auth0|me' }),
+      });
+      expect(component.canManageShares()).toBe(false);
+      expect(fixture.nativeElement.querySelector('app-receipt-shares')).toBeNull();
     });
   });
 

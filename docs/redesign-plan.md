@@ -45,6 +45,11 @@ future-you (or a fresh session) to pick up where things stand.
     non-owners get a read-only roster. Parent re-derives item
     assignments when the roster changes (removed member cascades off
     items, matching the backend's FK cascade).
+  - Share management (`receipt-shares/`) inside receipt detail —
+    owner-only panel to create / list / deactivate public share links.
+    Still todo for the full sharing arc: the public
+    `/shared-receipt/:shareToken` view (links resolve to a route that
+    doesn't exist yet).
 - API client at `src/app/api/` — typed against backend DTOs
 - Auth0 config uses refresh tokens + localStorage for silent re-auth
 - Config files (`environment*.ts`) are **gitignored** — see
@@ -195,7 +200,7 @@ component and any dependencies.
 | Feature | Angular status | React reference | Notes |
 |---|---|---|---|
 | **Member management** — add placeholder, change role, remove | ✅ Built (`receipt-members/`) | `ReceiptMembers.tsx` | Lives in receipt detail as a panel. Add form is inline (name + optional email + role); role change via row menu; remove has an inline confirm. Owner-gated; backend last-owner guards surface as snackbars. |
-| **Share management** — create / list / deactivate a share link | Not built | `ReceiptSharing.tsx` | `ReceiptSharesController` is done. Needs UI for copy-to-clipboard on generated `shareUrl`. |
+| **Share management** — create / list / deactivate a share link | ✅ Built (`receipt-shares/`) | `ReceiptSharing.tsx` | Owner-only panel in receipt detail. Create form uses preset expiry chips (7/30/90 + custom); per-row copy-to-clipboard (`@angular/cdk/clipboard`) + inline-confirm deactivate. Panel owns its own list (no parent state depends on it). Note: `currentUses` is never incremented by the backend, so no view-count is shown. |
 | **Public shared-receipt view** at `/shared-receipt/:token` | Not built | `SharedReceipt.tsx` | Route is unauthenticated. `SharedController` endpoint is done. Should reuse most of the receipt-detail layout but read-only, no assignment editing, no shell chrome. |
 | **Receipt validation** — mark subtotal confirmed / disputed with comments | Not built | `ReceiptValidation.tsx` | `POST /api/receipts/validate/:id` is done. Small UI, probably lives in receipt detail. |
 | **Per-member totals** — "who owes what" breakdown at the bottom of a receipt | Not built | `MemberTotals.tsx` | Pure client-side computation from items + assignments. High user value, medium complexity. |
@@ -239,8 +244,10 @@ None of the above is blocked by anything except deciding to do it.
 ## Suggested next order of operations
 
 1. ~~**Members management UI**~~ ✅ done — `receipt-members/`
-2. **Share management + public shared-receipt view** (one focused
-   arc; enables the actual sharing use case)
+2. ~~**Share management**~~ ✅ done — `receipt-shares/`. Still needed to
+   close the arc: **public shared-receipt view** at
+   `/shared-receipt/:shareToken` (`SharedController` is ready; reuse the
+   receipt-detail layout read-only, no shell chrome)
 3. **Per-member totals** (arguably the payoff of the whole app)
 4. **Receipt validation** (small)
 5. **Upload pipeline design session** — commit to a plan from the

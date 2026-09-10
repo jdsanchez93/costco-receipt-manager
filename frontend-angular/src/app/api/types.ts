@@ -78,3 +78,37 @@ export interface ReceiptMemberMutationResponse {
   message: string;
   member: ReceiptMemberDto;
 }
+
+/**
+ * One public share link for a receipt. Mirrors the backend ReceiptShareDto
+ * (api/CostcoReceipts.Api/Models/ApiRequests.cs). `shareUrl` is built
+ * server-side as `{Frontend:BaseUrl}/shared-receipt/{shareToken}`.
+ *
+ * `currentUses` is present for forward-compat but the backend never
+ * increments it yet, so it is always 0 today.
+ */
+export interface ReceiptShareDto {
+  id: number;
+  receiptId: string;
+  shareToken: string;
+  shareUrl: string;
+  ownerUserId: string;
+  /** ISO-8601 timestamp. */
+  createdAt: string;
+  /** ISO-8601 timestamp. */
+  expiresAt: string;
+  isActive: boolean;
+  currentUses: number;
+}
+
+/**
+ * The body returned from POST /api/receipts/receipt/{receiptId}/share.
+ * Note it lacks `id` / `createdAt`, so callers re-fetch the list rather
+ * than splicing this in. Matches the backend CreateReceiptShareResponse.
+ */
+export interface CreateShareResponse {
+  shareToken: string;
+  shareUrl: string;
+  /** ISO-8601 timestamp. */
+  expiresAt: string;
+}
