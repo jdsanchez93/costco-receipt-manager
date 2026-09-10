@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ActivatedRoute, provideRouter } from '@angular/router';
+import { AuthService } from '@auth0/auth0-angular';
 import { Observable, of, throwError } from 'rxjs';
 
 import { Receipt } from './receipt';
@@ -46,6 +47,9 @@ describe('Receipt', () => {
     getReceiptMembers: ReturnType<typeof vi.fn>;
     updateItemAssignment: ReturnType<typeof vi.fn>;
     bulkUpdateAssignments: ReturnType<typeof vi.fn>;
+    addReceiptMember: ReturnType<typeof vi.fn>;
+    updateMemberRole: ReturnType<typeof vi.fn>;
+    removeReceiptMember: ReturnType<typeof vi.fn>;
   };
   let snackSpy: { open: ReturnType<typeof vi.fn> };
 
@@ -53,6 +57,7 @@ describe('Receipt', () => {
     receiptId?: string | null;
     items?: Observable<ReceiptItemDto[]>;
     members?: Observable<ReceiptMemberDto[]>;
+    user?: Observable<{ sub?: string } | undefined>;
     updateItemAssignment?: () => Observable<void>;
     bulkUpdateAssignments?: () => Observable<void>;
   }): void {
@@ -66,6 +71,9 @@ describe('Receipt', () => {
       bulkUpdateAssignments: vi.fn().mockImplementation(
         () => (opts.bulkUpdateAssignments ?? (() => of(void 0)))(),
       ),
+      addReceiptMember: vi.fn(),
+      updateMemberRole: vi.fn(),
+      removeReceiptMember: vi.fn(),
     };
     snackSpy = { open: vi.fn() };
 
@@ -82,6 +90,7 @@ describe('Receipt', () => {
         },
         { provide: ReceiptsApi, useValue: apiSpy },
         { provide: MatSnackBar, useValue: snackSpy },
+        { provide: AuthService, useValue: { user$: opts.user ?? of(undefined) } },
       ],
     }).compileComponents();
 
@@ -323,6 +332,58 @@ describe('Receipt', () => {
       const s = component.state() as { kind: 'ok'; data: { items: any[] } };
       expect(s.data.items[0].assignedMemberIds).toEqual([1]); // reverted
       expect(snackSpy.open).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('canManageMembers', () => {
+    it('is true when the signed-in user is an owner of this receipt', () => {
+      setup({
+        members: of([member(1, 'Alice', { userId: 'auth0|me', role: 'owner' })]),
+        user: of({ sub: 'auth0|me' }),
+      });
+      expect(component.canManageMembers()).toBe(true);
+    });
+
+    it('is false when the signed-in user is only an editor', () => {
+      setup({
+        members: of([member(1, 'Alice', { userId: 'auth0|me', role: 'editor' })]),
+        user: of({ sub: 'auth0|me' }),
+      });
+      expect(component.canManageMembers()).toBe(false);
+    });
+
+    it('is false when the profile has not resolved', () => {
+      setup({
+        members: of([member(1, 'Alice', { userId: 'auth0|me', role: 'owner' })]),
+        user: of(undefined),
+      });
+      expect(component.canManageMembers()).toBe(false);
+    });
+  });
+
+  describe('onMembersChange', () => {
+    it('swaps in the new roster and re-resolves assignee names', () => {
+      const members = [member(1, 'Alice'), member(2, 'Bob')];
+      const items = [item(10, 'Milk', 3.99, { assignedMemberIds: [1, 2] })];
+      setup({ items: of(items), members: of(members) });
+
+      component.onMembersChange([member(1, 'Alicia'), member(2, 'Bob')]);
+
+      const s = component.state() as { kind: 'ok'; data: { members: any[]; items: any[] } };
+      expect(s.data.members[0].displayName).toBe('Alicia');
+      expect(s.data.items[0].assigneeNames).toEqual(['Alicia', 'Bob']);
+    });
+
+    it('cascades a removed member off every item', () => {
+      const members = [member(1, 'Alice'), member(2, 'Bob')];
+      const items = [item(10, 'Milk', 3.99, { assignedMemberIds: [1, 2] })];
+      setup({ items: of(items), members: of(members) });
+
+      component.onMembersChange([member(1, 'Alice')]);
+
+      const s = component.state() as { kind: 'ok'; data: { items: any[] } };
+      expect(s.data.items[0].assignedMemberIds).toEqual([1]);
+      expect(s.data.items[0].assigneeNames).toEqual(['Alice']);
     });
   });
 });

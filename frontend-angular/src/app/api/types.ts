@@ -56,3 +56,25 @@ export interface ItemAssignmentUpdate {
   itemId: number;
   assignedMemberIds: number[];
 }
+
+/**
+ * Body for POST /api/receipts/receipt/{receiptId}/members. Always creates a
+ * fresh placeholder participant in the receipt owner's address book —
+ * nothing is deduped by display name. Matches the backend
+ * AddReceiptMemberRequest DTO.
+ */
+export interface AddReceiptMemberRequest {
+  displayName: string;
+  email?: string | null;
+  /** Defaults to 'editor' on the backend when omitted. */
+  role?: ReceiptRole;
+}
+
+/**
+ * The `{ message, member }` envelope the backend returns from the add-member
+ * and change-role endpoints.
+ */
+export interface ReceiptMemberMutationResponse {
+  message: string;
+  member: ReceiptMemberDto;
+}

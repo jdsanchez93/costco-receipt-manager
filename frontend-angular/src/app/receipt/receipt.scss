@@ -42,17 +42,8 @@
 // ---- Members ----
 
 .members {
+  display: block;
   margin-bottom: 2rem;
-
-  h2 {
-    font: var(--mat-sys-title-medium);
-    margin: 0 0 0.75rem;
-  }
-
-  .role {
-    color: var(--mat-sys-primary);
-    font-weight: 500;
-  }
 }
 
 // ---- Items ----

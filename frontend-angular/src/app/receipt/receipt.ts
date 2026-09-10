@@ -8,10 +8,13 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { AuthService } from '@auth0/auth0-angular';
+import { forkJoin, map } from 'rxjs';
 
 import { ReceiptsApi } from '../api/receipts-api';
 import { ItemAssignmentUpdate, ReceiptItemDto, ReceiptMemberDto } from '../api/types';
+import { ReceiptMembers } from '../receipt-members/receipt-members';
 
 /**
  * Items already resolved against the members list so the template doesn't
@@ -43,6 +46,7 @@ type Loadable<T> =
     MatIconModule,
     MatMenuModule,
     MatProgressSpinnerModule,
+    ReceiptMembers,
   ],
   templateUrl: './receipt.html',
   styleUrl: './receipt.scss',
@@ -51,9 +55,28 @@ export class Receipt {
   private api = inject(ReceiptsApi);
   private route = inject(ActivatedRoute);
   private snackBar = inject(MatSnackBar);
+  private auth = inject(AuthService);
 
   readonly receiptId = this.route.snapshot.paramMap.get('receiptId') ?? '';
   state = signal<Loadable<ReceiptDetailData>>({ kind: 'loading' });
+
+  /** Auth0 `sub` of the signed-in user, or null before the profile resolves. */
+  private currentUserId = toSignal(
+    this.auth.user$.pipe(map(u => u?.sub ?? null)),
+    { initialValue: null },
+  );
+
+  /**
+   * True when the signed-in user is an owner of this receipt — gates the
+   * add / change-role / remove controls in the members panel. Editors and
+   * placeholders see a read-only roster.
+   */
+  canManageMembers = computed(() => {
+    const s = this.state();
+    if (s.kind !== 'ok') return false;
+    const uid = this.currentUserId();
+    return !!uid && s.data.members.some(m => m.userId === uid && m.role === 'owner');
+  });
 
   /** Set of item ids currently ticked for bulk actions. */
   selectedItemIds = signal<ReadonlySet<number>>(new Set());
@@ -106,6 +129,27 @@ export class Receipt {
         message: err?.message ?? 'Failed to load receipt.',
       }),
     });
+  }
+
+  /**
+   * The members panel emitted a new roster (add / role change / removal).
+   * Swap it into state and re-derive item assignments: a removed member's
+   * id is cascaded off every item (the backend does the same in the DB),
+   * and assignee names are re-resolved against the new list.
+   */
+  onMembersChange(members: ReceiptMemberDto[]): void {
+    const s = this.state();
+    if (s.kind !== 'ok') return;
+
+    const validIds = new Set(members.map(m => m.id));
+    const items = s.data.items.map(i =>
+      this.enrichItem(
+        { ...i, assignedMemberIds: i.assignedMemberIds.filter(id => validIds.has(id)) },
+        members,
+      ),
+    );
+
+    this.state.set({ kind: 'ok', data: { ...s.data, members, items } });
   }
 
   /** Add one member to an item's assignments (idempotent). */

@@ -1,0 +1,107 @@
+<section class="members">
+  <div class="members__head">
+    <h2>Members ({{ members().length }})</h2>
+    @if (canManage() && !formOpen()) {
+      <button mat-button (click)="openForm()" [disabled]="busy()">
+        <mat-icon>person_add</mat-icon>
+        Add member
+      </button>
+    }
+  </div>
+
+  @if (formOpen()) {
+    <form class="add-form" (ngSubmit)="submitAdd()">
+      <mat-form-field appearance="outline" class="add-form__field">
+        <mat-label>Name</mat-label>
+        <input matInput name="name" [(ngModel)]="newName" required autocomplete="off" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="add-form__field">
+        <mat-label>Email (optional)</mat-label>
+        <input matInput name="email" type="email" [(ngModel)]="newEmail" autocomplete="off" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="add-form__field add-form__field--role">
+        <mat-label>Role</mat-label>
+        <mat-select name="role" [(ngModel)]="newRole">
+          <mat-option value="editor">Editor</mat-option>
+          <mat-option value="owner">Owner</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <p class="add-form__hint">
+        Adds a placeholder participant. They can claim the account later via a
+        share link.
+      </p>
+
+      <div class="add-form__actions">
+        <button mat-button type="button" (click)="closeForm()" [disabled]="busy()">
+          Cancel
+        </button>
+        <button mat-flat-button type="submit" [disabled]="busy() || !newName.trim()">
+          Add
+        </button>
+      </div>
+    </form>
+  }
+
+  @if (members().length === 0) {
+    <p class="members__empty">
+      No members yet. Add people to split this receipt between.
+    </p>
+  } @else {
+    <ul class="members__list">
+      @for (m of members(); track m.id) {
+        <li class="member" [class.member--pending]="pendingRemovalId() === m.id">
+          @if (pendingRemovalId() === m.id) {
+            <p class="member__confirm">Remove {{ m.displayName }}?</p>
+            <div class="member__confirm-actions">
+              <button mat-button (click)="pendingRemovalId.set(null)" [disabled]="busy()">
+                Cancel
+              </button>
+              <button mat-flat-button (click)="confirmRemove(m)" [disabled]="busy()">
+                Remove
+              </button>
+            </div>
+          } @else {
+            <div class="member__identity">
+              <span class="member__name">{{ m.displayName }}</span>
+              @if (m.email) {
+                <span class="member__email">{{ m.email }}</span>
+              }
+              @if (!m.userId) {
+                <span class="member__tag">Placeholder</span>
+              }
+            </div>
+
+            <div class="member__actions">
+              @if (canManage()) {
+                <button
+                  mat-button
+                  class="member__role-btn"
+                  [matMenuTriggerFor]="roleMenu"
+                  [disabled]="busy()">
+                  {{ roleLabel(m.role) }}
+                  <mat-icon iconPositionEnd>arrow_drop_down</mat-icon>
+                </button>
+                <mat-menu #roleMenu="matMenu">
+                  <button mat-menu-item (click)="changeRole(m, 'editor')">Editor</button>
+                  <button mat-menu-item (click)="changeRole(m, 'owner')">Owner</button>
+                </mat-menu>
+                <button
+                  mat-icon-button
+                  aria-label="Remove member"
+                  (click)="pendingRemovalId.set(m.id)"
+                  [disabled]="busy()">
+                  <mat-icon>close</mat-icon>
+                </button>
+              } @else {
+                <span class="member__role">{{ roleLabel(m.role) }}</span>
+              }
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  }
+</section>

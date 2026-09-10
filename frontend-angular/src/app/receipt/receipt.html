@@ -18,16 +18,12 @@
       </div>
     }
     @case ('ok') {
-      <section class="members">
-        <h2>Members ({{ s.data.members.length }})</h2>
-        <mat-chip-set>
-          @for (m of s.data.members; track m.id) {
-            <mat-chip>
-              {{ m.displayName }}@if (m.role === 'owner') { <span class="role"> · Owner</span> }
-            </mat-chip>
-          }
-        </mat-chip-set>
-      </section>
+      <app-receipt-members
+        class="members"
+        [receiptId]="s.data.receiptId"
+        [members]="s.data.members"
+        [canManage]="canManageMembers()"
+        (membersChange)="onMembersChange($event)" />
 
       <section class="items">
         <h2>Items ({{ s.data.items.length }})</h2>

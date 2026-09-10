@@ -3,7 +3,14 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../environments/environment';
-import { ItemAssignmentUpdate, ReceiptItemDto, ReceiptMemberDto } from './types';
+import {
+  AddReceiptMemberRequest,
+  ItemAssignmentUpdate,
+  ReceiptItemDto,
+  ReceiptMemberDto,
+  ReceiptMemberMutationResponse,
+  ReceiptRole,
+} from './types';
 
 @Injectable({ providedIn: 'root' })
 export class ReceiptsApi {
@@ -35,6 +42,49 @@ export class ReceiptsApi {
   getReceiptMembers(receiptId: string): Observable<ReceiptMemberDto[]> {
     return this.http.get<ReceiptMemberDto[]>(
       `${this.base}/receipts/receipt/${encodeURIComponent(receiptId)}/members`,
+    );
+  }
+
+  /**
+   * Add a placeholder participant to a receipt. Requires the caller to hold
+   * the ReceiptOwner policy. Backend: POST /api/receipts/receipt/{receiptId}/members
+   * with body { displayName, email?, role? }. Returns a { message, member } envelope.
+   */
+  addReceiptMember(
+    receiptId: string,
+    request: AddReceiptMemberRequest,
+  ): Observable<ReceiptMemberMutationResponse> {
+    return this.http.post<ReceiptMemberMutationResponse>(
+      `${this.base}/receipts/receipt/${encodeURIComponent(receiptId)}/members`,
+      request,
+    );
+  }
+
+  /**
+   * Change one member's role on a receipt. Requires ReceiptOwner. Backend:
+   * PUT /api/receipts/receipt/{receiptId}/members/{memberId}/role with body
+   * { role }. The backend rejects demoting the last owner with a 409.
+   */
+  updateMemberRole(
+    receiptId: string,
+    memberId: number,
+    role: ReceiptRole,
+  ): Observable<ReceiptMemberMutationResponse> {
+    return this.http.put<ReceiptMemberMutationResponse>(
+      `${this.base}/receipts/receipt/${encodeURIComponent(receiptId)}/members/${memberId}/role`,
+      { role },
+    );
+  }
+
+  /**
+   * Remove a member from a receipt. Requires ReceiptOwner. Backend:
+   * DELETE /api/receipts/receipt/{receiptId}/members/{memberId}. Cascades to
+   * the member's item assignments. The backend rejects removing the last
+   * owner with a 409.
+   */
+  removeReceiptMember(receiptId: string, memberId: number): Observable<void> {
+    return this.http.delete<void>(
+      `${this.base}/receipts/receipt/${encodeURIComponent(receiptId)}/members/${memberId}`,
     );
   }
 

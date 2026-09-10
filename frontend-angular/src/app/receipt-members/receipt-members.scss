@@ -1,0 +1,149 @@
+:host {
+  display: block;
+}
+
+.members {
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    min-height: 40px;
+
+    h2 {
+      font: var(--mat-sys-title-medium);
+      margin: 0;
+    }
+  }
+
+  &__empty {
+    font: var(--mat-sys-body-medium);
+    color: var(--mat-sys-on-surface-variant);
+    margin: 0;
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+
+// ---- Add form ----
+
+.add-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: var(--mat-sys-surface-container-low);
+  border-radius: 8px;
+
+  &__field {
+    flex: 1 1 12rem;
+
+    &--role {
+      flex: 0 1 9rem;
+    }
+  }
+
+  &__hint {
+    flex-basis: 100%;
+    margin: 0;
+    font: var(--mat-sys-label-medium);
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  &__actions {
+    flex-basis: 100%;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+}
+
+// ---- Member row ----
+
+.member {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--mat-sys-surface-container-low);
+  border-radius: 8px;
+  min-height: 48px;
+
+  // In the confirm state the row carries only the prompt + two buttons.
+  // Let it wrap so a long display name drops the buttons to their own line
+  // rather than overflowing the row on a narrow screen.
+  &--pending {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    background: var(--mat-sys-error-container);
+    color: var(--mat-sys-on-error-container);
+  }
+
+  &__identity {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  &__name {
+    font: var(--mat-sys-body-large);
+    font-weight: 500;
+  }
+
+  &__email {
+    font: var(--mat-sys-label-medium);
+    color: var(--mat-sys-on-surface-variant);
+    overflow-wrap: anywhere;
+  }
+
+  &__tag {
+    font: var(--mat-sys-label-small);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background: var(--mat-sys-surface-container-highest);
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  &__confirm {
+    flex: 1 1 8rem;
+    min-width: 0;
+    margin: 0;
+    font: var(--mat-sys-body-medium);
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+
+  &__confirm-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+  }
+
+  &__role {
+    font: var(--mat-sys-label-large);
+    color: var(--mat-sys-on-surface-variant);
+    padding-right: 0.5rem;
+  }
+}

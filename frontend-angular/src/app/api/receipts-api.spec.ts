@@ -47,6 +47,32 @@ describe('ReceiptsApi', () => {
     httpMock.expectOne('/api/receipts/receipt/a%20b%2Fc/items').flush([]);
   });
 
+  it('addReceiptMember POSTs the request body to the members endpoint', () => {
+    api.addReceiptMember('abc123', { displayName: 'Bob', email: null, role: 'editor' }).subscribe();
+
+    const req = httpMock.expectOne('/api/receipts/receipt/abc123/members');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ displayName: 'Bob', email: null, role: 'editor' });
+    req.flush({ message: 'ok', member: {} });
+  });
+
+  it('updateMemberRole PUTs { role } to the member role endpoint', () => {
+    api.updateMemberRole('abc123', 7, 'owner').subscribe();
+
+    const req = httpMock.expectOne('/api/receipts/receipt/abc123/members/7/role');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ role: 'owner' });
+    req.flush({ message: 'ok', member: {} });
+  });
+
+  it('removeReceiptMember DELETEs the member endpoint', () => {
+    api.removeReceiptMember('abc123', 7).subscribe();
+
+    const req = httpMock.expectOne('/api/receipts/receipt/abc123/members/7');
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
+  });
+
   it('updateItemAssignment PUTs the member id array to the assignment endpoint', () => {
     api.updateItemAssignment('abc123', 42, [1, 2, 3]).subscribe();
 

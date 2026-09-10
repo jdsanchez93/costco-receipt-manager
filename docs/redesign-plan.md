@@ -39,6 +39,12 @@ future-you (or a fresh session) to pick up where things stand.
   - Receipt detail at `/app/receipts/:receiptId` with interactive
     assignment editing (chip + `+` menu pattern), bulk actions
     (Assign to / Split evenly), optimistic updates + revert
+  - Member management (`receipt-members/`) inside receipt detail —
+    add placeholder participant, change role (owner/editor), remove.
+    Owner-only controls gated on the caller's own membership role;
+    non-owners get a read-only roster. Parent re-derives item
+    assignments when the roster changes (removed member cascades off
+    items, matching the backend's FK cascade).
 - API client at `src/app/api/` — typed against backend DTOs
 - Auth0 config uses refresh tokens + localStorage for silent re-auth
 - Config files (`environment*.ts`) are **gitignored** — see
@@ -188,7 +194,7 @@ component and any dependencies.
 
 | Feature | Angular status | React reference | Notes |
 |---|---|---|---|
-| **Member management** — add placeholder, change role, remove | Not built | `ReceiptMembers.tsx` | POST/PUT/DELETE endpoints on `ReceiptMembersController` are done. UI can live inside receipt detail as an expandable panel or its own tab. |
+| **Member management** — add placeholder, change role, remove | ✅ Built (`receipt-members/`) | `ReceiptMembers.tsx` | Lives in receipt detail as a panel. Add form is inline (name + optional email + role); role change via row menu; remove has an inline confirm. Owner-gated; backend last-owner guards surface as snackbars. |
 | **Share management** — create / list / deactivate a share link | Not built | `ReceiptSharing.tsx` | `ReceiptSharesController` is done. Needs UI for copy-to-clipboard on generated `shareUrl`. |
 | **Public shared-receipt view** at `/shared-receipt/:token` | Not built | `SharedReceipt.tsx` | Route is unauthenticated. `SharedController` endpoint is done. Should reuse most of the receipt-detail layout but read-only, no assignment editing, no shell chrome. |
 | **Receipt validation** — mark subtotal confirmed / disputed with comments | Not built | `ReceiptValidation.tsx` | `POST /api/receipts/validate/:id` is done. Small UI, probably lives in receipt detail. |
@@ -232,8 +238,7 @@ None of the above is blocked by anything except deciding to do it.
 
 ## Suggested next order of operations
 
-1. **Members management UI** (highest immediate frontend value; no
-   infra dependency)
+1. ~~**Members management UI**~~ ✅ done — `receipt-members/`
 2. **Share management + public shared-receipt view** (one focused
    arc; enables the actual sharing use case)
 3. **Per-member totals** (arguably the payoff of the whole app)
