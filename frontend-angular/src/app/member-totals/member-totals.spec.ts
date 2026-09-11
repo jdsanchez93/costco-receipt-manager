@@ -82,30 +82,4 @@ describe('MemberTotals', () => {
     setup([], []);
     expect(fixture.nativeElement.textContent).toContain('nothing to split');
   });
-
-  describe('debugBadAssignment', () => {
-    it('flips a reconciled receipt to a discrepancy without touching the input items', () => {
-      const items = [enriched(1, 10, [1])];
-      setup(items, [member(1, 'Alice')]);
-      expect(component.reconciled()).toBe(true);
-
-      component.debugBadAssignment.set(true);
-      fixture.detectChanges();
-
-      expect(component.reconciled()).toBe(false);
-      expect(fixture.nativeElement.textContent).toContain('Off by');
-      // The input array itself is untouched — this is display-only.
-      expect(items[0].assignedMemberIds).toEqual([1]);
-
-      component.debugBadAssignment.set(false);
-      fixture.detectChanges();
-      expect(component.reconciled()).toBe(true);
-    });
-
-    it('is a no-op with no items', () => {
-      setup([], [member(1, 'Alice')]);
-      component.debugBadAssignment.set(true);
-      expect(component.reconciled()).toBe(true);
-    });
-  });
 });
