@@ -12,6 +12,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { ReceiptsApi } from '../api/receipts-api';
 import { ReceiptShareDto } from '../api/types';
 import { Loadable } from '../receipts/receipt-view';
+import { BadgeTone, StatusBadge } from '../status-badge/status-badge';
 
 /** Preset expiry durations offered in the create form, plus a custom escape hatch. */
 type ExpiryPreset = 7 | 30 | 90 | 'custom';
@@ -37,6 +38,7 @@ const DAY_MS = 86_400_000;
     MatIconModule,
     MatInputModule,
     MatProgressSpinnerModule,
+    StatusBadge,
   ],
   templateUrl: './receipt-shares.html',
   styleUrl: './receipt-shares.scss',
@@ -171,12 +173,20 @@ export class ReceiptShares implements OnInit {
     return `Expires ${new Date(iso).toLocaleDateString()}`;
   }
 
-  /** Drives the chip colour: expired / expiring soon / fine. */
+  /** Drives the badge colour: expired / expiring soon / fine. */
   expiryState(iso: string): 'expired' | 'soon' | 'ok' {
     const diffDays = Math.ceil((new Date(iso).getTime() - Date.now()) / DAY_MS);
     if (diffDays < 0) return 'expired';
     if (diffDays <= 3) return 'soon';
     return 'ok';
+  }
+
+  /** Maps expiry state to the badge tone. */
+  expiryTone(iso: string): BadgeTone {
+    const state = this.expiryState(iso);
+    if (state === 'expired') return 'error';
+    if (state === 'soon') return 'warning';
+    return 'neutral';
   }
 
   /** Pull the backend's `{ error }` message off a failed response, else fall back. */

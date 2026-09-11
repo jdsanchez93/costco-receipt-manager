@@ -132,24 +132,6 @@
     font-weight: 500;
   }
 
-  &__expiry {
-    font: var(--mat-sys-label-small);
-    padding: 0.1rem 0.45rem;
-    border-radius: 999px;
-    background: var(--mat-sys-surface-container-highest);
-    color: var(--mat-sys-on-surface-variant);
-
-    &--soon {
-      background: var(--mat-sys-tertiary-container);
-      color: var(--mat-sys-on-tertiary-container);
-    }
-
-    &--expired {
-      background: var(--mat-sys-error-container);
-      color: var(--mat-sys-on-error-container);
-    }
-  }
-
   &__url {
     font-family: monospace;
     font-size: var(--mat-sys-label-medium-size, 0.75rem);

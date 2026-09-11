@@ -98,12 +98,9 @@
                   <div class="share__line">
                     <mat-icon class="share__icon">link</mat-icon>
                     <span class="share__title">Share link</span>
-                    <span
-                      class="share__expiry"
-                      [class.share__expiry--soon]="expiryState(share.expiresAt) === 'soon'"
-                      [class.share__expiry--expired]="expiryState(share.expiresAt) === 'expired'">
+                    <app-status-badge [tone]="expiryTone(share.expiresAt)">
                       {{ expiryLabel(share.expiresAt) }}
-                    </span>
+                    </app-status-badge>
                   </div>
                   <span class="share__url">{{ share.shareUrl }}</span>
                 </div>

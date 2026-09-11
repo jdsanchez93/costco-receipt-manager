@@ -29,7 +29,7 @@
       @if (members().length > 0) {
         <div class="item__assign" role="group" aria-label="Assigned members">
           @if (item.assignedMemberIds.length === 0) {
-            <mat-chip disableRipple class="item__assign-empty">Unassigned</mat-chip>
+            <app-status-badge tone="neutral">Unassigned</app-status-badge>
           }
           @for (name of item.assigneeNames; track $index; let i = $index) {
             @if (editable()) {

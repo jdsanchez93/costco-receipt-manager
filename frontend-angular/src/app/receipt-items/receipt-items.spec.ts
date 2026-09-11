@@ -66,6 +66,18 @@ describe('ReceiptItems', () => {
     expect(host.textContent).toContain('Alice');
   });
 
+  it('renders an app-status-badge for an unassigned item', () => {
+    setup({
+      items: [enriched(1, [], [])],
+      members: [member(1, 'Alice')],
+    });
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.querySelector('.item__assign-empty')).toBeNull();
+    const badge = host.querySelector('app-status-badge .badge');
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent?.trim()).toBe('Unassigned');
+  });
+
   it('editable mode exposes the add menu for unassigned members', () => {
     setup({
       items: [enriched(1, [1], ['Alice'])],

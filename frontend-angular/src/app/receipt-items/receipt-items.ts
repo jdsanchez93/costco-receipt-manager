@@ -8,6 +8,7 @@ import { MatMenuModule } from '@angular/material/menu';
 
 import { ReceiptMemberDto } from '../api/types';
 import { EnrichedItem } from '../receipts/receipt-view';
+import { StatusBadge } from '../status-badge/status-badge';
 
 /**
  * Presentational list of receipt line items. Read-only by default; the
@@ -24,6 +25,7 @@ import { EnrichedItem } from '../receipts/receipt-view';
     MatChipsModule,
     MatIconModule,
     MatMenuModule,
+    StatusBadge,
   ],
   templateUrl: './receipt-items.html',
   styleUrl: './receipt-items.scss',

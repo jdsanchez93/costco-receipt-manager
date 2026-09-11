@@ -83,11 +83,6 @@
   gap: 0.35rem;
 }
 
-.item__assign-empty {
-  opacity: 0.65;
-  font-style: italic;
-}
-
 .item__assign-add {
   // The icon button's default 40x40 towers over the ~32px chips; scale it
   // down so the "add" affordance sits inline with the chip row.

@@ -103,6 +103,23 @@ describe('ReceiptShares', () => {
       expect(component.expiryLabel(past)).toBe('Expired');
       expect(component.expiryState(past)).toBe('expired');
     });
+
+    it('maps expiry state to a status-badge tone', () => {
+      setup();
+      const soon = new Date(Date.now() + 2 * DAY_MS + 3600_000).toISOString();
+      const far = new Date(Date.now() + 40 * DAY_MS).toISOString();
+      const past = new Date(Date.now() - DAY_MS).toISOString();
+
+      expect(component.expiryTone(past)).toBe('error');
+      expect(component.expiryTone(soon)).toBe('warning');
+      expect(component.expiryTone(far)).toBe('neutral');
+    });
+  });
+
+  it('renders the expiry as an app-status-badge', () => {
+    setup();
+    const badge = (fixture.nativeElement as HTMLElement).querySelector('app-status-badge .badge');
+    expect(badge).not.toBeNull();
   });
 
   describe('submitCreate', () => {
