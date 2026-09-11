@@ -1,0 +1,35 @@
+<dl class="stats">
+  <div class="stats__cell">
+    <dt>Items</dt>
+    <dd>{{ itemCount() }}</dd>
+  </div>
+  <div class="stats__cell">
+    <dt>People</dt>
+    <dd>{{ memberCount() }}</dd>
+  </div>
+  <div class="stats__cell">
+    <dt>Total</dt>
+    <dd>{{ total() | currency }}</dd>
+  </div>
+  @if (expiresAt(); as expires) {
+    <div class="stats__cell">
+      <dt>Link expires</dt>
+      <dd>{{ expires | date: 'mediumDate' }}</dd>
+    </div>
+  }
+  <div class="stats__cell">
+    <dt>Subtotal check</dt>
+    <dd>
+      @let match = subtotalMatch();
+      <app-status-badge [tone]="tone()">
+        @if (match.matches === null) {
+          Unverified
+        } @else if (match.matches) {
+          Matches
+        } @else {
+          Off by {{ match.difference | currency }}
+        }
+      </app-status-badge>
+    </dd>
+  </div>
+</dl>

@@ -18,6 +18,13 @@
       </div>
     }
     @case ('ok') {
+      <app-receipt-stats
+        class="stats"
+        [itemCount]="s.data.items.length"
+        [memberCount]="s.data.members.length"
+        [total]="total()"
+        [subtotalMatch]="s.data.subtotalMatch" />
+
       <app-receipt-members
         class="members"
         [receiptId]="s.data.receiptId"
@@ -91,16 +98,6 @@
         }
 
         <footer class="total">
-          @let match = s.data.subtotalMatch;
-          <app-status-badge [tone]="subtotalMatchTone()">
-            @if (!match || match.matches === null) {
-              OCR subtotal unavailable
-            } @else if (match.matches) {
-              Subtotal matches receipt
-            } @else {
-              Off by {{ match.difference | currency }}
-            }
-          </app-status-badge>
           <span class="total__label">Total</span>
           <span class="total__value">{{ total() | currency }}</span>
         </footer>

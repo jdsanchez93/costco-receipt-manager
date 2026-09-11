@@ -63,37 +63,6 @@
   gap: 1.5rem;
 }
 
-// ---- Stats strip ----
-
-.stats {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.75rem;
-  margin: 0;
-
-  @media (min-width: 560px) {
-    grid-template-columns: repeat(4, 1fr);
-  }
-
-  &__cell {
-    background: var(--mat-sys-surface-container-low);
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-
-    dt {
-      font: var(--mat-sys-label-medium);
-      color: var(--mat-sys-on-surface-variant);
-    }
-
-    dd {
-      margin: 0.2rem 0 0;
-      font: var(--mat-sys-title-medium);
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-    }
-  }
-}
-
 .section h2 {
   font: var(--mat-sys-title-medium);
   margin: 0 0 0.75rem;

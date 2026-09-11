@@ -20,39 +20,12 @@
 
     @case ('ok') {
       <section class="page">
-        <dl class="stats">
-          <div class="stats__cell">
-            <dt>Items</dt>
-            <dd>{{ s.data.items.length }}</dd>
-          </div>
-          <div class="stats__cell">
-            <dt>People</dt>
-            <dd>{{ s.data.members.length }}</dd>
-          </div>
-          <div class="stats__cell">
-            <dt>Total</dt>
-            <dd>{{ total() | currency }}</dd>
-          </div>
-          <div class="stats__cell">
-            <dt>Link expires</dt>
-            <dd>{{ s.data.expiresAt | date: 'mediumDate' }}</dd>
-          </div>
-          <div class="stats__cell">
-            <dt>Subtotal check</dt>
-            <dd>
-              @let match = s.data.subtotalMatch;
-              <app-status-badge [tone]="subtotalMatchTone()">
-                @if (match.matches === null) {
-                  Unverified
-                } @else if (match.matches) {
-                  Matches
-                } @else {
-                  Off by {{ match.difference | currency }}
-                }
-              </app-status-badge>
-            </dd>
-          </div>
-        </dl>
+        <app-receipt-stats
+          [itemCount]="s.data.items.length"
+          [memberCount]="s.data.members.length"
+          [total]="total()"
+          [subtotalMatch]="s.data.subtotalMatch"
+          [expiresAt]="s.data.expiresAt" />
 
         @if (s.data.members.length > 0) {
           <app-member-totals

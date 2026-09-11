@@ -1,4 +1,4 @@
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { CurrencyPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,14 +10,8 @@ import { ReceiptsApi } from '../api/receipts-api';
 import { ReceiptMemberDto, SubtotalMatchDto } from '../api/types';
 import { MemberTotals } from '../member-totals/member-totals';
 import { ReceiptItems } from '../receipt-items/receipt-items';
-import {
-  EnrichedItem,
-  Loadable,
-  enrichItems,
-  receiptTotal,
-  subtotalMatchTone,
-} from '../receipts/receipt-view';
-import { StatusBadge } from '../status-badge/status-badge';
+import { ReceiptStats } from '../receipt-stats/receipt-stats';
+import { EnrichedItem, Loadable, enrichItems, receiptTotal } from '../receipts/receipt-view';
 
 interface SharedReceiptData {
   items: EnrichedItem[];
@@ -36,14 +30,13 @@ interface SharedReceiptData {
   selector: 'app-shared-receipt',
   imports: [
     CurrencyPipe,
-    DatePipe,
     RouterLink,
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
     MemberTotals,
     ReceiptItems,
-    StatusBadge,
+    ReceiptStats,
   ],
   templateUrl: './shared-receipt.html',
   styleUrl: './shared-receipt.scss',
@@ -59,11 +52,6 @@ export class SharedReceipt {
   total = computed(() => {
     const s = this.state();
     return s.kind === 'ok' ? receiptTotal(s.data.items) : 0;
-  });
-
-  subtotalMatchTone = computed(() => {
-    const s = this.state();
-    return s.kind === 'ok' ? subtotalMatchTone(s.data.subtotalMatch) : 'neutral';
   });
 
   constructor() {

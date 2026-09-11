@@ -17,20 +17,14 @@ import { MemberTotals } from '../member-totals/member-totals';
 import { ReceiptItems } from '../receipt-items/receipt-items';
 import { ReceiptMembers } from '../receipt-members/receipt-members';
 import { ReceiptShares } from '../receipt-shares/receipt-shares';
-import {
-  EnrichedItem,
-  Loadable,
-  enrichItems,
-  receiptTotal,
-  subtotalMatchTone,
-} from '../receipts/receipt-view';
-import { StatusBadge } from '../status-badge/status-badge';
+import { ReceiptStats } from '../receipt-stats/receipt-stats';
+import { EnrichedItem, Loadable, enrichItems, receiptTotal } from '../receipts/receipt-view';
 
 export interface ReceiptDetailData {
   receiptId: string;
   members: ReceiptMemberDto[];
   items: EnrichedItem[];
-  subtotalMatch: SubtotalMatchDto | null;
+  subtotalMatch: SubtotalMatchDto;
 }
 
 @Component({
@@ -47,7 +41,7 @@ export interface ReceiptDetailData {
     ReceiptItems,
     ReceiptMembers,
     ReceiptShares,
-    StatusBadge,
+    ReceiptStats,
   ],
   templateUrl: './receipt.html',
   styleUrl: './receipt.scss',
@@ -109,12 +103,6 @@ export class Receipt {
   total = computed(() => {
     const s = this.state();
     return s.kind === 'ok' ? receiptTotal(s.data.items) : 0;
-  });
-
-  /** Badge tone for the server-computed OCR-subtotal-vs-items check. */
-  subtotalMatchTone = computed(() => {
-    const s = this.state();
-    return s.kind === 'ok' ? subtotalMatchTone(s.data.subtotalMatch) : 'neutral';
   });
 
   constructor() {
