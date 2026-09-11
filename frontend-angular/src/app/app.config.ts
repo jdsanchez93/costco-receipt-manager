@@ -29,7 +29,14 @@ export const appConfig: ApplicationConfig = {
         scope: 'openid profile email',
       },
       httpInterceptor: {
-        allowedList: [`${environment.apiUrl}/*`],
+        // Order matters — the SDK attaches a token to the first match.
+        // The public shared-receipt read must go out with no bearer token
+        // (and not error for a logged-out visitor), so it needs its own
+        // `allowAnonymous` entry ahead of the catch-all.
+        allowedList: [
+          { uri: `${environment.apiUrl}/receipts/shared/*`, allowAnonymous: true },
+          `${environment.apiUrl}/*`,
+        ],
       },
     }),
   ]

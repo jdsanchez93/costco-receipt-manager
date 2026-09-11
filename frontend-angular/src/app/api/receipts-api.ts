@@ -12,6 +12,7 @@ import {
   ReceiptMemberMutationResponse,
   ReceiptRole,
   ReceiptShareDto,
+  SharedReceiptResponse,
 } from './types';
 
 @Injectable({ providedIn: 'root' })
@@ -159,6 +160,19 @@ export class ReceiptsApi {
   deactivateShare(receiptId: string, shareToken: string): Observable<void> {
     return this.http.delete<void>(
       `${this.base}/receipts/receipt/${encodeURIComponent(receiptId)}/shares/${encodeURIComponent(shareToken)}`,
+    );
+  }
+
+  /**
+   * Public, **unauthenticated** read of a receipt via a share token — the
+   * one call in this service that runs with no bearer token (see the
+   * `allowAnonymous` entry in app.config.ts). Backend:
+   * GET /api/receipts/shared/{shareToken}. Returns 404 { error } when the
+   * token is unknown, inactive, or expired.
+   */
+  getSharedReceipt(shareToken: string): Observable<SharedReceiptResponse> {
+    return this.http.get<SharedReceiptResponse>(
+      `${this.base}/receipts/shared/${encodeURIComponent(shareToken)}`,
     );
   }
 }

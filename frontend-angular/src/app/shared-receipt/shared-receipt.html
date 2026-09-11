@@ -1,0 +1,70 @@
+<main class="shared">
+  <header class="shared__bar">
+    <span class="shared__brand">Costco Receipt Manager</span>
+    <span class="shared__note">Shared receipt · read-only</span>
+  </header>
+
+  @let s = state();
+  @switch (s.kind) {
+    @case ('loading') {
+      <div class="shared__center"><mat-spinner diameter="40" /></div>
+    }
+
+    @case ('error') {
+      <div class="shared__error">
+        <mat-icon>link_off</mat-icon>
+        <p>{{ s.message }}</p>
+        <a mat-flat-button routerLink="/">Go to homepage</a>
+      </div>
+    }
+
+    @case ('ok') {
+      <section class="page">
+        <dl class="stats">
+          <div class="stats__cell">
+            <dt>Items</dt>
+            <dd>{{ s.data.items.length }}</dd>
+          </div>
+          <div class="stats__cell">
+            <dt>People</dt>
+            <dd>{{ s.data.members.length }}</dd>
+          </div>
+          <div class="stats__cell">
+            <dt>Total</dt>
+            <dd>{{ total() | currency }}</dd>
+          </div>
+          <div class="stats__cell">
+            <dt>Link expires</dt>
+            <dd>{{ s.data.expiresAt | date: 'mediumDate' }}</dd>
+          </div>
+        </dl>
+
+        @if (s.data.members.length > 0) {
+          <app-member-totals
+            class="section"
+            [items]="s.data.items"
+            [members]="s.data.members" />
+        }
+
+        <section class="section">
+          <h2>Items ({{ s.data.items.length }})</h2>
+          <app-receipt-items [items]="s.data.items" [members]="s.data.members" />
+        </section>
+
+        <footer class="total">
+          <span class="total__label">Total</span>
+          <span class="total__value">{{ total() | currency }}</span>
+        </footer>
+
+        <aside class="cta">
+          <p class="cta__lead">Want to manage your own receipts?</p>
+          <p class="cta__body">
+            Create an account to upload receipts, split items, and share the
+            breakdown with anyone.
+          </p>
+          <a mat-flat-button routerLink="/">Get started</a>
+        </aside>
+      </section>
+    }
+  }
+</main>

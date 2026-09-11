@@ -112,3 +112,23 @@ export interface CreateShareResponse {
   /** ISO-8601 timestamp. */
   expiresAt: string;
 }
+
+/**
+ * Public read-only payload for a shared receipt, from the anonymous
+ * GET /api/receipts/shared/{shareToken}. Mirrors the backend
+ * SharedReceiptResponse (api/CostcoReceipts.Api/Models/ReceiptDtos.cs).
+ *
+ * The backend also sends a `geometry` (Textract OCR) block; it is omitted
+ * here because the shared view doesn't render it.
+ */
+export interface SharedReceiptResponse {
+  receiptId: string;
+  items: ReceiptItemDto[];
+  members: ReceiptMemberDto[];
+  shareInfo: {
+    /** ISO-8601 timestamp. */
+    createdAt: string;
+    /** ISO-8601 timestamp. */
+    expiresAt: string;
+  };
+}

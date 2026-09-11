@@ -119,4 +119,12 @@ describe('ReceiptsApi', () => {
     expect(req.request.method).toBe('DELETE');
     req.flush(null);
   });
+
+  it('getSharedReceipt issues GET /api/receipts/shared/{token}, encoding the token', () => {
+    api.getSharedReceipt('tok/en+1').subscribe();
+
+    const req = httpMock.expectOne('/api/receipts/shared/tok%2Fen%2B1');
+    expect(req.request.method).toBe('GET');
+    req.flush({ receiptId: 'abc', items: [], members: [], shareInfo: { createdAt: '', expiresAt: '' } });
+  });
 });
