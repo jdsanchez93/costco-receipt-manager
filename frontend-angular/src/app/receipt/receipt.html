@@ -83,6 +83,13 @@
           (assignmentRemove)="removeAssignment($event.item, $event.memberId)"
           (selectionToggle)="toggleItemSelection($event)" />
 
+        @if (s.data.members.length > 0) {
+          <app-member-totals
+            class="totals"
+            [items]="s.data.items"
+            [members]="s.data.members" />
+        }
+
         <footer class="total">
           <span class="total__label">Total</span>
           <span class="total__value">{{ total() | currency }}</span>

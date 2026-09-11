@@ -1,0 +1,55 @@
+<section class="totals">
+  @let t = totals();
+
+  <div class="totals__head">
+    <h2>Who owes what</h2>
+    <app-status-badge [tone]="reconciled() ? 'success' : 'warning'">
+      @if (reconciled()) {
+        Balanced
+      } @else {
+        Off by {{ t.discrepancy | currency }}
+      }
+    </app-status-badge>
+  </div>
+
+  @if (members().length === 0) {
+    <p class="totals__empty">
+      No members on this receipt yet — nothing to split.
+    </p>
+  } @else {
+    <ul class="totals__list">
+      @for (m of t.perMember; track m.memberId) {
+        <li class="party">
+          <div class="party__id">
+            <span class="party__name">{{ m.displayName }}</span>
+            <span class="party__meta">
+              {{ m.itemCount }} {{ m.itemCount === 1 ? 'item' : 'items' }}
+            </span>
+          </div>
+          <div class="party__figures">
+            @if (m.discount > 0) {
+              <span class="party__sub">{{ m.subtotal | currency }}</span>
+              <span class="party__disc">−{{ m.discount | currency }}</span>
+            }
+            <span class="party__total">{{ m.total | currency }}</span>
+          </div>
+        </li>
+      }
+
+      @if (t.unassigned.itemCount > 0) {
+        <li class="party party--unassigned">
+          <div class="party__id">
+            <span class="party__name">Unassigned</span>
+            <span class="party__meta">
+              {{ t.unassigned.itemCount }}
+              {{ t.unassigned.itemCount === 1 ? 'item' : 'items' }} — not split
+            </span>
+          </div>
+          <div class="party__figures">
+            <span class="party__total">{{ t.unassigned.total | currency }}</span>
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</section>

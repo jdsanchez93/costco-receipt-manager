@@ -217,12 +217,13 @@ describe('Receipt', () => {
     });
   });
 
-  it('renders the item list through the child component', () => {
+  it('renders the item list and per-member totals through the child components', () => {
     setup({
       items: of([item(10, 'Milk', 4, { assignedMemberIds: [1] })]),
       members: of([member(1, 'Alice')]),
     });
     expect(fixture.nativeElement.querySelector('app-receipt-items')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('app-member-totals')).not.toBeNull();
   });
 
   describe('bulk selection', () => {

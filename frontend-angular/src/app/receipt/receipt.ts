@@ -13,6 +13,7 @@ import { forkJoin, map } from 'rxjs';
 
 import { ReceiptsApi } from '../api/receipts-api';
 import { ItemAssignmentUpdate, ReceiptMemberDto } from '../api/types';
+import { MemberTotals } from '../member-totals/member-totals';
 import { ReceiptItems } from '../receipt-items/receipt-items';
 import { ReceiptMembers } from '../receipt-members/receipt-members';
 import { ReceiptShares } from '../receipt-shares/receipt-shares';
@@ -34,6 +35,7 @@ export interface ReceiptDetailData {
     MatIconModule,
     MatMenuModule,
     MatProgressSpinnerModule,
+    MemberTotals,
     ReceiptItems,
     ReceiptMembers,
     ReceiptShares,

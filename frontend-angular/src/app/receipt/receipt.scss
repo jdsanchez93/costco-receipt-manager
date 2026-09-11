@@ -117,6 +117,13 @@
 
 // The item list itself lives in <app-receipt-items> (receipt-items.scss).
 
+// ---- Member totals ----
+
+.totals {
+  display: block;
+  margin-top: 1.5rem;
+}
+
 // ---- Total ----
 
 .total {

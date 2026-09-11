@@ -49,6 +49,30 @@ body {
   }
 }
 
+// Extended M3 color roles for semantic status (success/warning) that
+// mat.theme()'s color map doesn't generate on its own — adding e.g.
+// `success: mat.$green-palette` to the map above is silently a no-op in
+// @angular/material 22.1.5 (verified: no --md-extended-color-* tokens are
+// emitted). So these are hand-authored, matching the container /
+// on-container shape Angular Material uses for its own roles. `success`
+// was picked via the Material Theme Builder (Figma) for a green seed;
+// `warning` is a placeholder amber in the same tonal spirit — refine both
+// by eye, or regenerate precisely via https://material-foundation.github.io/material-theme-builder/
+// with "custom colors" enabled. App is dark-only today (see `color-scheme:
+// dark` above), so only one set is needed; add a light variant if that
+// ever changes.
+:root {
+  --md-extended-color-success-color: rgb(158 212 156);
+  --md-extended-color-success-on-color: rgb(5 57 17);
+  --md-extended-color-success-color-container: rgb(32 80 38);
+  --md-extended-color-success-on-color-container: rgb(186 240 183);
+
+  --md-extended-color-warning-color: rgb(214 189 122);
+  --md-extended-color-warning-on-color: rgb(46 36 0);
+  --md-extended-color-warning-color-container: rgb(79 62 8);
+  --md-extended-color-warning-on-color-container: rgb(240 222 170);
+}
+
 // Suppress the default WebKit tap highlight everywhere. Without this, tapping
 // through the CDK overlay backdrop (behind an open mat-menu, mat-dialog, etc.)
 // flashes the whole screen because the backdrop is a full-viewport element and
