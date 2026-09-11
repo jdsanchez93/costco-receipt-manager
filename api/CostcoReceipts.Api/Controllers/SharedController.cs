@@ -76,7 +76,7 @@ public class SharedController : ControllerBase
             ReceiptId = receiptId,
             Items = items,
             Members = members,
-            Geometry = GeometryDto.From(geometryRows),
+            Geometry = GeometryDto.From(geometryRows, ReceiptCalculations.Sum(items)),
             ShareInfo = new ShareInfoDto
             {
                 CreatedAt = share.CreatedAt,

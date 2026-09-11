@@ -2,7 +2,7 @@
 // authenticated detail page (`receipt/`), the public shared view
 // (`shared-receipt/`), and the share-links panel (`receipt-shares/`).
 
-import { ReceiptItemDto, ReceiptMemberDto } from '../api/types';
+import { ReceiptItemDto, ReceiptMemberDto, SubtotalMatchDto } from '../api/types';
 
 /**
  * Discriminated union for a fetched resource. Beats separate `loading` /
@@ -37,6 +37,18 @@ export function enrichItems(
 /** Client-side subtotal: sum of (price − discount) across every item. */
 export function receiptTotal(items: ReceiptItemDto[]): number {
   return items.reduce((sum, i) => sum + i.price - (i.discount ?? 0), 0);
+}
+
+/**
+ * Badge tone for the server-computed subtotal-match check: `success` when
+ * the OCR subtotal matches the items, `warning` when it doesn't, `neutral`
+ * when there's no OCR subtotal to compare against.
+ */
+export function subtotalMatchTone(
+  match: SubtotalMatchDto | null | undefined,
+): 'success' | 'warning' | 'neutral' {
+  if (!match || match.matches === null) return 'neutral';
+  return match.matches ? 'success' : 'warning';
 }
 
 export interface MemberTotal {

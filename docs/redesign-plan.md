@@ -216,8 +216,8 @@ component and any dependencies.
 |---|---|---|---|
 | **Member management** — add placeholder, change role, remove | ✅ Built (`receipt-members/`) | `ReceiptMembers.tsx` | Lives in receipt detail as a panel. Add form is inline (name + optional email + role); role change via row menu; remove has an inline confirm. Owner-gated; backend last-owner guards surface as snackbars. |
 | **Share management** — create / list / deactivate a share link | ✅ Built (`receipt-shares/`) | `ReceiptSharing.tsx` | Owner-only panel in receipt detail. Create form uses preset expiry chips (7/30/90 + custom); per-row copy-to-clipboard (`@angular/cdk/clipboard`) + inline-confirm deactivate. Panel owns its own list (no parent state depends on it). Note: `currentUses` is never incremented by the backend, so no view-count is shown. |
-| **Public shared-receipt view** at `/shared-receipt/:token` | ✅ Built (`shared-receipt/`) | `SharedReceipt.tsx` | Unauthenticated top-level route, no shell. Reuses `<app-receipt-items>` (read-only) + `<app-member-totals>`. Anonymous API call via an `allowAnonymous` interceptor entry. Geometry/receipt image intentionally omitted (image needs `GetDownloadUrl` + is a public-surface risk to design carefully — see below). |
-| **Receipt validation** — mark subtotal confirmed / disputed with comments | Not built | `ReceiptValidation.tsx` | `POST /api/receipts/validate/:id` is done. Small UI, probably lives in receipt detail. |
+| **Public shared-receipt view** at `/shared-receipt/:token` | ✅ Built (`shared-receipt/`) | `SharedReceipt.tsx` | Unauthenticated top-level route, no shell. Reuses `<app-receipt-items>` (read-only) + `<app-member-totals>`. Anonymous API call via an `allowAnonymous` interceptor entry. The receipt image is still intentionally omitted (needs `GetDownloadUrl` + is a public-surface risk to design carefully — see below); the server-computed subtotal-match badge (below) *is* now included — only the raw OCR label/value/bounding-box geometry stays off the public DTO. |
+| **Receipt validation** — automated subtotal match badge | ✅ Built | `ReceiptValidation.tsx` | Done 2026-09-11: dropped the manual confirm/dispute step entirely. In the old React app the "confirmed/disputed" click never added information beyond a comparison the frontend already computed cosmetically (`getValidationStatus()` in `ReceiptValidation.tsx`, diffing OCR subtotal vs. summed items with a 1¢ tolerance) — the backend never checked it itself, and the buttons didn't even respect the computed status. Now `GeometryDto.SubtotalMatch` (`ReceiptCalculations`/`SubtotalMatchDto` in `Models/ReceiptDtos.cs`) computes `matches`/`ocrSubtotal`/`difference` server-side in `GET /receipt/{id}/geometry` and the shared endpoint alike (`|OCR subtotal − Σ(price − discount)| ≤ $0.01`), rendered as an `<app-status-badge>` on both receipt detail and the shared view. `ValidationStatus`/`ValidatedAt`/`Comments` were dropped from `ReceiptMember` (migration `RemoveReceiptMemberValidationFields`) and `POST /api/receipts/validate/:id` was deleted — nothing referenced them outside the removed endpoint and the migration project's write path (which now just stops persisting those columns; still parses them off legacy Dynamo rows, same as the already-unused `ValidatedBy`). The "flag this receipt" idea in Priority 3 remains a separate, not-yet-built feature. |
 | **Per-member totals** — "who owes what" breakdown at the bottom of a receipt | ✅ Built (`member-totals/`) | `MemberTotals.tsx` | `computeMemberTotals` in `receipts/receipt-view.ts`; equal split of `price − discount` per assignee + unassigned bucket + reconcile check. On both the shared view and the authenticated detail page. |
 
 ### Priority 2 — needs infrastructure decisions first
@@ -225,7 +225,7 @@ component and any dependencies.
 | Feature | Angular status | React reference | Blocker |
 |---|---|---|---|
 | **Receipt upload** (drag-drop → presigned URL → S3 → OCR) | Not built | `ReceiptUpload.tsx` | Waits on **Phase 1 or Phase 2** of the SAM migration above. Without Phase 2, uploads land in DynamoDB and never appear in the MySQL-backed UI. |
-| **Receipt image display** in detail page | Not built | `ReceiptImage.tsx` | Needs the `GetDownloadUrl` endpoint wired end-to-end. Backend method exists but isn't consumed yet. **Also decide the shared-view story**: exposing a presigned S3 URL on the *public* `/shared/{token}` endpoint is an abuse surface (bandwidth/cost via scripted refresh). Mitigate at the API — short URL TTL, per-token rate limit, maybe a `currentUses` cap — before adding the image to `shared-receipt/`. The frontend split doesn't constrain this either way. |
+| **Receipt image display** in detail page | Not built | `ReceiptImage.tsx` | Needs the `GetDownloadUrl` endpoint wired end-to-end. Backend method exists but isn't consumed yet. **Also decide the shared-view story**: exposing a presigned S3 URL on the *public* `/shared/{token}` endpoint is an abuse surface (bandwidth/cost via scripted refresh). Mitigate at the API — short URL TTL, per-token rate limit, maybe a `currentUses` cap — before adding the image to `shared-receipt/`. The frontend split doesn't constrain this either way. **Design idea (2026-09-11):** once the image is on screen, revisit where the subtotal-match badge (Priority 1, done) lives — the old React app highlighted the OCR'd subtotal region directly on the receipt image via its bounding-box geometry (`GeometryEntryDto.BoundingBox`, already returned by the API and unused on the frontend today); worth reintroducing that highlight colored to match the badge's tone (success/warning) instead of (or alongside) a standalone badge. |
 
 ### Priority 3 — polish / nice-to-have
 
@@ -234,6 +234,7 @@ component and any dependencies.
 - **Better receipt display in list** — currently shows raw UUID; would need per-receipt aggregate endpoint or client-side derivation from items
 - **Bulk actions we skipped:** "assign unassigned to me," per-item split-evenly button
 - **Frontend CI/deploy story** — build → S3 sync → CloudFront invalidation
+- **"Flag this receipt" comment** — free-text flag for problems the automated subtotal check can't catch (e.g. OCR misreads an item price but the subtotal still happens to match). Demoted from the old manual-validation flow (see Priority 1) — genuinely useful but low-value on its own; revisit once the automated badge ships.
 
 ---
 
@@ -263,7 +264,7 @@ None of the above is blocked by anything except deciding to do it.
    `receipt-shares/` + `shared-receipt/`. Sharing now works end-to-end.
 3. ~~**Per-member totals**~~ ✅ done — `member-totals/` (on both the
    shared view and the authenticated detail page)
-4. **Receipt validation** (small) — next up
+4. ~~**Receipt validation**~~ ✅ done — automated subtotal-match badge (see Priority 1 table); no manual confirm/dispute step
 5. **Upload pipeline design session** — commit to a plan from the
    Phase 1–4 above
 6. **Pi setup** (physical) — can happen in parallel with any of the

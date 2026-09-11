@@ -6,6 +6,7 @@ import { environment } from '../../environments/environment';
 import {
   AddReceiptMemberRequest,
   CreateShareResponse,
+  GeometryDto,
   ItemAssignmentUpdate,
   ReceiptItemDto,
   ReceiptMemberDto,
@@ -45,6 +46,16 @@ export class ReceiptsApi {
   getReceiptMembers(receiptId: string): Observable<ReceiptMemberDto[]> {
     return this.http.get<ReceiptMemberDto[]>(
       `${this.base}/receipts/receipt/${encodeURIComponent(receiptId)}/members`,
+    );
+  }
+
+  /**
+   * Textract OCR geometry for a receipt, including the server-computed
+   * subtotal-match check. Backend: GET /api/receipts/receipt/{receiptId}/geometry.
+   */
+  getReceiptGeometry(receiptId: string): Observable<GeometryDto> {
+    return this.http.get<GeometryDto>(
+      `${this.base}/receipts/receipt/${encodeURIComponent(receiptId)}/geometry`,
     );
   }
 

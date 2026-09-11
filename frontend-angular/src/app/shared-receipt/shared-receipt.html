@@ -37,6 +37,21 @@
             <dt>Link expires</dt>
             <dd>{{ s.data.expiresAt | date: 'mediumDate' }}</dd>
           </div>
+          <div class="stats__cell">
+            <dt>Subtotal check</dt>
+            <dd>
+              @let match = s.data.subtotalMatch;
+              <app-status-badge [tone]="subtotalMatchTone()">
+                @if (match.matches === null) {
+                  Unverified
+                } @else if (match.matches) {
+                  Matches
+                } @else {
+                  Off by {{ match.difference | currency }}
+                }
+              </app-status-badge>
+            </dd>
+          </div>
         </dl>
 
         @if (s.data.members.length > 0) {

@@ -91,6 +91,16 @@
         }
 
         <footer class="total">
+          @let match = s.data.subtotalMatch;
+          <app-status-badge [tone]="subtotalMatchTone()">
+            @if (!match || match.matches === null) {
+              OCR subtotal unavailable
+            } @else if (match.matches) {
+              Subtotal matches receipt
+            } @else {
+              Off by {{ match.difference | currency }}
+            }
+          </app-status-badge>
           <span class="total__label">Total</span>
           <span class="total__value">{{ total() | currency }}</span>
         </footer>

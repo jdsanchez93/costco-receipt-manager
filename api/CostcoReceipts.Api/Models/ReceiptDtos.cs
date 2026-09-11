@@ -47,9 +47,6 @@ public class ReceiptMemberDto
     public long? AddedByMemberId { get; set; }
     public DateTime AddedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
-    public string? ValidationStatus { get; set; }
-    public DateTime? ValidatedAt { get; set; }
-    public string? Comments { get; set; }
 
     /// <summary>Requires the ReceiptMember to be loaded with .Include(m => m.Contact).</summary>
     public static ReceiptMemberDto From(ReceiptMember m) => new()
@@ -64,9 +61,6 @@ public class ReceiptMemberDto
         AddedByMemberId = m.AddedByMemberId,
         AddedAt = m.AddedAt,
         UpdatedAt = m.UpdatedAt,
-        ValidationStatus = m.ValidationStatus,
-        ValidatedAt = m.ValidatedAt,
-        Comments = m.Comments,
     };
 }
 
@@ -77,8 +71,9 @@ public class GeometryDto
     public GeometryFieldDto? Subtotal { get; set; }
     public GeometryFieldDto? Tax { get; set; }
     public GeometryFieldDto? Total { get; set; }
+    public SubtotalMatchDto SubtotalMatch { get; set; } = new();
 
-    public static GeometryDto From(IEnumerable<ReceiptGeometry> rows)
+    public static GeometryDto From(IEnumerable<ReceiptGeometry> rows, decimal calculatedSubtotal)
     {
         var dto = new GeometryDto();
         foreach (var row in rows)
@@ -99,7 +94,36 @@ public class GeometryDto
             else if (string.Equals(row.FieldType, "value", StringComparison.OrdinalIgnoreCase))
                 field.Value = entry;
         }
+
+        dto.SubtotalMatch = SubtotalMatchDto.Compute(dto.Subtotal?.Value?.Text, calculatedSubtotal);
         return dto;
+    }
+}
+
+/// <summary>
+/// Server-computed comparison of the OCR'd subtotal against the sum of the
+/// receipt's items. <see cref="Matches"/>/<see cref="OcrSubtotal"/>/
+/// <see cref="Difference"/> are all null when Textract has no subtotal field
+/// or it's unparseable — the frontend renders that as "unverified", not a
+/// false mismatch.
+/// </summary>
+public class SubtotalMatchDto
+{
+    public decimal? OcrSubtotal { get; set; }
+    public decimal CalculatedSubtotal { get; set; }
+    public decimal? Difference { get; set; }
+    public bool? Matches { get; set; }
+
+    public static SubtotalMatchDto Compute(string? ocrSubtotalText, decimal calculatedSubtotal)
+    {
+        var ocr = ReceiptCalculations.ParseCurrency(ocrSubtotalText);
+        return new SubtotalMatchDto
+        {
+            OcrSubtotal = ocr,
+            CalculatedSubtotal = calculatedSubtotal,
+            Difference = ocr.HasValue ? Math.Abs(ocr.Value - calculatedSubtotal) : null,
+            Matches = ocr.HasValue ? Math.Abs(ocr.Value - calculatedSubtotal) <= ReceiptCalculations.SubtotalTolerance : null,
+        };
     }
 }
 

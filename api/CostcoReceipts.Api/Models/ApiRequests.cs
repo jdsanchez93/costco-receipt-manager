@@ -20,12 +20,6 @@ public class GetDownloadUrlResponse
     public int ExpiresIn { get; set; }
 }
 
-public class ValidateReceiptRequest
-{
-    public bool IsValid { get; set; }
-    public string? Comments { get; set; }
-}
-
 /// <summary>
 /// Add a placeholder participant to a receipt. Always creates a fresh
 /// placeholder Contact in the receipt owner's address book (nothing gets

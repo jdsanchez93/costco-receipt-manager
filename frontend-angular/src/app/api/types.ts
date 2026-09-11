@@ -24,9 +24,6 @@ export interface ReceiptMemberDto {
   addedAt: string;
   /** ISO-8601 timestamp, or null. */
   updatedAt: string | null;
-  validationStatus: string | null;
-  validatedAt: string | null;
-  comments: string | null;
 }
 
 /**
@@ -114,17 +111,37 @@ export interface CreateShareResponse {
 }
 
 /**
+ * Server-computed comparison of the OCR'd subtotal against the sum of the
+ * receipt's items. `matches`/`ocrSubtotal`/`difference` are all null when
+ * Textract has no subtotal field or it's unparseable — render that as
+ * "unverified", not a false mismatch. Mirrors the backend SubtotalMatchDto.
+ */
+export interface SubtotalMatchDto {
+  ocrSubtotal: number | null;
+  calculatedSubtotal: number;
+  difference: number | null;
+  matches: boolean | null;
+}
+
+/**
+ * The Textract OCR block. Only `subtotalMatch` is modeled — nothing in the
+ * app renders the raw label/value/bounding-box fields the backend also
+ * sends. Mirrors the backend GeometryDto.
+ */
+export interface GeometryDto {
+  subtotalMatch: SubtotalMatchDto;
+}
+
+/**
  * Public read-only payload for a shared receipt, from the anonymous
  * GET /api/receipts/shared/{shareToken}. Mirrors the backend
  * SharedReceiptResponse (api/CostcoReceipts.Api/Models/ReceiptDtos.cs).
- *
- * The backend also sends a `geometry` (Textract OCR) block; it is omitted
- * here because the shared view doesn't render it.
  */
 export interface SharedReceiptResponse {
   receiptId: string;
   items: ReceiptItemDto[];
   members: ReceiptMemberDto[];
+  geometry: GeometryDto;
   shareInfo: {
     /** ISO-8601 timestamp. */
     createdAt: string;

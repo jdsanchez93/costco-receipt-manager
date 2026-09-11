@@ -13,7 +13,7 @@ namespace CostcoReceipts.Api.Controllers;
 
 /// <summary>
 /// Receipt-level operations: upload/download URL passthrough, the user's receipt
-/// list, validation, geometry, and deletion.
+/// list, geometry (including the computed subtotal-match check), and deletion.
 /// Item / member / share endpoints live in their own resource controllers.
 /// </summary>
 [ApiController]
@@ -158,37 +158,13 @@ public class ReceiptsController : ControllerBase
             .Where(g => g.ReceiptId == receiptId)
             .ToListAsync(ct);
 
-        return Ok(GeometryDto.From(rows));
-    }
+        var items = await _db.ReceiptItems
+            .AsNoTracking()
+            .Where(i => i.ReceiptId == receiptId)
+            .Select(i => new ReceiptItemDto { Price = i.Price, Discount = i.Discount })
+            .ToListAsync(ct);
 
-    [HttpPost("validate/{receiptId}")]
-    [Authorize(Policy = ReceiptPolicies.Editor)]
-    public async Task<IActionResult> ValidateReceipt(
-        string receiptId,
-        [FromBody] ValidateReceiptRequest request,
-        CancellationToken ct)
-    {
-        var userId = User.GetUserId()!; // policy guarantees membership
-
-        var member = await _db.ReceiptMembers
-            .Include(m => m.Contact)
-            .FirstOrDefaultAsync(m => m.ReceiptId == receiptId && m.Contact.UserId == userId, ct);
-
-        if (member is null) return NotFound(new { error = "Member record not found" });
-
-        var status = request.IsValid ? "confirmed" : "disputed";
-        member.ValidationStatus = status;
-        member.ValidatedAt = DateTime.UtcNow;
-        member.Comments = request.Comments;
-        member.UpdatedAt = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync(ct);
-
-        return Ok(new
-        {
-            message = "Validation updated successfully",
-            validationStatus = status,
-        });
+        return Ok(GeometryDto.From(rows, ReceiptCalculations.Sum(items)));
     }
 
     [HttpDelete("receipt/{receiptId}")]

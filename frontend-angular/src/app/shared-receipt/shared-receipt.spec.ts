@@ -19,9 +19,6 @@ const member = (id: number, displayName: string): ReceiptMemberDto => ({
   addedByMemberId: null,
   addedAt: '2026-01-01T00:00:00Z',
   updatedAt: null,
-  validationStatus: null,
-  validatedAt: null,
-  comments: null,
 });
 
 const item = (id: number, price: number, assignedMemberIds: number[]): ReceiptItemDto => ({
@@ -40,6 +37,7 @@ const response = (): SharedReceiptResponse => ({
   receiptId: 'abc',
   items: [item(1, 10, [1]), item(2, 4, [])],
   members: [member(1, 'Alice')],
+  geometry: { subtotalMatch: { ocrSubtotal: null, calculatedSubtotal: 14, difference: null, matches: null } },
   shareInfo: { createdAt: '2026-01-01T00:00:00Z', expiresAt: '2026-02-01T00:00:00Z' },
 });
 

@@ -1,5 +1,5 @@
 import { ReceiptItemDto, ReceiptMemberDto } from '../api/types';
-import { computeMemberTotals, enrichItems, receiptTotal } from './receipt-view';
+import { computeMemberTotals, enrichItems, receiptTotal, subtotalMatchTone } from './receipt-view';
 
 const member = (id: number, displayName: string): ReceiptMemberDto => ({
   id,
@@ -12,9 +12,6 @@ const member = (id: number, displayName: string): ReceiptMemberDto => ({
   addedByMemberId: null,
   addedAt: '2026-01-01T00:00:00Z',
   updatedAt: null,
-  validationStatus: null,
-  validatedAt: null,
-  comments: null,
 });
 
 const item = (
@@ -78,5 +75,27 @@ describe('computeMemberTotals', () => {
     expect(r.assignedTotal).toBeCloseTo(5, 5);
     expect(r.grandTotal).toBe(10);
     expect(r.discrepancy).toBeCloseTo(5, 5);
+  });
+});
+
+describe('subtotalMatchTone', () => {
+  it('is success when matches is true', () => {
+    expect(subtotalMatchTone({ ocrSubtotal: 10, calculatedSubtotal: 10, difference: 0, matches: true }))
+      .toBe('success');
+  });
+
+  it('is warning when matches is false', () => {
+    expect(subtotalMatchTone({ ocrSubtotal: 12, calculatedSubtotal: 10, difference: 2, matches: false }))
+      .toBe('warning');
+  });
+
+  it('is neutral when matches is null (no OCR subtotal to compare)', () => {
+    expect(subtotalMatchTone({ ocrSubtotal: null, calculatedSubtotal: 10, difference: null, matches: null }))
+      .toBe('neutral');
+  });
+
+  it('is neutral when there is no match object at all', () => {
+    expect(subtotalMatchTone(null)).toBe('neutral');
+    expect(subtotalMatchTone(undefined)).toBe('neutral');
   });
 });

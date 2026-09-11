@@ -12,17 +12,25 @@ import { AuthService } from '@auth0/auth0-angular';
 import { forkJoin, map } from 'rxjs';
 
 import { ReceiptsApi } from '../api/receipts-api';
-import { ItemAssignmentUpdate, ReceiptMemberDto } from '../api/types';
+import { ItemAssignmentUpdate, ReceiptMemberDto, SubtotalMatchDto } from '../api/types';
 import { MemberTotals } from '../member-totals/member-totals';
 import { ReceiptItems } from '../receipt-items/receipt-items';
 import { ReceiptMembers } from '../receipt-members/receipt-members';
 import { ReceiptShares } from '../receipt-shares/receipt-shares';
-import { EnrichedItem, Loadable, enrichItems, receiptTotal } from '../receipts/receipt-view';
+import {
+  EnrichedItem,
+  Loadable,
+  enrichItems,
+  receiptTotal,
+  subtotalMatchTone,
+} from '../receipts/receipt-view';
+import { StatusBadge } from '../status-badge/status-badge';
 
 export interface ReceiptDetailData {
   receiptId: string;
   members: ReceiptMemberDto[];
   items: EnrichedItem[];
+  subtotalMatch: SubtotalMatchDto | null;
 }
 
 @Component({
@@ -39,6 +47,7 @@ export interface ReceiptDetailData {
     ReceiptItems,
     ReceiptMembers,
     ReceiptShares,
+    StatusBadge,
   ],
   templateUrl: './receipt.html',
   styleUrl: './receipt.scss',
@@ -102,6 +111,12 @@ export class Receipt {
     return s.kind === 'ok' ? receiptTotal(s.data.items) : 0;
   });
 
+  /** Badge tone for the server-computed OCR-subtotal-vs-items check. */
+  subtotalMatchTone = computed(() => {
+    const s = this.state();
+    return s.kind === 'ok' ? subtotalMatchTone(s.data.subtotalMatch) : 'neutral';
+  });
+
   constructor() {
     if (this.receiptId) this.load();
     else this.state.set({ kind: 'error', message: 'Missing receipt id.' });
@@ -113,14 +128,16 @@ export class Receipt {
     forkJoin({
       items: this.api.getReceiptItems(this.receiptId),
       members: this.api.getReceiptMembers(this.receiptId),
+      geometry: this.api.getReceiptGeometry(this.receiptId),
     }).subscribe({
-      next: ({ items, members }) => {
+      next: ({ items, members, geometry }) => {
         this.state.set({
           kind: 'ok',
           data: {
             receiptId: this.receiptId,
             members,
             items: enrichItems(items, members),
+            subtotalMatch: geometry.subtotalMatch,
           },
         });
       },

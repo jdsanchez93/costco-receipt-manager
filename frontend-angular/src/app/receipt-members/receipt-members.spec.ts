@@ -22,9 +22,6 @@ const member = (
   addedByMemberId: null,
   addedAt: '2026-01-01T00:00:00Z',
   updatedAt: null,
-  validationStatus: null,
-  validatedAt: null,
-  comments: null,
   ...extra,
 });
 

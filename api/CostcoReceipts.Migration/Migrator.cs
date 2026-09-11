@@ -295,9 +295,6 @@ public class Migrator
                 AddedByMemberId = null, // legacy data doesn't preserve the graph
                 AddedAt = m.AddedAt,
                 UpdatedAt = m.UpdatedAt,
-                ValidationStatus = m.ValidationStatus,
-                ValidatedAt = m.ValidatedAt,
-                Comments = m.Comments,
             };
             _db.ReceiptMembers.Add(rm);
             memberIdMap[m.OldUserId] = rm;

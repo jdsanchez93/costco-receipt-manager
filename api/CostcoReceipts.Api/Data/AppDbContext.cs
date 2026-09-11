@@ -102,8 +102,6 @@ public class AppDbContext : DbContext
             e.HasKey(x => x.Id);
             e.Property(x => x.ReceiptId).HasMaxLength(64).IsRequired();
             e.Property(x => x.Role).HasMaxLength(32).IsRequired().HasDefaultValue("editor");
-            e.Property(x => x.ValidationStatus).HasMaxLength(32);
-            e.Property(x => x.Comments).HasMaxLength(2048);
 
             // A contact appears at most once per receipt.
             e.HasIndex(x => new { x.ReceiptId, x.ContactId }).IsUnique();

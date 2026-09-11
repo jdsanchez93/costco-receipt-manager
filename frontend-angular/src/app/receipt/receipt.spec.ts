@@ -20,9 +20,6 @@ const member = (id: number, displayName: string, extra: Partial<ReceiptMemberDto
   addedByMemberId: null,
   addedAt: '2026-01-01T00:00:00Z',
   updatedAt: null,
-  validationStatus: null,
-  validatedAt: null,
-  comments: null,
   ...extra,
 });
 
@@ -45,6 +42,7 @@ describe('Receipt', () => {
   let apiSpy: {
     getReceiptItems: ReturnType<typeof vi.fn>;
     getReceiptMembers: ReturnType<typeof vi.fn>;
+    getReceiptGeometry: ReturnType<typeof vi.fn>;
     updateItemAssignment: ReturnType<typeof vi.fn>;
     bulkUpdateAssignments: ReturnType<typeof vi.fn>;
     addReceiptMember: ReturnType<typeof vi.fn>;
@@ -66,6 +64,9 @@ describe('Receipt', () => {
     apiSpy = {
       getReceiptItems: vi.fn().mockReturnValue(opts.items ?? of([])),
       getReceiptMembers: vi.fn().mockReturnValue(opts.members ?? of([])),
+      getReceiptGeometry: vi.fn().mockReturnValue(
+        of({ subtotalMatch: { ocrSubtotal: null, calculatedSubtotal: 0, difference: null, matches: null } }),
+      ),
       updateItemAssignment: vi.fn().mockImplementation(
         () => (opts.updateItemAssignment ?? (() => of(void 0)))(),
       ),

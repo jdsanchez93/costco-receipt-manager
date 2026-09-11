@@ -7,15 +7,23 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { ReceiptsApi } from '../api/receipts-api';
-import { ReceiptMemberDto } from '../api/types';
+import { ReceiptMemberDto, SubtotalMatchDto } from '../api/types';
 import { MemberTotals } from '../member-totals/member-totals';
 import { ReceiptItems } from '../receipt-items/receipt-items';
-import { EnrichedItem, Loadable, enrichItems, receiptTotal } from '../receipts/receipt-view';
+import {
+  EnrichedItem,
+  Loadable,
+  enrichItems,
+  receiptTotal,
+  subtotalMatchTone,
+} from '../receipts/receipt-view';
+import { StatusBadge } from '../status-badge/status-badge';
 
 interface SharedReceiptData {
   items: EnrichedItem[];
   members: ReceiptMemberDto[];
   expiresAt: string;
+  subtotalMatch: SubtotalMatchDto;
 }
 
 /**
@@ -35,6 +43,7 @@ interface SharedReceiptData {
     MatProgressSpinnerModule,
     MemberTotals,
     ReceiptItems,
+    StatusBadge,
   ],
   templateUrl: './shared-receipt.html',
   styleUrl: './shared-receipt.scss',
@@ -52,6 +61,11 @@ export class SharedReceipt {
     return s.kind === 'ok' ? receiptTotal(s.data.items) : 0;
   });
 
+  subtotalMatchTone = computed(() => {
+    const s = this.state();
+    return s.kind === 'ok' ? subtotalMatchTone(s.data.subtotalMatch) : 'neutral';
+  });
+
   constructor() {
     if (this.shareToken) this.load();
     else this.state.set({ kind: 'error', message: 'This share link is invalid or has expired.' });
@@ -67,6 +81,7 @@ export class SharedReceipt {
             items: enrichItems(res.items, res.members),
             members: res.members,
             expiresAt: res.shareInfo.expiresAt,
+            subtotalMatch: res.geometry.subtotalMatch,
           },
         }),
       error: (err: unknown) =>
