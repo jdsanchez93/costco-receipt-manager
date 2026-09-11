@@ -17,6 +17,16 @@
       No members on this receipt yet — nothing to split.
     </p>
   } @else {
+    @if (isDevMode() && items().length > 0) {
+      <button type="button" class="totals__debug" (click)="debugBadAssignment.set(!debugBadAssignment())">
+        @if (debugBadAssignment()) {
+          Dev: remove bad assignment
+        } @else {
+          Dev: inject bad assignment
+        }
+      </button>
+    }
+
     <ul class="totals__list">
       @for (m of t.perMember; track m.memberId) {
         <li class="party">

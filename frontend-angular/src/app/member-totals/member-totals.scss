@@ -31,6 +31,25 @@
     flex-direction: column;
     gap: 0.5rem;
   }
+
+  // Dev-only QA toggle (gated by isDevMode() in the template) — styled to
+  // read as tooling, not a real feature: dashed border, muted, monospace.
+  &__debug {
+    align-self: flex-start;
+    margin-bottom: 0.5rem;
+    padding: 0.25rem 0.6rem;
+    border: 1px dashed var(--mat-sys-outline);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--mat-sys-on-surface-variant);
+    font: var(--mat-sys-label-small);
+    font-family: monospace;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--mat-sys-surface-container-highest);
+    }
+  }
 }
 
 .party {
