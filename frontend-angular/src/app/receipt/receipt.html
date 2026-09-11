@@ -73,64 +73,15 @@
           </div>
         }
 
-        <div class="items__list">
-          @for (item of s.data.items; track item.id) {
-            <article class="item" [class.item--selected]="selectedItemIds().has(item.id)">
-              <div class="item__main">
-                <mat-checkbox
-                  class="item__select"
-                  [checked]="selectedItemIds().has(item.id)"
-                  (change)="toggleItemSelection(item.id)"
-                  [attr.aria-label]="'Select ' + item.itemName">
-                </mat-checkbox>
-                <div class="item__label">
-                  @if (item.itemNumber) {
-                    <span class="item__num">{{ item.itemNumber }}</span>
-                  }
-                  <span class="item__name">{{ item.itemName }}</span>
-                </div>
-                <div class="item__pricing">
-                  <span class="item__price">{{ item.price | currency }}</span>
-                  @if (item.discount) {
-                    <span class="item__discount">−{{ item.discount | currency }}</span>
-                  }
-                </div>
-              </div>
-              @if (s.data.members.length > 0) {
-                <div class="item__assign" role="group" aria-label="Assigned members">
-                  @if (item.assignedMemberIds.length === 0) {
-                    <mat-chip disableRipple class="item__assign-empty">Unassigned</mat-chip>
-                  }
-                  @for (name of item.assigneeNames; track $index; let i = $index) {
-                    <mat-chip (removed)="removeAssignment(item, item.assignedMemberIds[i])">
-                      {{ name }}
-                      <button matChipRemove [attr.aria-label]="'Remove ' + name">
-                        <mat-icon>cancel</mat-icon>
-                      </button>
-                    </mat-chip>
-                  }
-                  @let available = availableMembers(item, s.data.members);
-                  @if (available.length > 0) {
-                    <button
-                      mat-icon-button
-                      class="item__assign-add"
-                      aria-label="Add member to this item"
-                      [matMenuTriggerFor]="assignMenu">
-                      <mat-icon>add</mat-icon>
-                    </button>
-                    <mat-menu #assignMenu="matMenu">
-                      @for (m of available; track m.id) {
-                        <button mat-menu-item (click)="addAssignment(item, m.id)">
-                          {{ m.displayName }}
-                        </button>
-                      }
-                    </mat-menu>
-                  }
-                </div>
-              }
-            </article>
-          }
-        </div>
+        <app-receipt-items
+          [items]="s.data.items"
+          [members]="s.data.members"
+          [editable]="true"
+          [selectable]="true"
+          [selectedIds]="selectedItemIds()"
+          (assignmentAdd)="addAssignment($event.item, $event.memberId)"
+          (assignmentRemove)="removeAssignment($event.item, $event.memberId)"
+          (selectionToggle)="toggleItemSelection($event)" />
 
         <footer class="total">
           <span class="total__label">Total</span>

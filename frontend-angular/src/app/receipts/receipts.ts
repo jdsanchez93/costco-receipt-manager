@@ -7,16 +7,7 @@ import { RouterLink } from '@angular/router';
 
 import { ReceiptsApi } from '../api/receipts-api';
 import { ReceiptMemberDto } from '../api/types';
-
-/**
- * Discriminated union for a fetched resource. Beats booleans (`loading`,
- * `error`, `data`) because the template can `@switch` on `kind` and TypeScript
- * narrows the shape at each branch.
- */
-type Loadable<T> =
-  | { kind: 'loading' }
-  | { kind: 'ok'; data: T }
-  | { kind: 'error'; message: string };
+import { Loadable } from './receipt-view';
 
 @Component({
   selector: 'app-receipts',

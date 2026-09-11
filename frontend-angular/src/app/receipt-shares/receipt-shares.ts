@@ -11,11 +11,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { ReceiptsApi } from '../api/receipts-api';
 import { ReceiptShareDto } from '../api/types';
-
-type Loadable<T> =
-  | { kind: 'loading' }
-  | { kind: 'ok'; data: T }
-  | { kind: 'error'; message: string };
+import { Loadable } from '../receipts/receipt-view';
 
 /** Preset expiry durations offered in the create form, plus a custom escape hatch. */
 type ExpiryPreset = 7 | 30 | 90 | 'custom';

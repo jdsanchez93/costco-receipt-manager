@@ -215,17 +215,14 @@ describe('Receipt', () => {
 
       expect(apiSpy.updateItemAssignment).toHaveBeenCalledWith('abc', 10, [2]);
     });
+  });
 
-    it('availableMembers returns only unassigned members', () => {
-      const members = [member(1, 'Alice'), member(2, 'Bob'), member(3, 'Charlie')];
-      const items = [item(10, 'Milk', 3.99, { assignedMemberIds: [1, 3] })];
-      setup({ items: of(items), members: of(members) });
-
-      const enriched = (component.state() as { kind: 'ok'; data: { items: any[] } }).data.items[0];
-      const available = component.availableMembers(enriched, members);
-
-      expect(available.map(m => m.id)).toEqual([2]);
+  it('renders the item list through the child component', () => {
+    setup({
+      items: of([item(10, 'Milk', 4, { assignedMemberIds: [1] })]),
+      members: of([member(1, 'Alice')]),
     });
+    expect(fixture.nativeElement.querySelector('app-receipt-items')).not.toBeNull();
   });
 
   describe('bulk selection', () => {

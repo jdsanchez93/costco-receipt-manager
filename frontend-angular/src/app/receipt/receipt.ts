@@ -2,7 +2,6 @@ import { CurrencyPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -13,28 +12,17 @@ import { AuthService } from '@auth0/auth0-angular';
 import { forkJoin, map } from 'rxjs';
 
 import { ReceiptsApi } from '../api/receipts-api';
-import { ItemAssignmentUpdate, ReceiptItemDto, ReceiptMemberDto } from '../api/types';
+import { ItemAssignmentUpdate, ReceiptMemberDto } from '../api/types';
+import { ReceiptItems } from '../receipt-items/receipt-items';
 import { ReceiptMembers } from '../receipt-members/receipt-members';
 import { ReceiptShares } from '../receipt-shares/receipt-shares';
-
-/**
- * Items already resolved against the members list so the template doesn't
- * have to re-join per render. Names are looked up once when the data lands.
- */
-export interface EnrichedItem extends ReceiptItemDto {
-  assigneeNames: string[];
-}
+import { EnrichedItem, Loadable, enrichItems, receiptTotal } from '../receipts/receipt-view';
 
 export interface ReceiptDetailData {
   receiptId: string;
   members: ReceiptMemberDto[];
   items: EnrichedItem[];
 }
-
-type Loadable<T> =
-  | { kind: 'loading' }
-  | { kind: 'ok'; data: T }
-  | { kind: 'error'; message: string };
 
 @Component({
   selector: 'app-receipt',
@@ -43,10 +31,10 @@ type Loadable<T> =
     RouterLink,
     MatButtonModule,
     MatCheckboxModule,
-    MatChipsModule,
     MatIconModule,
     MatMenuModule,
     MatProgressSpinnerModule,
+    ReceiptItems,
     ReceiptMembers,
     ReceiptShares,
   ],
@@ -109,11 +97,7 @@ export class Receipt {
   /** Sum of (price - discount) across all items — client-side subtotal. */
   total = computed(() => {
     const s = this.state();
-    if (s.kind !== 'ok') return 0;
-    return s.data.items.reduce(
-      (sum, item) => sum + item.price - (item.discount ?? 0),
-      0,
-    );
+    return s.kind === 'ok' ? receiptTotal(s.data.items) : 0;
   });
 
   constructor() {
@@ -134,7 +118,7 @@ export class Receipt {
           data: {
             receiptId: this.receiptId,
             members,
-            items: items.map(i => this.enrichItem(i, members)),
+            items: enrichItems(items, members),
           },
         });
       },
@@ -156,11 +140,12 @@ export class Receipt {
     if (s.kind !== 'ok') return;
 
     const validIds = new Set(members.map(m => m.id));
-    const items = s.data.items.map(i =>
-      this.enrichItem(
-        { ...i, assignedMemberIds: i.assignedMemberIds.filter(id => validIds.has(id)) },
-        members,
-      ),
+    const items = enrichItems(
+      s.data.items.map(i => ({
+        ...i,
+        assignedMemberIds: i.assignedMemberIds.filter(id => validIds.has(id)),
+      })),
+      members,
     );
 
     this.state.set({ kind: 'ok', data: { ...s.data, members, items } });
@@ -178,11 +163,6 @@ export class Receipt {
       item,
       item.assignedMemberIds.filter(id => id !== memberId),
     );
-  }
-
-  /** Members not yet assigned to this item — populates the "add" menu. */
-  availableMembers(item: EnrichedItem, members: ReceiptMemberDto[]): ReceiptMemberDto[] {
-    return members.filter(m => !item.assignedMemberIds.includes(m.id));
   }
 
   // ---- Bulk selection ----
@@ -360,13 +340,5 @@ export class Receipt {
         : i,
     );
     this.state.set({ kind: 'ok', data: { ...s.data, items } });
-  }
-
-  private enrichItem(item: ReceiptItemDto, members: ReceiptMemberDto[]): EnrichedItem {
-    const memberById = new Map(members.map(m => [m.id, m.displayName]));
-    return {
-      ...item,
-      assigneeNames: item.assignedMemberIds.map(id => memberById.get(id) ?? `#${id}`),
-    };
   }
 }
