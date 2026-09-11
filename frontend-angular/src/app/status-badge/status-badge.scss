@@ -1,0 +1,32 @@
+:host {
+  display: inline-block;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font: var(--mat-sys-label-medium);
+  white-space: nowrap;
+
+  &--neutral {
+    background: var(--mat-sys-surface-container-highest);
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  &--success {
+    background: var(--md-extended-color-success-color-container);
+    color: var(--md-extended-color-success-on-color-container);
+  }
+
+  &--warning {
+    background: var(--md-extended-color-warning-color-container);
+    color: var(--md-extended-color-warning-on-color-container);
+  }
+
+  &--error {
+    background: var(--mat-sys-error-container);
+    color: var(--mat-sys-on-error-container);
+  }
+}
