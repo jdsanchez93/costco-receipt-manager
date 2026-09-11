@@ -47,9 +47,24 @@ future-you (or a fresh session) to pick up where things stand.
     items, matching the backend's FK cascade).
   - Share management (`receipt-shares/`) inside receipt detail —
     owner-only panel to create / list / deactivate public share links.
-    Still todo for the full sharing arc: the public
-    `/shared-receipt/:shareToken` view (links resolve to a route that
-    doesn't exist yet).
+  - Public shared-receipt view at `/shared-receipt/:shareToken`
+    (`shared-receipt/`) — no shell, no guard, no bearer token (added an
+    `allowAnonymous` allowlist entry for `/api/receipts/shared/*` in
+    `app.config.ts`). Read-only; renders a stat strip, the per-member
+    breakdown, the item list, and a sign-up CTA. Invalid/expired tokens
+    render an error state (the route itself is unguarded).
+  - Per-member totals (`member-totals/`, `<app-member-totals>`) — "who
+    owes what", equal split of each item's `price − discount` across its
+    assignees + an unassigned bucket + a reconcile check. Shown on both
+    the shared view and the authenticated detail page.
+  - Shared presentational pieces: `<app-receipt-items>`
+    (`receipt-items/`, the item list — `editable`/`selectable` inputs)
+    and pure helpers in `receipts/receipt-view.ts` (`Loadable<T>`,
+    `enrichItems`, `receiptTotal`, `computeMemberTotals`), used by the
+    detail page, the shared view, and the shares panel.
+  - Routes are now lazy (`loadComponent`) so an anonymous visitor on
+    `/shared-receipt` doesn't pull the authenticated app; this also
+    brought the production bundle back under the CI budget.
 - API client at `src/app/api/` — typed against backend DTOs
 - Auth0 config uses refresh tokens + localStorage for silent re-auth
 - Config files (`environment*.ts`) are **gitignored** — see
@@ -201,16 +216,16 @@ component and any dependencies.
 |---|---|---|---|
 | **Member management** — add placeholder, change role, remove | ✅ Built (`receipt-members/`) | `ReceiptMembers.tsx` | Lives in receipt detail as a panel. Add form is inline (name + optional email + role); role change via row menu; remove has an inline confirm. Owner-gated; backend last-owner guards surface as snackbars. |
 | **Share management** — create / list / deactivate a share link | ✅ Built (`receipt-shares/`) | `ReceiptSharing.tsx` | Owner-only panel in receipt detail. Create form uses preset expiry chips (7/30/90 + custom); per-row copy-to-clipboard (`@angular/cdk/clipboard`) + inline-confirm deactivate. Panel owns its own list (no parent state depends on it). Note: `currentUses` is never incremented by the backend, so no view-count is shown. |
-| **Public shared-receipt view** at `/shared-receipt/:token` | Not built | `SharedReceipt.tsx` | Route is unauthenticated. `SharedController` endpoint is done. Should reuse most of the receipt-detail layout but read-only, no assignment editing, no shell chrome. |
+| **Public shared-receipt view** at `/shared-receipt/:token` | ✅ Built (`shared-receipt/`) | `SharedReceipt.tsx` | Unauthenticated top-level route, no shell. Reuses `<app-receipt-items>` (read-only) + `<app-member-totals>`. Anonymous API call via an `allowAnonymous` interceptor entry. Geometry/receipt image intentionally omitted (image needs `GetDownloadUrl` + is a public-surface risk to design carefully — see below). |
 | **Receipt validation** — mark subtotal confirmed / disputed with comments | Not built | `ReceiptValidation.tsx` | `POST /api/receipts/validate/:id` is done. Small UI, probably lives in receipt detail. |
-| **Per-member totals** — "who owes what" breakdown at the bottom of a receipt | Not built | `MemberTotals.tsx` | Pure client-side computation from items + assignments. High user value, medium complexity. |
+| **Per-member totals** — "who owes what" breakdown at the bottom of a receipt | ✅ Built (`member-totals/`) | `MemberTotals.tsx` | `computeMemberTotals` in `receipts/receipt-view.ts`; equal split of `price − discount` per assignee + unassigned bucket + reconcile check. On both the shared view and the authenticated detail page. |
 
 ### Priority 2 — needs infrastructure decisions first
 
 | Feature | Angular status | React reference | Blocker |
 |---|---|---|---|
 | **Receipt upload** (drag-drop → presigned URL → S3 → OCR) | Not built | `ReceiptUpload.tsx` | Waits on **Phase 1 or Phase 2** of the SAM migration above. Without Phase 2, uploads land in DynamoDB and never appear in the MySQL-backed UI. |
-| **Receipt image display** in detail page | Not built | `ReceiptImage.tsx` | Needs the `GetDownloadUrl` endpoint to actually be wired end-to-end. Backend method exists but hasn't been consumed yet. |
+| **Receipt image display** in detail page | Not built | `ReceiptImage.tsx` | Needs the `GetDownloadUrl` endpoint wired end-to-end. Backend method exists but isn't consumed yet. **Also decide the shared-view story**: exposing a presigned S3 URL on the *public* `/shared/{token}` endpoint is an abuse surface (bandwidth/cost via scripted refresh). Mitigate at the API — short URL TTL, per-token rate limit, maybe a `currentUses` cap — before adding the image to `shared-receipt/`. The frontend split doesn't constrain this either way. |
 
 ### Priority 3 — polish / nice-to-have
 
@@ -244,12 +259,11 @@ None of the above is blocked by anything except deciding to do it.
 ## Suggested next order of operations
 
 1. ~~**Members management UI**~~ ✅ done — `receipt-members/`
-2. ~~**Share management**~~ ✅ done — `receipt-shares/`. Still needed to
-   close the arc: **public shared-receipt view** at
-   `/shared-receipt/:shareToken` (`SharedController` is ready; reuse the
-   receipt-detail layout read-only, no shell chrome)
-3. **Per-member totals** (arguably the payoff of the whole app)
-4. **Receipt validation** (small)
+2. ~~**Share management + public shared-receipt view**~~ ✅ done —
+   `receipt-shares/` + `shared-receipt/`. Sharing now works end-to-end.
+3. ~~**Per-member totals**~~ ✅ done — `member-totals/` (on both the
+   shared view and the authenticated detail page)
+4. **Receipt validation** (small) — next up
 5. **Upload pipeline design session** — commit to a plan from the
    Phase 1–4 above
 6. **Pi setup** (physical) — can happen in parallel with any of the
