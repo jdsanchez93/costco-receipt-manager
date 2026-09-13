@@ -109,18 +109,31 @@ Per the "S3 Upload Integration" section of `CLAUDE.md`:
   `a2b584vx4d.execute-api.us-east-1.amazonaws.com/Prod/*` endpoints)
 - Uses the same Auth0 tenant / audience as this app for JWT validation
 
-### Components of the external stack (inferred)
-- **S3 bucket** — stores receipt image originals
-- **Upload-URL Lambda** — POST endpoint; generates presigned URL,
-  returns receipt_id
-- **Download-URL Lambda** — GET endpoint; generates presigned GET URL
-  for a given receipt_id
-- **Textract trigger** — S3 event → Lambda that calls Textract
-  ("AnalyzeExpense" or similar) on the uploaded object
-- **DynamoDB writer** — receives Textract result and writes items +
-  geometry into `dev-costco-receipt-parser-main`
-- **API Gateway** — fronts the two URL Lambdas, does Auth0 JWT
-  validation
+### Components of the external stack (confirmed 2026-09-11 by reading `costco-receipt-parser`)
+- **S3 bucket** — stores receipt image originals at
+  `uploads/{user_id}/{receipt_id}.jpg`
+- **`UploadUrlFunction` / `DownloadUrlFunction`** — the two Lambdas
+  behind API Gateway; pure presigned-URL generators, no OCR logic
+- **`ReceiptProcessorFunction`** (`receipt_processor/app.py`) — S3
+  `ObjectCreated` trigger. Calls `get_receipt_data_from_s3()`
+  (Textract `AnalyzeExpense` + **255 lines of bespoke regex parsing**
+  in `textract_ocr.py` tuned to Costco's specific receipt layout —
+  item/price/discount line patterns), then makes three isolated calls
+  into `single_table.py`: `write_receipt_items`,
+  `store_receipt_geometry`, `add_authenticated_user_to_receipt`
+  (owner role, empty display_name/email for the webapp to fill in).
+  This is a small, clean write path — good news for the Phase 2 bridge
+  below.
+- **API Gateway** — fronts only the two URL Lambdas with an Auth0 JWT
+  authorizer; `ReceiptProcessorFunction` has no HTTP route, it's
+  purely S3-triggered
+- **DynamoDB table** (`{stack-name}-main`) — written to only by
+  `ReceiptProcessorFunction`'s three calls above
+
+The parsing logic is under active tuning (`costco-receipt-parser`
+last commit 2026-02-09, "Improve discount matching strategy") — it's
+not a thin Textract wrapper, it's the product of real-world debugging
+against actual Costco receipts.
 
 ### Why this is a problem for the new architecture
 The .NET API's `GetUploadUrl` endpoint just forwards to this stack.
@@ -134,40 +147,66 @@ a read/write view over a stale snapshot for new receipts.
 
 ### Plan to bring it in-house
 
-**Design decisions to make (whiteboard session before coding):**
+**Design decisions — resolved 2026-09-11:**
 
-1. **OCR engine** — three viable paths:
-   - Keep **AWS Textract** — proven for receipts, requires Pi (or
-     wherever the API runs) to have AWS credentials. Costs per page.
-   - **Tesseract** on the Pi — free, fully local, but noticeably
-     worse quality for receipt-style layouts. Would require
-     significant post-processing to hit Textract-level accuracy.
-   - **Third-party API** (Mindee, Veryfi, etc.) — designed for
-     receipts specifically, subscription cost, another vendor.
+1. **OCR engine — keep AWS Textract, via the existing Python Lambda,
+   indefinitely.** No hard AWS budget cap, so per-page Textract cost
+   isn't a constraint. More importantly, `textract_ocr.py` isn't a
+   thin Textract wrapper — it's tuned, actively-maintained regex
+   parsing specific to Costco's layout. Porting it to C# would be a
+   real rewrite with real regression risk for zero user-facing
+   benefit. **The "own the OCR pipeline" phase is dropped** — see
+   revised phased plan below. `ReceiptProcessorFunction` stays a
+   permanent part of the architecture (still Python, still calling
+   Textract), not a migration target for rewriting logic — though see
+   the 2026-09-13 update below on *where* it's deployed from.
 
-2. **Storage for receipt images** — either:
-   - Keep **AWS S3** — cheap, durable, presigned URLs are trivial via
-     AWS SDK for .NET. Pi needs AWS creds.
-   - Self-host on the Pi (MinIO, plain filesystem behind nginx). Ties
-     image availability to the Pi's uptime and disk. Cheaper long-term
-     but adds an operational surface.
+2. **Storage for receipt images — keep AWS S3.** Same reasoning: no
+   budget pressure to self-host, and presigned URLs are trivial via
+   `AWSSDK.S3` for .NET. No need to explore MinIO/filesystem hosting
+   on the Pi.
 
-3. **Processing model** — sync vs async:
-   - **Synchronous**: the upload endpoint calls Textract inline and
-     returns items in the response. Simplest, but Textract can take
-     5–30 seconds — bad UX and holds a request thread.
-   - **Async with polling**: upload returns a receipt_id, client polls
-     `GET /receipts/{id}` until items appear. Works everywhere.
-   - **Async with SSE / WebSocket**: server pushes when ready.
-     Snazzier UX, more infrastructure.
-   - **Background job queue**: the endpoint enqueues the OCR work,
-     a background worker processes it. Requires a queue (in-process
-     `Channel<T>` for a single-instance Pi is fine; something like
-     RabbitMQ for multi-instance).
+3. **Processing model — unaffected, stays async via S3 event trigger.**
+   Since OCR keeps running in the existing Lambda (not moved into the
+   .NET request path), there's no sync-vs-async tradeoff to make on
+   the .NET side. The only remaining question is how the frontend
+   learns an upload finished processing (poll `GET /receipts/{id}` vs.
+   SSE/WebSocket) — that's a frontend detail, not an infra decision,
+   and already tracked in the Priority 2 table below.
 
-4. **Retry / re-processing** — should users be able to re-run OCR on
-   an existing receipt if the parser improves? Adds complexity but
-   removes a "one-shot" limitation.
+4. **Retry / re-processing — still open, deferred.** Should users be
+   able to re-run OCR on an existing receipt if the parser improves?
+   Low urgency; revisit if it comes up in practice.
+
+5. **Where the bucket + processor Lambda are deployed from — resolved
+   2026-09-13: consolidate into the `cdk-backend` CDK stack, don't
+   leave them in the standalone SAM app.** Originally the plan kept
+   `ReceiptImageBucket` + `ReceiptProcessorFunction` living forever in
+   the separate `costco-receipt-parser` SAM stack, on the theory that
+   they're permanent anyway so there's no need to move them. But the
+   separation itself has been actual, recurring friction — `template.yaml`
+   and `costco-receipts-stack.ts` independently thread `mainTableName`,
+   `s3UploadApiUrl`, `s3DownloadApiUrl` between two stacks deployed by
+   two different tools (`sam deploy` vs `cdk deploy`), and once Phase 1
+   ships the two URL-Lambda params are dead weight anyway. Moving the
+   Lambda in *with* the bucket (not just the bucket) avoids the
+   cross-stack S3-notification-to-Lambda wiring problem entirely, since
+   CDK can own both ends and wire the event notification itself
+   (`bucket.addEventNotification(...)`) instead of the manual
+   `AWS::Lambda::Permission` + `NotificationConfiguration` glue in
+   `template.yaml` today.
+
+   `receipt_processor/`'s Python source gets **vendored into this repo**
+   (e.g. `cdk-backend/receipt-processor/`) rather than referenced from
+   the sibling `costco-receipt-parser` repo by relative path — keeps
+   the deploy self-contained (no assumption that a sibling repo exists
+   on disk or in CI) and lets `costco-receipt-parser` be archived once
+   cutover is verified. Bundled the same way the existing .NET Lambda
+   already is (`costco-receipts-stack.ts:127-138` — `Code.fromAsset`
+   with a Docker `bundling.image`), just swapping in
+   `lambda.Runtime.PYTHON_3_13.bundlingImage` and a `pip install -t
+   /asset-output` command instead of `dotnet publish`. No new tooling;
+   same pattern applied twice.
 
 **Suggested phased migration:**
 
@@ -180,28 +219,43 @@ a read/write view over a stale snapshot for new receipts.
    S3 stays as-is; Textract stays in AWS. Nothing about the parsing
    pipeline changes yet.
 
-2. **Phase 2 — Bridge new uploads into MySQL.**
-   The existing Textract → DynamoDB Lambda gets a sibling that also
-   writes into MySQL (or replaces the DynamoDB writer entirely).
-   Simplest bridge: the Lambda POSTs the parsed receipt payload to a
-   new internal endpoint on the .NET API (`POST /api/internal/receipts`,
-   authenticated by a shared secret since it's server-to-server). The
-   .NET API writes to MySQL. Lambda ↔ Pi connectivity handled via
-   Cloudflare Tunnel (already planned for the frontend).
-   After this, the app is source-of-truth-correct: every new upload
-   lands in MySQL.
-
-3. **Phase 3 — Own the OCR pipeline (optional).**
-   Move Textract invocation into the .NET API too, using a background
-   queue for async processing. This kills the last dependency on the
-   SAM stack. Can happen at any point after Phase 2, but Phase 2 is
-   what unblocks Pi cutover.
-
-4. **Phase 4 — Retire the SAM stack.**
-   Once Phase 2 is running and Phase 3 either lands or is explicitly
-   deferred, the DynamoDB writer Lambda can be removed. The rest of
-   the SAM stack (if Textract stays in AWS) may still be there,
-   invoked directly from .NET rather than from an API Gateway.
+2. **Phase 2 — Consolidate the bucket + processor into CDK, and bridge
+   writes into MySQL, in one migration.**
+   Doing both together means the Lambda is only redeployed once.
+   - **Bucket** (has real data — needs the import dance, not a fresh
+     create): set `DeletionPolicy: Retain` + `UpdateReplacePolicy: Retain`
+     on `ReceiptImageBucket` in `template.yaml`, `sam deploy` to apply
+     it, remove the resource from `template.yaml`, `sam deploy` again
+     (CFN drops it from the SAM stack but Retain keeps the real bucket
+     + its objects alive — same name, same data, zero copying). Define
+     a matching `s3.Bucket` construct in `costco-receipts-stack.ts`
+     and run `cdk import` to adopt the existing bucket into the CDK
+     stack.
+   - **Lambda + DLQ + IAM** (no data — safe to recreate fresh): port
+     `receipt_processor/` (vendored per the decision above) into a
+     `lambda.Function` in CDK with the same S3-read (`uploads/*`) and
+     Textract IAM grants as `template.yaml` has today, an `sqs.Queue`
+     for the DLQ, and `bucket.addEventNotification(...)` for the S3
+     trigger.
+   - **DynamoDB → MySQL bridge**, done in the same deploy since the
+     Lambda code is being touched anyway: replace the three DynamoDB
+     calls in `app.py` (`write_receipt_items`, `store_receipt_geometry`,
+     `add_authenticated_user_to_receipt`) with one POST to a new
+     internal endpoint on the .NET API (`POST /api/internal/receipts`,
+     authenticated by a shared secret since it's server-to-server).
+     Lambda ↔ Pi connectivity via Cloudflare Tunnel (already planned
+     for the frontend). No reason to write to DynamoDB even
+     transiently — this is a fresh deploy.
+   - Verify end-to-end with a real receipt upload against the new CDK
+     stack, then `sam delete --stack-name costco-receipt-parser` and
+     archive that repo.
+   - After this: one CDK stack, one `cdk deploy`, no DynamoDB in this
+     data path, and `S3_UPLOAD_API_URL` / `S3_DOWNLOAD_API_URL` /
+     the SAM-side `mainTableName` usage are all gone. (Note:
+     `mainTableName` itself isn't fully dead yet — `cdk-backend`'s own
+     .NET 8 Lambda API still reads/writes the same DynamoDB table until
+     Pi cutover retires that Lambda too; this phase only removes the
+     *processor's* DynamoDB dependency.)
 
 ---
 
@@ -265,30 +319,54 @@ None of the above is blocked by anything except deciding to do it.
 3. ~~**Per-member totals**~~ ✅ done — `member-totals/` (on both the
    shared view and the authenticated detail page)
 4. ~~**Receipt validation**~~ ✅ done — automated subtotal-match badge (see Priority 1 table); no manual confirm/dispute step
-5. **Upload pipeline design session** — commit to a plan from the
-   Phase 1–4 above
-6. **Pi setup** (physical) — can happen in parallel with any of the
-   above
-7. **Phase 1 of upload migration** — presigned URLs in .NET
-8. **Phase 2 of upload migration** — bridge Lambda → MySQL
-9. **Receipt upload UI** (unblocked by Phase 2)
+5. ~~**Upload pipeline design session**~~ ✅ done 2026-09-11, extended
+   2026-09-13 — see resolved decisions above (keep Textract + existing
+   Python parser, keep S3, drop the OCR-pipeline-rewrite phase,
+   consolidate the bucket + processor Lambda into the CDK stack).
+   Phase 1 and Phase 2 are pure code changes and don't need the Pi to
+   be ready.
+6. **Phase 1 of upload migration** — presigned URLs in .NET
+7. **Phase 2 of upload migration** — consolidate bucket + processor
+   Lambda into CDK, bridge writes to MySQL, retire the SAM app
+8. **Receipt upload UI** (unblocked by Phase 2)
+9. **Pi setup** (physical, not started yet) — can happen in parallel
+   with any of the above; only actually blocks self-hosted production
+   deployment, not the code work
 10. **Retire React frontend** — once feature parity is reached
 
 ---
 
 ## Open questions (things a future session should ask before starting)
 
-- Is the Pi hardware set up yet? (blocker for actual deployment; not a
-  blocker for any code work)
-- Which OCR engine for Phase 3? Cost, quality, and vendor tolerance
-  trade off differently
-- Is there a hard budget cap on AWS spend? (drives whether to keep
-  Textract or move to a local/paid alternative)
+- ~~Is the Pi hardware set up yet?~~ Confirmed 2026-09-11: not set up
+  yet. Blocks actual production self-hosted deployment; does not
+  block Phase 1/2 code work, which can be built and tested against
+  local/dev infra.
+- ~~Which OCR engine?~~ Resolved 2026-09-11: keep AWS Textract via the
+  existing Python Lambda, indefinitely — see "Design decisions" above.
+- ~~Is there a hard budget cap on AWS spend?~~ Confirmed 2026-09-11:
+  no hard cap — Textract/S3 cost is acceptable, no need to explore
+  local/self-hosted alternatives.
 - Is `SharedController`'s response shape still correct given the new
   contacts model? Worth a quick review before wiring the public view
 - Does the Auth0 dashboard have "Allow Offline Access" turned on for
   the API? Needed for real refresh-token issuance (silent auth still
   works without it via iframe fallback, but is fragile long-term)
+
+## Docs cleanup (low priority, not blocking anything)
+
+Both root-level docs predate the current migration and are stale
+relative to this plan:
+- **`CLAUDE.md`** documents `cdk-backend` (Lambda + DynamoDB) as the
+  backend without mentioning `api/` (.NET 10 + MySQL), which is now
+  the actively-developed backend.
+- **`README.md`** references a `backend/` Node/Express directory that
+  no longer exists in the repo, plus DynamoDB table setup and
+  Docker/ECS deployment instructions that don't match the Pi-targeted
+  plan.
+
+Worth a rewrite pass once the upload migration phases settle down and
+the architecture stops shifting under the docs.
 
 ---
 
@@ -312,10 +390,18 @@ claude-costco-webapp/
 │       └── api/
 ├── frontend/                     ← old React (reference only)
 │   └── src/components/           ← port targets live here
-├── cdk-backend/                  ← old Lambda backend (dead code, kept for reference)
-├── backend/                      ← original Node/Express backend (dead code)
-└── CLAUDE.md                     ← detailed architecture doc
+├── cdk-backend/                  ← CDK infra: frontend hosting (S3+CloudFront)
+│   │                                today; gains the receipt image bucket +
+│   │                                processor Lambda in Phase 2 (see above) —
+│   │                                not dead code, still the active IaC stack
+│   └── receipt-processor/        ← (Phase 2) vendored from costco-receipt-parser
+└── CLAUDE.md                     ← detailed architecture doc (stale, see
+                                     "Docs cleanup" above)
 ```
+
+Note: there is no `backend/` directory in this repo — the original
+Node/Express backend referenced in the root `README.md` doesn't exist
+here anymore (see "Docs cleanup" above).
 
 ## Reference: relevant memory notes
 
