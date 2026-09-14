@@ -309,6 +309,43 @@ The Pi target isn't set up yet. When it is:
 
 None of the above is blocked by anything except deciding to do it.
 
+### AWS credentials on the Pi (decided 2026-09-13)
+
+The API runs as a native `linux-arm64` process under `systemd` on the
+Pi, not in a container and not on any AWS-managed compute — so the
+usual "just use an IAM role" answer doesn't apply, and neither does
+**container credentials** (`AWS_CONTAINER_CREDENTIALS_*`): that
+mechanism only works because something is actually running to vend the
+credentials (the ECS agent for a Task IAM Role, or the EKS Pod Identity
+agent), and neither exists on a bare Pi. Standing up an equivalent
+yourself would mean building and operating a personal clone of the ECS
+agent for one physical box — not worth it.
+
+The AWS-native answer for a non-AWS physical host wanting to avoid
+static keys is **IAM Roles Anywhere** (mutual-TLS, vends short-lived
+STS credentials). Its trust anchor doesn't require **AWS Private CA**
+(that would cost real money — $400/mo general-purpose, or $50/mo in
+"short-lived certificate" mode — dwarfing everything else this project
+spends on AWS): Roles Anywhere explicitly also accepts an **external,
+self-managed CA certificate** as the trust anchor, which is free.
+The catch is you're then running your own PKI — generating and
+protecting a CA private key, issuing/rotating the Pi's client cert, and
+handling revocation by hand (Roles Anywhere can import a CRL, but you
+have to produce and upload it yourself). Real ongoing operational
+surface for a single box.
+
+**Decision: use a plain IAM user with an access key**, scoped to
+exactly what's needed (`s3:PutObject`/`s3:GetObject`/`s3:HeadObject` on
+`arn:aws:s3:::<bucket>/uploads/*`, nothing broader), delivered to the
+Pi's systemd unit as `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` env
+vars (or an `~/.aws/credentials` profile via `AWS:Profile` — either
+works with the app code as written, since `AwsOptions.Profile` is
+optional and falls through to the SDK's default credential chain when
+unset). It's a static long-lived secret, but tight IAM scoping plus
+treating it like any other secret is proportionate for a single
+personal device — revisit Roles Anywhere with an external CA later if
+eliminating static keys becomes a real priority.
+
 ---
 
 ## Suggested next order of operations
