@@ -1,3 +1,6 @@
+using Amazon;
+using Amazon.Extensions.NETCore.Setup;
+using Amazon.S3;
 using CostcoReceipts.Api.Authentication;
 using CostcoReceipts.Api.Authorization;
 using CostcoReceipts.Api.Configuration;
@@ -8,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<S3Options>(builder.Configuration.GetSection(S3Options.SectionName));
+builder.Services.Configure<AwsOptions>(builder.Configuration.GetSection(AwsOptions.SectionName));
 builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection(FrontendOptions.SectionName));
 builder.Services.AddProblemDetails();
 
@@ -20,8 +24,19 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
 });
 
+// AWS credentials: an explicit named profile for local dev (AWS:Profile),
+// otherwise the SDK's default credential provider chain (env vars, etc. —
+// relevant once this runs somewhere with no IAM role, e.g. the Pi).
+var aws = builder.Configuration.GetSection(AwsOptions.SectionName).Get<AwsOptions>() ?? new AwsOptions();
+var awsOptions = new AWSOptions { Region = RegionEndpoint.GetBySystemName(aws.Region) };
+if (!string.IsNullOrEmpty(aws.Profile))
+{
+    awsOptions.Profile = aws.Profile;
+}
+builder.Services.AddDefaultAWSOptions(awsOptions);
+builder.Services.AddAWSService<IAmazonS3>();
+
 builder.Services.AddControllers();
-builder.Services.AddHttpClient();
 builder.Services.AddAuth0Jwt(builder.Configuration);
 builder.Services.AddReceiptAuthorization();
 

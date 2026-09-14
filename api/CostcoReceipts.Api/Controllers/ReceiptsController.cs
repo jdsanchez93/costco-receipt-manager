@@ -1,8 +1,9 @@
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
+using Amazon.S3;
+using Amazon.S3.Model;
 using CostcoReceipts.Api.Authorization;
 using CostcoReceipts.Api.Configuration;
 using CostcoReceipts.Api.Data;
+using CostcoReceipts.Api.Data.Entities;
 using CostcoReceipts.Api.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +13,7 @@ using Microsoft.Extensions.Options;
 namespace CostcoReceipts.Api.Controllers;
 
 /// <summary>
-/// Receipt-level operations: upload/download URL passthrough, the user's receipt
+/// Receipt-level operations: upload/download URL generation, the user's receipt
 /// list, geometry (including the computed subtotal-match check), and deletion.
 /// Item / member / share endpoints live in their own resource controllers.
 /// </summary>
@@ -20,57 +21,103 @@ namespace CostcoReceipts.Api.Controllers;
 [Route("api/receipts")]
 public class ReceiptsController : ControllerBase
 {
+    private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif",
+    };
+
     private readonly AppDbContext _db;
-    private readonly IHttpClientFactory _httpFactory;
+    private readonly IAmazonS3 _s3Client;
     private readonly IOptions<S3Options> _s3;
     private readonly ILogger<ReceiptsController> _logger;
 
     public ReceiptsController(
         AppDbContext db,
-        IHttpClientFactory httpFactory,
+        IAmazonS3 s3Client,
         IOptions<S3Options> s3,
         ILogger<ReceiptsController> logger)
     {
         _db = db;
-        _httpFactory = httpFactory;
+        _s3Client = s3Client;
         _s3 = s3;
         _logger = logger;
     }
 
     // ============================================================
-    // Upload / Download URL passthrough
+    // Upload / Download URL generation
     // ============================================================
 
-    // TODO(upload-pipeline): passthrough to the external Textract Lambda; the
-    // receipt row it produces still lands in DynamoDB. Replace with native
-    // logic when the upload/OCR/persistence stack moves into this repo.
     [HttpPost("get-upload-url")]
     [Authorize]
     public async Task<IActionResult> GetUploadUrl(
         [FromBody] GetUploadUrlRequest? request,
         CancellationToken ct)
     {
-        var token = Request.GetBearerToken();
-        if (token is null) return Unauthorized(new { error = "Invalid authorization header" });
+        var userId = User.GetUserId();
+        if (userId is null) return Unauthorized(new { error = "Invalid authorization header" });
 
-        var url = _s3.Value.UploadApiUrl;
-        if (string.IsNullOrEmpty(url))
+        var bucket = _s3.Value.BucketName;
+        if (string.IsNullOrEmpty(bucket))
         {
-            _logger.LogError("S3:UploadApiUrl is not configured");
-            return Problem("S3 upload API URL not configured", statusCode: StatusCodes.Status500InternalServerError);
+            _logger.LogError("S3:BucketName is not configured");
+            return Problem("S3 bucket not configured", statusCode: StatusCodes.Status500InternalServerError);
         }
 
         var contentType = request?.ContentType ?? "image/jpeg";
-        var payload = await ForwardJsonAsync(
-            HttpMethod.Post, url, token, new { content_type = contentType }, ct);
+        if (!AllowedContentTypes.Contains(contentType))
+        {
+            return BadRequest(new { error = $"Unsupported content type: {contentType}" });
+        }
 
-        if (payload is null) return Problem("Failed to get upload URL", statusCode: StatusCodes.Status502BadGateway);
+        // Seed the MySQL side of ownership up front, so the receipt is
+        // immediately viewable/downloadable by its owner rather than waiting
+        // on the (not-yet-built) Textract-to-MySQL bridge. UserProvisioningMiddleware
+        // guarantees a self-contact for the caller before this action runs.
+        var selfContactId = await _db.Contacts
+            .Where(c => c.OwnerUserId == userId && c.UserId == userId)
+            .Select(c => c.ContactId)
+            .FirstOrDefaultAsync(ct);
+
+        if (selfContactId == default)
+        {
+            _logger.LogError("No self-contact found for user {UserId}; user provisioning may have failed", userId);
+            return Problem("User is not provisioned", statusCode: StatusCodes.Status500InternalServerError);
+        }
+
+        var receiptId = Guid.NewGuid().ToString();
+        var now = DateTime.UtcNow;
+
+        _db.Receipts.Add(new Receipt
+        {
+            ReceiptId = receiptId,
+            OwnerUserId = userId,
+            CreatedAt = now,
+        });
+        _db.ReceiptMembers.Add(new ReceiptMember
+        {
+            ReceiptId = receiptId,
+            ContactId = selfContactId,
+            Role = ReceiptRoles.Owner,
+            AddedByMemberId = null,
+            AddedAt = now,
+        });
+        await _db.SaveChangesAsync(ct);
+
+        var expiresIn = _s3.Value.PresignedUrlExpirySeconds;
+        var uploadUrl = await _s3Client.GetPreSignedURLAsync(new GetPreSignedUrlRequest
+        {
+            BucketName = bucket,
+            Key = $"uploads/{userId}/{receiptId}.jpg",
+            Verb = HttpVerb.PUT,
+            Expires = now.AddSeconds(expiresIn),
+            ContentType = contentType,
+        });
 
         return Ok(new GetUploadUrlResponse
         {
-            ReceiptId = payload.Value.GetProperty("receipt_id").GetString() ?? "",
-            UploadUrl = payload.Value.GetProperty("upload_url").GetString() ?? "",
-            ExpiresIn = payload.Value.GetProperty("expires_in").GetInt32(),
+            ReceiptId = receiptId,
+            UploadUrl = uploadUrl,
+            ExpiresIn = expiresIn,
         });
     }
 
@@ -78,49 +125,33 @@ public class ReceiptsController : ControllerBase
     [Authorize(Policy = ReceiptPolicies.Member)]
     public async Task<IActionResult> GetDownloadUrl(string receiptId, CancellationToken ct)
     {
-        var token = Request.GetBearerToken();
-        if (token is null) return Unauthorized(new { error = "Invalid authorization header" });
-
-        var baseUrl = _s3.Value.DownloadApiUrl;
-        if (string.IsNullOrEmpty(baseUrl))
+        var bucket = _s3.Value.BucketName;
+        if (string.IsNullOrEmpty(bucket))
         {
-            _logger.LogError("S3:DownloadApiUrl is not configured");
-            return Problem("S3 download API URL not configured", statusCode: StatusCodes.Status500InternalServerError);
+            _logger.LogError("S3:BucketName is not configured");
+            return Problem("S3 bucket not configured", statusCode: StatusCodes.Status500InternalServerError);
         }
 
-        var payload = await ForwardJsonAsync(HttpMethod.Get, $"{baseUrl}/{receiptId}", token, body: null, ct);
-        if (payload is null) return Problem("Failed to get download URL", statusCode: StatusCodes.Status502BadGateway);
+        var receipt = await _db.Receipts.FindAsync([receiptId], ct);
+        if (receipt is null) return NotFound(new { error = "Receipt not found" });
+
+        var expiresIn = _s3.Value.PresignedUrlExpirySeconds;
+        var downloadUrl = await _s3Client.GetPreSignedURLAsync(new GetPreSignedUrlRequest
+        {
+            BucketName = bucket,
+            // Keyed by the receipt's owner, not the requesting caller — a
+            // shared receipt's non-owner members must still resolve to the
+            // actual uploader's S3 path.
+            Key = $"uploads/{receipt.OwnerUserId}/{receiptId}.jpg",
+            Verb = HttpVerb.GET,
+            Expires = DateTime.UtcNow.AddSeconds(expiresIn),
+        });
 
         return Ok(new GetDownloadUrlResponse
         {
-            DownloadUrl = payload.Value.GetProperty("download_url").GetString() ?? "",
-            ExpiresIn = payload.Value.GetProperty("expires_in").GetInt32(),
+            DownloadUrl = downloadUrl,
+            ExpiresIn = expiresIn,
         });
-    }
-
-    private async Task<System.Text.Json.JsonElement?> ForwardJsonAsync(
-        HttpMethod method,
-        string url,
-        string bearerToken,
-        object? body,
-        CancellationToken ct)
-    {
-        var http = _httpFactory.CreateClient();
-        using var req = new HttpRequestMessage(method, url);
-        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
-        if (body is not null) req.Content = JsonContent.Create(body);
-
-        using var resp = await http.SendAsync(req, ct);
-        var raw = await resp.Content.ReadAsStringAsync(ct);
-
-        if (!resp.IsSuccessStatusCode)
-        {
-            _logger.LogError("Upstream {Method} {Url} returned {Status}: {Body}",
-                method, url, (int)resp.StatusCode, raw);
-            return null;
-        }
-
-        return System.Text.Json.JsonDocument.Parse(raw).RootElement.Clone();
     }
 
     // ============================================================
