@@ -42,6 +42,13 @@ export interface CostcoReceiptsStackProps extends cdk.StackProps {
   receiptBucketAllowedOrigins?: string[];
   internalApiUrl?: string;
   internalApiKey?: string;
+  // Optional: wire the bucket's S3 event notification to the processor
+  // Lambda. Independent of deployReceiptProcessing on purpose — dev wants
+  // the real bucket + real deployed Lambda (to manually invoke and sanity
+  // check the actual deployed artifact) WITHOUT every test upload also
+  // triggering it automatically and redundantly re-running Textract.
+  // Default false; only prod should ever set this true.
+  attachReceiptProcessorTrigger?: boolean;
 }
 
 export class CostcoReceiptsStack extends cdk.Stack {
@@ -68,6 +75,7 @@ export class CostcoReceiptsStack extends cdk.Stack {
     const customDomainName = props.customDomainName || this.node.tryGetContext('customDomainName');
     const certificateArn = props.certificateArn || this.node.tryGetContext('certificateArn');
     const deployReceiptProcessing = props.deployReceiptProcessing === true; // Default to false
+    const attachReceiptProcessorTrigger = props.attachReceiptProcessorTrigger === true; // Default to false
 
     // Import existing DynamoDB table
     const mainTable = dynamodb.Table.fromTableName(
@@ -122,11 +130,16 @@ export class CostcoReceiptsStack extends cdk.Stack {
         internalApiKey
       );
 
-      this.receiptBucket.addEventNotification(
-        s3.EventType.OBJECT_CREATED,
-        new s3n.LambdaDestination(this.receiptProcessorFunction),
-        { prefix: 'uploads/' }
-      );
+      // Deliberately separate from deployReceiptProcessing — see the prop's
+      // doc comment. Without this, the Lambda is deployed and manually
+      // invokable but S3 uploads won't trigger it automatically.
+      if (attachReceiptProcessorTrigger) {
+        this.receiptBucket.addEventNotification(
+          s3.EventType.OBJECT_CREATED,
+          new s3n.LambdaDestination(this.receiptProcessorFunction),
+          { prefix: 'uploads/' }
+        );
+      }
     }
 
     // Outputs
