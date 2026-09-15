@@ -18,6 +18,10 @@ cdk.context.json.backup
 # Lambda dependencies
 lambda/layers/shared/nodejs/node_modules/
 
+# Python (receipt-processor/)
+__pycache__/
+*.pyc
+
 # Environment files
 .env
 .env.local
