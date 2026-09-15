@@ -75,6 +75,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.ItemNumber).HasMaxLength(64);
             e.Property(x => x.Price).HasPrecision(10, 2);
             e.Property(x => x.Discount).HasPrecision(10, 2);
+            e.Property(x => x.TaxCode).HasMaxLength(8);
             e.HasIndex(x => new { x.ReceiptId, x.ItemIndex }).IsUnique();
             e.HasOne(x => x.Receipt)
                 .WithMany(r => r.Items)

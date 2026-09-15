@@ -9,6 +9,7 @@ public class ReceiptItem
     public string ItemName { get; set; } = string.Empty;
     public decimal Price { get; set; }
     public decimal? Discount { get; set; }
+    public string? TaxCode { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 
