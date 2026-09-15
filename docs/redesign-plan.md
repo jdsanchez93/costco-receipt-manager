@@ -221,31 +221,69 @@ a read/write view over a stale snapshot for new receipts.
 
 2. **Phase 2 — Consolidate the bucket + processor into CDK, and bridge
    writes into MySQL, in one migration.**
-   Doing both together means the Lambda is only redeployed once.
+
+   **Part A — build now, cut over later — done 2026-09-15**
+   (`feat/receipt-processing-bridge`): the internal bridge endpoint
+   (`POST /api/internal/receipts/{id}/ocr-results`, shared-secret
+   auth), the vendored + rewritten `receipt-processor/` Lambda source
+   (POSTs to the bridge instead of writing DynamoDB), and the CDK
+   constructs — all built and verified (real Textract + real MySQL
+   write, confirmed via a local invocation script — see below), but
+   **not deployed**. `deployReceiptProcessing` defaults `false`, so
+   `cdk deploy` today is a no-op for all of it (confirmed via
+   byte-for-byte `cdk synth` diff against the pre-change template).
+
+   **Local dev without deploying anything**: `receipt_processor/app.py`'s
+   `lambda_handler` is a plain Python function — no Lambda runtime
+   required to run it. `cdk-backend/scripts/local_upload_and_process.py`
+   calls `get-upload-url`, PUTs to the real (still SAM-managed) dev
+   bucket, then invokes `lambda_handler` directly in-process, so
+   `INTERNAL_API_URL` is just `localhost` — nothing to bridge. Real
+   Textract, real bridge write, zero deploys.
+
+   **Gotcha found while building this**: the *live* SAM stack's bucket
+   notification (`template.yaml`'s `ReceiptImageBucket`) has no prefix
+   filter — `Event: 's3:ObjectCreated:*'` with no `Filter` block fires
+   on *any* object written anywhere in the bucket. So every test
+   upload today (local script or otherwise) also fires the old,
+   still-live `ReceiptProcessorFunction` in parallel, which throws
+   `ConditionalCheckFailedException` on repeat uploads to the same
+   receipt (its DynamoDB write uses
+   `ConditionExpression='attribute_not_exists(...)'`, not an idempotent
+   replace). Harmless noise for now — the old stack is being retired,
+   not real data — but worth knowing so it isn't mistaken for a bug in
+   the new pipeline.
+
+   **Cutover-time trigger design (resolved 2026-09-15)**: split into
+   two independent flags rather than one. `deployReceiptProcessing`
+   deploys the bucket + Lambda + DLQ; a separate
+   `attachReceiptProcessorTrigger` wires the S3 event notification.
+   **Dev**: first flag `true`, second `false` — real CDK-managed
+   bucket and real deployed Lambda (so the actual deployed artifact
+   can be manually `aws lambda invoke`d and sanity-checked
+   occasionally — catches packaging/IAM bugs a local Python call with
+   a broad SSO profile wouldn't), but test uploads never also trigger
+   it automatically, avoiding the exact double-processing/noise/cost
+   problem above. **Prod**: both flags `true` — real users need real
+   automatic triggering. Verified via `cdk synth` in all three shapes
+   (flag off / dev shape / full shape) that the notification-related
+   resources appear only when both flags are on.
+
+   **Part B — the actual cutover, still deferred until the Pi + Cloudflare
+   Tunnel exist:**
    - **Bucket** (has real data — needs the import dance, not a fresh
      create): set `DeletionPolicy: Retain` + `UpdateReplacePolicy: Retain`
      on `ReceiptImageBucket` in `template.yaml`, `sam deploy` to apply
      it, remove the resource from `template.yaml`, `sam deploy` again
      (CFN drops it from the SAM stack but Retain keeps the real bucket
-     + its objects alive — same name, same data, zero copying). Define
-     a matching `s3.Bucket` construct in `costco-receipts-stack.ts`
-     and run `cdk import` to adopt the existing bucket into the CDK
-     stack.
-   - **Lambda + DLQ + IAM** (no data — safe to recreate fresh): port
-     `receipt_processor/` (vendored per the decision above) into a
-     `lambda.Function` in CDK with the same S3-read (`uploads/*`) and
-     Textract IAM grants as `template.yaml` has today, an `sqs.Queue`
-     for the DLQ, and `bucket.addEventNotification(...)` for the S3
-     trigger.
-   - **DynamoDB → MySQL bridge**, done in the same deploy since the
-     Lambda code is being touched anyway: replace the three DynamoDB
-     calls in `app.py` (`write_receipt_items`, `store_receipt_geometry`,
-     `add_authenticated_user_to_receipt`) with one POST to a new
-     internal endpoint on the .NET API (`POST /api/internal/receipts`,
-     authenticated by a shared secret since it's server-to-server).
-     Lambda ↔ Pi connectivity via Cloudflare Tunnel (already planned
-     for the frontend). No reason to write to DynamoDB even
-     transiently — this is a fresh deploy.
+     + its objects alive — same name, same data, zero copying). Run
+     `cdk import` to adopt the existing bucket into the already-written
+     `s3.Bucket` construct.
+   - Deploy with `deployReceiptProcessing=true`, `attachReceiptProcessorTrigger=false`
+     first, manually invoke the real deployed Lambda to confirm it
+     works, *then* redeploy with the trigger flag also `true` once
+     confident.
+   - Point `internalApiUrl` at the real Pi/Cloudflare-Tunnel address.
    - Verify end-to-end with a real receipt upload against the new CDK
      stack, then `sam delete --stack-name costco-receipt-parser` and
      archive that repo.
