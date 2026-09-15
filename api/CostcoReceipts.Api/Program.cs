@@ -6,6 +6,7 @@ using CostcoReceipts.Api.Authorization;
 using CostcoReceipts.Api.Configuration;
 using CostcoReceipts.Api.Data;
 using CostcoReceipts.Api.Middleware;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +14,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<S3Options>(builder.Configuration.GetSection(S3Options.SectionName));
 builder.Services.Configure<AwsOptions>(builder.Configuration.GetSection(AwsOptions.SectionName));
 builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection(FrontendOptions.SectionName));
+builder.Services.Configure<InternalApiOptions>(builder.Configuration.GetSection(InternalApiOptions.SectionName));
 builder.Services.AddProblemDetails();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -38,6 +40,10 @@ builder.Services.AddAWSService<IAmazonS3>();
 
 builder.Services.AddControllers();
 builder.Services.AddAuth0Jwt(builder.Configuration);
+builder.Services
+    .AddAuthentication()
+    .AddScheme<AuthenticationSchemeOptions, InternalApiKeyAuthenticationHandler>(
+        InternalApiKeyAuthenticationHandler.SchemeName, _ => { });
 builder.Services.AddReceiptAuthorization();
 
 builder.Services.AddCors(options =>
