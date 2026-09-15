@@ -33,6 +33,18 @@ new CostcoReceiptsStack(app, 'CostcoReceiptsStack', {
   // Optional: Deploy frontend resources (default: true)
   deployFrontend: app.node.tryGetContext('deployFrontend') !== false,
 
+  // Optional: deploy the receipt-image bucket + OCR processor Lambda
+  // (default: false — code-complete but not cut over yet, see
+  // docs/redesign-plan.md Phase 2). Accepts either a real boolean
+  // (cdk.context.json) or the string "true" (-c CLI flag).
+  deployReceiptProcessing:
+    app.node.tryGetContext('deployReceiptProcessing') === true ||
+    app.node.tryGetContext('deployReceiptProcessing') === 'true',
+  receiptBucketName: app.node.tryGetContext('receiptBucketName'),
+  receiptBucketAllowedOrigins: app.node.tryGetContext('receiptBucketAllowedOrigins'),
+  internalApiUrl: app.node.tryGetContext('internalApiUrl'),
+  internalApiKey: app.node.tryGetContext('internalApiKey'),
+
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT || process.env.AWS_ACCOUNT_ID,
     region: 'us-east-1',
