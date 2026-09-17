@@ -1,0 +1,31 @@
+# For the Pi. MariaDB and cloudflared stay native on the host (see
+# docs/redesign-plan.md); only the API runs in Docker here, with
+# network_mode: host so it can reach MariaDB over the real loopback and
+# cloudflared can reach it in turn.
+#
+# Usage (from this directory, on the Pi):
+#   cp .env.example .env   # fill in real values, never commit
+#
+#   Image built on a dev Mac and shipped over (see Dockerfile comment
+#   for why that's the recommended path) — `docker load` it first, then:
+#     docker compose -f docker-compose.prod.yml up -d
+#
+#   Building directly on the Pi instead: same image name, just add
+#   `--build` (needs the `build:` block below, which is intentionally
+#   left in for that case):
+#     docker compose -f docker-compose.prod.yml up -d --build
+services:
+  api:
+    image: costco-api:latest
+    build:
+      context: .
+      dockerfile: CostcoReceipts.Api/Dockerfile
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      # cloudflared's ingress (/etc/cloudflared/config.yml on the Pi)
+      # points at 127.0.0.1:8080 — this must match.
+      - Kestrel__Endpoints__Http__Url=http://127.0.0.1:8080
+    env_file:
+      - .env

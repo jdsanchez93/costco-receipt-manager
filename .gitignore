@@ -2,6 +2,9 @@
 node_modules/
 */node_modules/
 
+# Local-only operational notes (real infra identifiers — see docs/redesign-plan.md)
+docs/redesign-plan.local.md
+
 # Build outputs
 frontend/build/
 backend/dist/
@@ -64,9 +67,6 @@ Thumbs.db
 # Temporary folders
 tmp/
 temp/
-
-# Docker
-.dockerignore
 
 # Package manager lock files (keep one, ignore others)
 yarn.lock
