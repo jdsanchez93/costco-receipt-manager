@@ -2,6 +2,7 @@
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { CostcoReceiptsStack } from '../lib/costco-receipts-stack';
+import { NextFrontendStack } from '../lib/next-frontend-stack';
 
 const app = new cdk.App();
 
@@ -62,5 +63,26 @@ new CostcoReceiptsStack(app, 'CostcoReceiptsStack', {
   },
   description: 'Costco Receipt Management System - Serverless API with CDK (External DynamoDB)',
 });
+
+// The new .NET/Angular/MySQL stack's frontend. Deliberately its own stack —
+// see next-frontend-stack.ts's doc comment. Only touched by name
+// (`cdk deploy NextFrontendStack`), never by a bare `cdk deploy`, so it's
+// safe to always instantiate here without a feature flag.
+const nextFrontendDomainName = app.node.tryGetContext('nextFrontendDomainName');
+const nextFrontendAdditionalDomainNames = app.node.tryGetContext('nextFrontendAdditionalDomainNames');
+const nextFrontendApiOriginDomainName = app.node.tryGetContext('nextFrontendApiOriginDomainName');
+
+if (nextFrontendDomainName && nextFrontendApiOriginDomainName) {
+  new NextFrontendStack(app, 'NextFrontendStack', {
+    domainName: nextFrontendDomainName,
+    additionalDomainNames: nextFrontendAdditionalDomainNames,
+    apiOriginDomainName: nextFrontendApiOriginDomainName,
+    env: {
+      account: process.env.CDK_DEFAULT_ACCOUNT || process.env.AWS_ACCOUNT_ID,
+      region: 'us-east-1',
+    },
+    description: 'Costco Receipt Management System - next-gen frontend (Angular/CloudFront over the Pi tunnel)',
+  });
+}
 
 app.synth();
