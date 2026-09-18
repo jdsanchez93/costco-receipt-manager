@@ -1,5 +1,15 @@
 <section class="page">
-  <h1>Your receipts</h1>
+  <div class="page__head">
+    <h1>Your receipts</h1>
+    <button mat-button (click)="toggleUpload()">
+      <mat-icon>{{ uploadOpen() ? 'close' : 'add_photo_alternate' }}</mat-icon>
+      {{ uploadOpen() ? 'Cancel' : 'Upload receipt' }}
+    </button>
+  </div>
+
+  @if (uploadOpen()) {
+    <app-receipt-upload class="upload-panel" (uploaded)="onUploaded($event)" />
+  }
 
   @let s = state();
   @switch (s.kind) {
@@ -16,7 +26,12 @@
     }
     @case ('ok') {
       @if (s.data.length === 0) {
-        <p class="empty">You don't have any receipts yet.</p>
+        <div class="empty">
+          <p>You don't have any receipts yet.</p>
+          @if (!uploadOpen()) {
+            <button mat-flat-button (click)="toggleUpload()">Upload your first receipt</button>
+          }
+        </div>
       } @else {
         <mat-list>
           @for (m of s.data; track m.id) {

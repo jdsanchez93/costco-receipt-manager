@@ -127,4 +127,32 @@ describe('ReceiptsApi', () => {
     expect(req.request.method).toBe('GET');
     req.flush({ receiptId: 'abc', items: [], members: [], shareInfo: { createdAt: '', expiresAt: '' } });
   });
+
+  it('getUploadUrl POSTs { contentType } to the upload-url endpoint', () => {
+    api.getUploadUrl('image/png').subscribe();
+
+    const req = httpMock.expectOne('/api/receipts/get-upload-url');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ contentType: 'image/png' });
+    req.flush({ receiptId: 'abc123', uploadUrl: 'https://s3/x', expiresIn: 3600 });
+  });
+
+  it('uploadToS3 PUTs the file to the given URL with a matching Content-Type header', () => {
+    const file = new File(['x'], 'receipt.jpg', { type: 'image/jpeg' });
+    api.uploadToS3('https://s3.example.com/presigned', file, 'image/jpeg').subscribe();
+
+    const req = httpMock.expectOne('https://s3.example.com/presigned');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.headers.get('Content-Type')).toBe('image/jpeg');
+    expect(req.request.body).toBe(file);
+    req.flush(null);
+  });
+
+  it('getDownloadUrl issues GET /api/receipts/get-download-url/{id}', () => {
+    api.getDownloadUrl('abc123').subscribe();
+
+    const req = httpMock.expectOne('/api/receipts/get-download-url/abc123');
+    expect(req.request.method).toBe('GET');
+    req.flush({ downloadUrl: 'https://s3/x', expiresIn: 3600 });
+  });
 });

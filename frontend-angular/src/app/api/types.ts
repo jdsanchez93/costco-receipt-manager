@@ -133,6 +133,42 @@ export interface GeometryDto {
 }
 
 /**
+ * Body for POST /api/receipts/get-upload-url. Matches the backend
+ * GetUploadUrlRequest DTO. `contentType` defaults to image/jpeg on the
+ * backend when omitted; allowed values are image/jpeg, image/jpg,
+ * image/png, image/webp, image/heic, image/heif.
+ */
+export interface GetUploadUrlRequest {
+  contentType?: string;
+}
+
+/**
+ * Response from POST /api/receipts/get-upload-url. The backend creates the
+ * Receipt row and an owner ReceiptMember *before* returning this, so the
+ * receipt is already visible via getUserReceipts() even before the file is
+ * PUT to S3 or OCR has run. Mirrors the backend GetUploadUrlResponse.
+ */
+export interface GetUploadUrlResponse {
+  receiptId: string;
+  uploadUrl: string;
+  /** Seconds until `uploadUrl` expires. */
+  expiresIn: number;
+}
+
+/**
+ * Response from GET /api/receipts/get-download-url/{receiptId}. Mirrors
+ * the backend GetDownloadUrlResponse. Note the backend returns a presigned
+ * URL even for a receipt whose image was never actually uploaded to S3 —
+ * a failed image load doesn't distinguish "still processing" from
+ * "nothing there."
+ */
+export interface GetDownloadUrlResponse {
+  downloadUrl: string;
+  /** Seconds until `downloadUrl` expires. */
+  expiresIn: number;
+}
+
+/**
  * Public read-only payload for a shared receipt, from the anonymous
  * GET /api/receipts/shared/{shareToken}. Mirrors the backend
  * SharedReceiptResponse (api/CostcoReceipts.Api/Models/ReceiptDtos.cs).

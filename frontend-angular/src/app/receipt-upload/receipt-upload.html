@@ -1,0 +1,67 @@
+<div class="upload">
+  <div
+    class="dropzone"
+    [class.dropzone--active]="dragging()"
+    [class.dropzone--busy]="busy()"
+    (dragover)="onDragOver($event)"
+    (dragleave)="onDragLeave()"
+    (drop)="onDrop($event)"
+    (click)="fileInput.click()">
+    <mat-icon>cloud_upload</mat-icon>
+    <p class="dropzone__text">Drag receipt photos here, or <span class="dropzone__link">browse</span></p>
+    <p class="dropzone__hint">JPEG, PNG, WebP, or HEIC — up to 10MB each</p>
+    <input
+      #fileInput
+      type="file"
+      accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+      multiple
+      hidden
+      (change)="onFileInput($event)" />
+  </div>
+
+  @if (queue().length > 0) {
+    <ul class="queue">
+      @for (item of queue(); track item.id) {
+        <li class="queue-item" [class.queue-item--error]="item.status === 'error'">
+          <mat-icon class="queue-item__icon">
+            @switch (item.status) {
+              @case ('done') { check_circle }
+              @case ('error') { error }
+              @default { image }
+            }
+          </mat-icon>
+          <div class="queue-item__body">
+            <span class="queue-item__name">{{ item.file.name }}</span>
+            @if (item.status === 'error') {
+              <span class="queue-item__error">{{ item.error }}</span>
+            }
+          </div>
+          @if (item.status === 'uploading') {
+            <mat-spinner diameter="20" />
+          } @else if (item.status === 'error') {
+            <button mat-button (click)="retry(item.id)" [disabled]="busy()">Retry</button>
+          }
+          @if (item.status !== 'uploading') {
+            <button
+              mat-icon-button
+              aria-label="Remove file"
+              (click)="removeFromQueue(item.id)"
+              [disabled]="busy()">
+              <mat-icon>close</mat-icon>
+            </button>
+          }
+        </li>
+      }
+    </ul>
+
+    <div class="upload__actions">
+      <button mat-flat-button (click)="startUpload()" [disabled]="busy() || !hasQueued()">
+        @if (busy()) {
+          Uploading…
+        } @else {
+          Upload {{ queue().length }} receipt{{ queue().length === 1 ? '' : 's' }}
+        }
+      </button>
+    </div>
+  }
+</div>

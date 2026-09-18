@@ -49,6 +49,7 @@ describe('Receipt', () => {
     updateMemberRole: ReturnType<typeof vi.fn>;
     removeReceiptMember: ReturnType<typeof vi.fn>;
     getShares: ReturnType<typeof vi.fn>;
+    getDownloadUrl: ReturnType<typeof vi.fn>;
   };
   let snackSpy: { open: ReturnType<typeof vi.fn> };
 
@@ -77,6 +78,7 @@ describe('Receipt', () => {
       updateMemberRole: vi.fn(),
       removeReceiptMember: vi.fn(),
       getShares: vi.fn().mockReturnValue(of([])),
+      getDownloadUrl: vi.fn().mockReturnValue(of({ downloadUrl: 'https://s3/img.jpg', expiresIn: 3600 })),
     };
     snackSpy = { open: vi.fn() };
 
@@ -225,6 +227,8 @@ describe('Receipt', () => {
     });
     expect(fixture.nativeElement.querySelector('app-receipt-items')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('app-member-totals')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('app-receipt-image')).not.toBeNull();
+    expect(apiSpy.getDownloadUrl).toHaveBeenCalledWith('abc');
   });
 
   describe('bulk selection', () => {

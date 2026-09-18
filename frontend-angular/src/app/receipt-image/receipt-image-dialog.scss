@@ -1,0 +1,28 @@
+.dialog {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--mat-sys-surface);
+  line-height: 0;
+
+  img {
+    display: block;
+    max-width: 90vw;
+    max-height: 90vh;
+    object-fit: contain;
+  }
+
+  &__close {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: rgb(0 0 0 / 0.5);
+    color: white;
+    z-index: 1;
+
+    &:hover {
+      background: rgb(0 0 0 / 0.65);
+    }
+  }
+}

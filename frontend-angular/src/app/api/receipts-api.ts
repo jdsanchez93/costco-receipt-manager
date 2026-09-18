@@ -7,6 +7,8 @@ import {
   AddReceiptMemberRequest,
   CreateShareResponse,
   GeometryDto,
+  GetDownloadUrlResponse,
+  GetUploadUrlResponse,
   ItemAssignmentUpdate,
   ReceiptItemDto,
   ReceiptMemberDto,
@@ -184,6 +186,44 @@ export class ReceiptsApi {
   getSharedReceipt(shareToken: string): Observable<SharedReceiptResponse> {
     return this.http.get<SharedReceiptResponse>(
       `${this.base}/receipts/shared/${encodeURIComponent(shareToken)}`,
+    );
+  }
+
+  /**
+   * Request a presigned S3 PUT URL for a new receipt image. The backend
+   * creates the Receipt row and an owner ReceiptMember *before* returning,
+   * so the receipt is immediately visible via getUserReceipts() — callers
+   * don't need to wait on OCR. Backend: POST /api/receipts/get-upload-url
+   * with body { contentType? } (defaults to image/jpeg). 400 { error } for
+   * an unsupported content type.
+   */
+  getUploadUrl(contentType?: string): Observable<GetUploadUrlResponse> {
+    return this.http.post<GetUploadUrlResponse>(`${this.base}/receipts/get-upload-url`, {
+      contentType,
+    });
+  }
+
+  /**
+   * PUT a file directly to S3 using a presigned URL from getUploadUrl().
+   * Unlike every other method here, this doesn't hit `base` — it's a
+   * different origin (the S3 bucket), so the Auth0 interceptor's
+   * `allowedList` never matches it and no bearer token is attached.
+   */
+  uploadToS3(uploadUrl: string, file: File, contentType: string): Observable<void> {
+    return this.http.put<void>(uploadUrl, file, {
+      headers: { 'Content-Type': contentType },
+    });
+  }
+
+  /**
+   * Get a presigned S3 GET URL for a receipt's image. Requires the caller
+   * to hold the ReceiptMember policy (owner or editor). Backend:
+   * GET /api/receipts/get-download-url/{receiptId}. 404 { error } if the
+   * receipt doesn't exist.
+   */
+  getDownloadUrl(receiptId: string): Observable<GetDownloadUrlResponse> {
+    return this.http.get<GetDownloadUrlResponse>(
+      `${this.base}/receipts/get-download-url/${encodeURIComponent(receiptId)}`,
     );
   }
 }

@@ -18,6 +18,8 @@
       </div>
     }
     @case ('ok') {
+      <app-receipt-image class="image" [receiptId]="s.data.receiptId" />
+
       <app-receipt-stats
         class="stats"
         [itemCount]="s.data.items.length"
