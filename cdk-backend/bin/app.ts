@@ -3,6 +3,7 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { CostcoReceiptsStack } from '../lib/costco-receipts-stack';
 import { NextFrontendStack } from '../lib/next-frontend-stack';
+import { DevReceiptProcessingStack } from '../lib/dev-receipt-processing-stack';
 
 const app = new cdk.App();
 
@@ -82,6 +83,42 @@ if (nextFrontendDomainName && nextFrontendApiOriginDomainName) {
       region: 'us-east-1',
     },
     description: 'Costco Receipt Management System - next-gen frontend (Angular/CloudFront over the Pi tunnel)',
+  });
+}
+
+// Dev-environment receipt-image bucket + OCR processor Lambda. Its own
+// stack, not a full "dev CostcoReceiptsStack" — see
+// dev-receipt-processing-stack.ts's doc comment. Only touched by name
+// (`cdk deploy DevReceiptProcessingStack`), same as NextFrontendStack.
+const devReceiptBucketName = app.node.tryGetContext('devReceiptBucketName');
+const devInternalApiUrl = app.node.tryGetContext('devInternalApiUrl');
+const devInternalApiKey = app.node.tryGetContext('devInternalApiKey');
+
+if (devReceiptBucketName && devInternalApiUrl && devInternalApiKey) {
+  new DevReceiptProcessingStack(app, 'DevReceiptProcessingStack', {
+    receiptBucketName: devReceiptBucketName,
+    receiptBucketAllowedOrigins: app.node.tryGetContext('devReceiptBucketAllowedOrigins')
+      || ['http://localhost:4200'],
+    internalApiUrl: devInternalApiUrl,
+    internalApiKey: devInternalApiKey,
+    // Default false — see costco-receipt-processor's script-prefix work
+    // in docs/redesign-plan.md before ever setting this true: today the
+    // local-invoke script's uploads share the same `uploads/` prefix the
+    // trigger watches, so turning this on before that script is updated
+    // means every local-invoke test run also double-fires the real
+    // trigger against the tunnel.
+    attachTrigger: contextFlag('devAttachReceiptProcessorTrigger'),
+    // True only for the one-time bootstrap deploy before dev-costco-
+    // receipt-images has been cdk import'ed into this stack — see
+    // addReceiptProcessing's doc comment. Pass via `-c
+    // devAdoptExistingBucket=true`, not cdk.context.json, since it's a
+    // one-shot flag for a single deploy, not a durable setting.
+    adoptExisting: contextFlag('devAdoptExistingBucket'),
+    env: {
+      account: process.env.CDK_DEFAULT_ACCOUNT || process.env.AWS_ACCOUNT_ID,
+      region: 'us-east-1',
+    },
+    description: 'Costco Receipt Management System - dev receipt processing',
   });
 }
 

@@ -3,14 +3,13 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
-import * as s3n from 'aws-cdk-lib/aws-s3-notifications';
-import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import { Construct } from 'constructs';
+import { addReceiptProcessing } from './receipt-processing';
 
 export interface CostcoReceiptsStackProps extends cdk.StackProps {
   // Required DynamoDB table name from external stack
@@ -55,7 +54,7 @@ export class CostcoReceiptsStack extends cdk.Stack {
   public readonly api: apigateway.RestApi;
   public readonly frontendBucket?: s3.Bucket;
   public readonly distribution?: cloudfront.Distribution;
-  public readonly receiptBucket?: s3.Bucket;
+  public readonly receiptBucket?: s3.IBucket;
   public readonly receiptProcessorFunction?: lambda.Function;
 
   constructor(scope: Construct, id: string, props: CostcoReceiptsStackProps) {
@@ -123,23 +122,15 @@ export class CostcoReceiptsStack extends cdk.Stack {
         || this.node.tryGetContext('receiptBucketAllowedOrigins')
         || ['http://localhost:3000', 'https://localhost:3000'];
 
-      this.receiptBucket = this.createReceiptBucket(receiptBucketName, receiptBucketAllowedOrigins);
-      this.receiptProcessorFunction = this.createReceiptProcessorFunction(
-        this.receiptBucket,
+      const { receiptBucket, receiptProcessorFunction } = addReceiptProcessing(this, {
+        receiptBucketName,
+        receiptBucketAllowedOrigins,
         internalApiUrl,
-        internalApiKey
-      );
-
-      // Deliberately separate from deployReceiptProcessing — see the prop's
-      // doc comment. Without this, the Lambda is deployed and manually
-      // invokable but S3 uploads won't trigger it automatically.
-      if (attachReceiptProcessorTrigger) {
-        this.receiptBucket.addEventNotification(
-          s3.EventType.OBJECT_CREATED,
-          new s3n.LambdaDestination(this.receiptProcessorFunction),
-          { prefix: 'uploads/' }
-        );
-      }
+        internalApiKey,
+        attachTrigger: attachReceiptProcessorTrigger,
+      });
+      this.receiptBucket = receiptBucket;
+      this.receiptProcessorFunction = receiptProcessorFunction;
     }
 
     // Outputs
@@ -260,85 +251,6 @@ export class CostcoReceiptsStack extends cdk.Stack {
       encryption: s3.BucketEncryption.S3_MANAGED,
       versioned: true,
     });
-  }
-
-  private createReceiptBucket(bucketName: string, allowedOrigins: string[]): s3.Bucket {
-    // Mirrors costco-receipt-parser/template.yaml's ReceiptImageBucket
-    // exactly, since this construct is meant to be adopted via `cdk import`
-    // against the real bucket, not created fresh. RETAIN is deliberate:
-    // this bucket holds real user-uploaded receipt images.
-    return new s3.Bucket(this, 'ReceiptImageBucket', {
-      bucketName,
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
-      cors: [
-        {
-          allowedHeaders: ['*'],
-          allowedMethods: [
-            s3.HttpMethods.GET,
-            s3.HttpMethods.PUT,
-            s3.HttpMethods.POST,
-            s3.HttpMethods.DELETE,
-            s3.HttpMethods.HEAD,
-          ],
-          allowedOrigins,
-          exposedHeaders: ['ETag', 'x-amz-meta-custom-header'],
-          maxAge: 3000,
-        },
-      ],
-      blockPublicAccess: new s3.BlockPublicAccess({
-        blockPublicAcls: false,
-        blockPublicPolicy: false,
-        ignorePublicAcls: false,
-        restrictPublicBuckets: false,
-      }),
-    });
-  }
-
-  private createReceiptProcessorFunction(
-    bucket: s3.IBucket,
-    internalApiUrl: string,
-    internalApiKey: string
-  ): lambda.Function {
-    const dlq = new sqs.Queue(this, 'ReceiptProcessingDLQ', {
-      queueName: `${this.stackName}-processing-dlq`,
-      retentionPeriod: cdk.Duration.days(14),
-    });
-
-    const processorFunction = new lambda.Function(this, 'ReceiptProcessorFunction', {
-      functionName: `${this.stackName}-receipt-processor`,
-      runtime: lambda.Runtime.PYTHON_3_13,
-      architecture: lambda.Architecture.X86_64,
-      code: lambda.Code.fromAsset('receipt-processor', {
-        bundling: {
-          image: lambda.Runtime.PYTHON_3_13.bundlingImage,
-          command: [
-            'bash',
-            '-c',
-            'pip install -r requirements.txt -t /asset-output && cp -au . /asset-output',
-          ],
-        },
-      }),
-      handler: 'app.lambda_handler',
-      timeout: cdk.Duration.seconds(60),
-      environment: {
-        INTERNAL_API_URL: internalApiUrl,
-        INTERNAL_API_KEY: internalApiKey,
-      },
-      deadLetterQueue: dlq,
-      retryAttempts: 0,
-      description: 'Runs Textract OCR on newly uploaded receipts and bridges results into MySQL via the internal API',
-    });
-
-    // Read access to uploaded images, and Textract, matching
-    // ReceiptProcessorFunction's IAM policy in template.yaml (tightened
-    // to the uploads/ prefix, since that's all it ever reads).
-    bucket.grantRead(processorFunction, 'uploads/*');
-    processorFunction.addToRolePolicy(new iam.PolicyStatement({
-      actions: ['textract:DetectDocumentText'],
-      resources: ['*'],
-    }));
-
-    return processorFunction;
   }
 
   private createCloudFrontDistribution(customDomainName?: string, certificateArn?: string): cloudfront.Distribution {
