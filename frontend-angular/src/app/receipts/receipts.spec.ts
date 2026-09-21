@@ -55,26 +55,16 @@ describe('Receipts', () => {
   });
 
   describe('onUploaded', () => {
-    it('closes the panel, refreshes the list, and navigates when exactly one receipt was uploaded', () => {
+    it('closes the panel, refreshes the list, and navigates to the new receipt', () => {
       setup(of([]));
       const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
       component.toggleUpload();
 
-      component.onUploaded(['r1']);
+      component.onUploaded('r1');
 
       expect(component.uploadOpen()).toBe(false);
-      expect(getUserReceipts).toHaveBeenCalledTimes(2); // init + post-upload refresh
+      expect(getUserReceipts).toHaveBeenCalledTimes(1); // init load only — no redundant refresh before navigating away
       expect(navigateSpy).toHaveBeenCalledWith(['/app/receipts', 'r1']);
-    });
-
-    it('does not navigate when multiple receipts were uploaded', () => {
-      setup(of([]));
-      const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
-
-      component.onUploaded(['r1', 'r2']);
-
-      expect(navigateSpy).not.toHaveBeenCalled();
-      expect(getUserReceipts).toHaveBeenCalledTimes(2);
     });
   });
 });

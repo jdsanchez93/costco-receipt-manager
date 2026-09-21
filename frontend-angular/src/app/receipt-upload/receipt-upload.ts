@@ -6,13 +6,11 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { ReceiptsApi } from '../api/receipts-api';
 
-type UploadItemStatus = 'queued' | 'uploading' | 'done' | 'error';
+type SelectionStatus = 'ready' | 'uploading' | 'error';
 
-interface UploadItem {
-  id: number;
+interface Selection {
   file: File;
-  status: UploadItemStatus;
-  receiptId?: string;
+  status: SelectionStatus;
   error?: string;
 }
 
@@ -27,16 +25,15 @@ const ACCEPTED_TYPES = [
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 
 /**
- * Drag-and-drop (or click-to-browse) receipt upload. Queues one or more
- * image files, then uploads them **sequentially** — mirrors the old React
- * `ReceiptUpload.tsx`, and keeps per-file progress unambiguous rather than
- * juggling N concurrent progress states.
+ * Drag-and-drop (or click-to-browse) receipt upload for a single image at a
+ * time — real usage was always one receipt per upload, so this skips the
+ * multi-file queue the old React `ReceiptUpload.tsx` had.
  *
- * Each file goes through `getUploadUrl()` (which creates the Receipt row
+ * The file goes through `getUploadUrl()` (which creates the Receipt row
  * server-side) then a raw PUT to the returned presigned S3 URL — the S3
  * origin never matches the Auth0 interceptor's `allowedList`, so no bearer
- * token leaks into that request. Emits `uploaded` with the receiptIds of
- * every file that made it to S3 so the parent can refresh its list; OCR
+ * token leaks into that request. Emits `uploaded` with the receiptId once it
+ * lands in S3 so the parent can refresh its list and navigate to it; OCR
  * results land later and aren't waited on here.
  */
 @Component({
@@ -49,14 +46,12 @@ export class ReceiptUpload {
   private api = inject(ReceiptsApi);
   private snackBar = inject(MatSnackBar);
 
-  readonly uploaded = output<string[]>();
+  readonly uploaded = output<string>();
 
-  private nextId = 0;
-  queue = signal<UploadItem[]>([]);
+  selection = signal<Selection | null>(null);
   dragging = signal(false);
-  busy = signal(false);
 
-  hasQueued = computed(() => this.queue().some(i => i.status === 'queued'));
+  busy = computed(() => this.selection()?.status === 'uploading');
 
   onDragOver(event: DragEvent): void {
     event.preventDefault();
@@ -71,107 +66,65 @@ export class ReceiptUpload {
     event.preventDefault();
     this.dragging.set(false);
     if (this.busy() || !event.dataTransfer?.files) return;
-    this.enqueue(event.dataTransfer.files);
+    this.select(event.dataTransfer.files);
   }
 
   onFileInput(event: Event): void {
     const input = event.target as HTMLInputElement;
-    if (input.files) this.enqueue(input.files);
+    if (input.files) this.select(input.files);
     input.value = '';
   }
 
-  private enqueue(files: FileList): void {
-    const items: UploadItem[] = [];
-    for (const file of Array.from(files)) {
-      if (!ACCEPTED_TYPES.includes(file.type)) {
-        this.snackBar.open(`${file.name}: unsupported file type.`, 'Dismiss', { duration: 4000 });
-        continue;
-      }
-      if (file.size > MAX_SIZE_BYTES) {
-        this.snackBar.open(`${file.name}: file is larger than 10MB.`, 'Dismiss', { duration: 4000 });
-        continue;
-      }
-      items.push({ id: this.nextId++, file, status: 'queued' });
-    }
-    if (items.length > 0) this.queue.update(q => [...q, ...items]);
-  }
-
-  removeFromQueue(id: number): void {
-    if (this.busy()) return;
-    this.queue.update(q => q.filter(i => i.id !== id));
-  }
-
-  retry(id: number): void {
-    if (this.busy()) return;
-    this.setStatus(id, 'queued', { error: undefined });
-  }
-
-  startUpload(): void {
-    if (this.busy() || !this.hasQueued()) return;
-    this.busy.set(true);
-    this.uploadNext();
-  }
-
-  private uploadNext(): void {
-    const next = this.queue().find(i => i.status === 'queued');
-    if (!next) {
-      this.finishBatch();
-      return;
-    }
-
-    this.setStatus(next.id, 'uploading');
-    const contentType = next.file.type || 'image/jpeg';
-
-    this.api.getUploadUrl(contentType).subscribe({
-      next: ({ receiptId, uploadUrl }) => {
-        this.api.uploadToS3(uploadUrl, next.file, contentType).subscribe({
-          next: () => {
-            this.setStatus(next.id, 'done', { receiptId });
-            this.uploadNext();
-          },
-          error: () => {
-            this.setStatus(next.id, 'error', { error: 'Upload to storage failed.' });
-            this.uploadNext();
-          },
-        });
-      },
-      error: err => {
-        this.setStatus(next.id, 'error', {
-          error: this.errorText(err, 'Could not start upload.'),
-        });
-        this.uploadNext();
-      },
-    });
-  }
-
-  private setStatus(id: number, status: UploadItemStatus, extra: Partial<UploadItem> = {}): void {
-    this.queue.update(q => q.map(i => (i.id === id ? { ...i, status, ...extra } : i)));
-  }
-
-  private finishBatch(): void {
-    this.busy.set(false);
-    const finished = this.queue();
-    const done = finished.filter(i => i.status === 'done');
-    const failed = finished.filter(i => i.status === 'error');
-
-    if (done.length > 0) {
+  private select(files: FileList): void {
+    if (files.length === 0) return;
+    if (files.length > 1) {
       this.snackBar.open(
-        `Uploaded ${done.length} receipt${done.length === 1 ? '' : 's'}.`,
-        'Dismiss',
-        { duration: 3000 },
-      );
-      this.uploaded.emit(done.map(i => i.receiptId!));
-    }
-    if (failed.length > 0) {
-      this.snackBar.open(
-        `${failed.length} upload${failed.length === 1 ? '' : 's'} failed.`,
+        'Only one receipt can be uploaded at a time — using the first file.',
         'Dismiss',
         { duration: 4000 },
       );
     }
 
-    // Drop completed items; keep failed ones queued for retry/removal.
-    this.queue.update(q => q.filter(i => i.status !== 'done'));
+    const file = files[0];
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      this.snackBar.open(`${file.name}: unsupported file type.`, 'Dismiss', { duration: 4000 });
+      return;
+    }
+    if (file.size > MAX_SIZE_BYTES) {
+      this.snackBar.open(`${file.name}: file is larger than 10MB.`, 'Dismiss', { duration: 4000 });
+      return;
+    }
+    this.selection.set({ file, status: 'ready' });
+  }
+
+  clear(): void {
+    if (this.busy()) return;
+    this.selection.set(null);
+  }
+
+  startUpload(): void {
+    const current = this.selection();
+    if (!current || this.busy()) return;
+    this.selection.set({ ...current, status: 'uploading', error: undefined });
+
+    const contentType = current.file.type || 'image/jpeg';
+    this.api.getUploadUrl(contentType).subscribe({
+      next: ({ receiptId, uploadUrl }) => {
+        this.api.uploadToS3(uploadUrl, current.file, contentType).subscribe({
+          next: () => {
+            this.selection.set(null);
+            this.uploaded.emit(receiptId);
+          },
+          error: () => this.fail(current.file, 'Upload to storage failed.'),
+        });
+      },
+      error: err => this.fail(current.file, this.errorText(err, 'Could not start upload.')),
+    });
+  }
+
+  private fail(file: File, error: string): void {
+    this.selection.set({ file, status: 'error', error });
+    this.snackBar.open('Upload failed.', 'Dismiss', { duration: 4000 });
   }
 
   private errorText(err: unknown, fallback: string): string {

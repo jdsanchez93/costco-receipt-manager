@@ -51,17 +51,9 @@ export class Receipts {
     this.uploadOpen.update(v => !v);
   }
 
-  /**
-   * The upload panel finished a batch. Refresh the list either way (new
-   * receipts are visible immediately, before OCR runs); with exactly one
-   * upload, jump straight to it rather than making the user find it in the
-   * refreshed list.
-   */
-  onUploaded(receiptIds: string[]): void {
+  /** The upload finished — close the panel and jump straight to the new receipt. */
+  onUploaded(receiptId: string): void {
     this.uploadOpen.set(false);
-    this.load();
-    if (receiptIds.length === 1) {
-      this.router.navigate(['/app/receipts', receiptIds[0]]);
-    }
+    this.router.navigate(['/app/receipts', receiptId]);
   }
 }
