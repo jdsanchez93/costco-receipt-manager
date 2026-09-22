@@ -1,5 +1,5 @@
 import { CurrencyPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatIconModule } from '@angular/material/icon';
@@ -7,12 +7,17 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '@auth0/auth0-angular';
-import { forkJoin, map } from 'rxjs';
+import { forkJoin, map, timer } from 'rxjs';
 
 import { ReceiptsApi } from '../api/receipts-api';
-import { ItemAssignmentUpdate, ReceiptMemberDto, SubtotalMatchDto } from '../api/types';
+import {
+  ItemAssignmentUpdate,
+  ReceiptMemberDto,
+  ReceiptProcessingStatus,
+  SubtotalMatchDto,
+} from '../api/types';
 import { MemberTotals } from '../member-totals/member-totals';
 import { ReceiptImage } from '../receipt-image/receipt-image';
 import { ReceiptItems } from '../receipt-items/receipt-items';
@@ -26,7 +31,14 @@ export interface ReceiptDetailData {
   members: ReceiptMemberDto[];
   items: EnrichedItem[];
   subtotalMatch: SubtotalMatchDto;
+  processingStatus: ReceiptProcessingStatus;
 }
+
+// Bounded exponential backoff while OCR is still running: 2s, 4s, 8s, 16s,
+// 32s, 64s — about two minutes total before giving up and waiting for the
+// user to ask again via the "Check again" button.
+const MAX_POLL_ATTEMPTS = 6;
+const POLL_BASE_DELAY_MS = 2000;
 
 @Component({
   selector: 'app-receipt',
@@ -53,9 +65,14 @@ export class Receipt {
   private route = inject(ActivatedRoute);
   private snackBar = inject(MatSnackBar);
   private auth = inject(AuthService);
+  private destroyRef = inject(DestroyRef);
 
   readonly receiptId = this.route.snapshot.paramMap.get('receiptId') ?? '';
   state = signal<Loadable<ReceiptDetailData>>({ kind: 'loading' });
+
+  /** Poll attempts used up while `processingStatus` is 'pending'. */
+  pollAttempts = signal(0);
+  pollExhausted = computed(() => this.pollAttempts() >= MAX_POLL_ATTEMPTS);
 
   /** Auth0 `sub` of the signed-in user, or null before the profile resolves. */
   private currentUserId = toSignal(
@@ -112,15 +129,31 @@ export class Receipt {
     else this.state.set({ kind: 'error', message: 'Missing receipt id.' });
   }
 
+  /** Full reload, from a blank slate — used on first mount and "Check again". */
   load(): void {
+    this.pollAttempts.set(0);
     this.state.set({ kind: 'loading' });
+    this.fetch(true);
+  }
 
+  /**
+   * Fetches the receipt summary alongside items/members/geometry and applies
+   * the result. While OCR is still running (`processingStatus === 'pending'`),
+   * the items/geometry endpoints legitimately return empty — schedule another
+   * attempt with exponential backoff instead of leaving the page looking broken.
+   *
+   * On a poll (not `isInitialLoad`), a transient error is swallowed and just
+   * retried on the next scheduled attempt rather than replacing the
+   * already-rendered "processing" panel with a hard error.
+   */
+  private fetch(isInitialLoad: boolean): void {
     forkJoin({
+      summary: this.api.getReceipt(this.receiptId),
       items: this.api.getReceiptItems(this.receiptId),
       members: this.api.getReceiptMembers(this.receiptId),
       geometry: this.api.getReceiptGeometry(this.receiptId),
     }).subscribe({
-      next: ({ items, members, geometry }) => {
+      next: ({ summary, items, members, geometry }) => {
         this.state.set({
           kind: 'ok',
           data: {
@@ -128,14 +161,31 @@ export class Receipt {
             members,
             items: enrichItems(items, members),
             subtotalMatch: geometry.subtotalMatch,
+            processingStatus: summary.processingStatus,
           },
         });
+        if (summary.processingStatus === 'pending') this.schedulePoll();
       },
-      error: err => this.state.set({
-        kind: 'error',
-        message: err?.message ?? 'Failed to load receipt.',
-      }),
+      error: err => {
+        if (!isInitialLoad) {
+          this.schedulePoll();
+          return;
+        }
+        this.state.set({
+          kind: 'error',
+          message: err?.message ?? 'Failed to load receipt.',
+        });
+      },
     });
+  }
+
+  private schedulePoll(): void {
+    if (this.pollAttempts() >= MAX_POLL_ATTEMPTS) return;
+    const delay = POLL_BASE_DELAY_MS * 2 ** this.pollAttempts();
+    this.pollAttempts.update(n => n + 1);
+    timer(delay)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.fetch(false));
   }
 
   /**

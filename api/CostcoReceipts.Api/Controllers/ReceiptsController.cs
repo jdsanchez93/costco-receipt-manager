@@ -92,6 +92,7 @@ public class ReceiptsController : ControllerBase
             ReceiptId = receiptId,
             OwnerUserId = userId,
             CreatedAt = now,
+            ProcessingStatus = ReceiptProcessingStatus.Pending,
         });
         _db.ReceiptMembers.Add(new ReceiptMember
         {
@@ -179,6 +180,16 @@ public class ReceiptsController : ControllerBase
     // ============================================================
     // Per-receipt scalar operations
     // ============================================================
+
+    [HttpGet("receipt/{receiptId}")]
+    [Authorize(Policy = ReceiptPolicies.Member)]
+    public async Task<IActionResult> GetReceipt(string receiptId, CancellationToken ct)
+    {
+        var receipt = await _db.Receipts.AsNoTracking().FirstOrDefaultAsync(r => r.ReceiptId == receiptId, ct);
+        if (receipt is null) return NotFound(new { error = "Receipt not found" });
+
+        return Ok(ReceiptSummaryDto.From(receipt));
+    }
 
     [HttpGet("receipt/{receiptId}/geometry")]
     [Authorize(Policy = ReceiptPolicies.Member)]

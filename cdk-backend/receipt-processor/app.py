@@ -63,9 +63,8 @@ def lambda_handler(event, context):
 
     bucket = event['Records'][0]['s3']['bucket']['name']
     key = urllib.parse.unquote_plus(event['Records'][0]['s3']['object']['key'], encoding='utf-8')
+    receipt_id = None
     try:
-        receipt_items, special_fields = get_receipt_data_from_s3(bucket, key)
-
         # Extract receipt_id from key (expected format: uploads/{user_id}/{receipt_id}.jpg).
         # user_id is no longer needed downstream — the .NET API already
         # knows the receipt's owner from when the upload URL was issued.
@@ -74,6 +73,8 @@ def lambda_handler(event, context):
             receipt_id = parts[2].rsplit('.', 1)[0]  # strip file extension
         else:
             raise ValueError(f"Unexpected S3 key format: {key}")
+
+        receipt_items, special_fields = get_receipt_data_from_s3(bucket, key)
 
         payload = {
             'items': _build_items_payload(receipt_items),
@@ -94,4 +95,17 @@ def lambda_handler(event, context):
     except Exception as e:
         print('Error:')
         print(e)
+        # Best-effort — a receipt stuck on "pending" is a worse UX than one
+        # that reads "failed" incorrectly if even this call doesn't land, and
+        # the exception below still surfaces the real failure via the DLQ.
+        if receipt_id and INTERNAL_API_URL:
+            try:
+                requests.post(
+                    f"{INTERNAL_API_URL}/api/internal/receipts/{receipt_id}/ocr-failed",
+                    headers={'X-Internal-Api-Key': INTERNAL_API_KEY},
+                    timeout=10,
+                ).raise_for_status()
+            except Exception as report_err:
+                print('Failed to report OCR failure to the API:')
+                print(report_err)
         raise e

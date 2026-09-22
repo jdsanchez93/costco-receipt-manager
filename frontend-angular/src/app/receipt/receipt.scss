@@ -74,6 +74,37 @@
   margin: 0 0 0.75rem;
 }
 
+.processing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--mat-sys-on-surface-variant);
+
+  mat-icon {
+    font-size: 2rem;
+    width: 2rem;
+    height: 2rem;
+  }
+
+  &--failed mat-icon {
+    color: var(--mat-sys-error);
+  }
+
+  &__text {
+    margin: 0.25rem 0 0;
+    font: var(--mat-sys-body-large);
+    color: var(--mat-sys-on-surface);
+  }
+
+  &__hint {
+    margin: 0;
+    font: var(--mat-sys-label-medium);
+  }
+}
+
 .items__toolbar {
   display: flex;
   align-items: center;

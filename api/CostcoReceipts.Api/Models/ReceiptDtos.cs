@@ -64,6 +64,27 @@ public class ReceiptMemberDto
     };
 }
 
+/// <summary>
+/// Receipt-level metadata — currently just enough for the frontend to know
+/// whether OCR has finished, without tacking a receipt-lifecycle field onto
+/// an unrelated sub-resource (members, items, geometry). Also the natural
+/// home for future receipt-level fields (e.g. a nickname, see redesign-plan.md).
+/// </summary>
+public class ReceiptSummaryDto
+{
+    public string ReceiptId { get; set; } = string.Empty;
+    /// <summary>One of <see cref="ReceiptProcessingStatus"/>.</summary>
+    public string ProcessingStatus { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+
+    public static ReceiptSummaryDto From(Receipt r) => new()
+    {
+        ReceiptId = r.ReceiptId,
+        ProcessingStatus = r.ProcessingStatus,
+        CreatedAt = r.CreatedAt,
+    };
+}
+
 // ---- Geometry (unchanged) ----
 
 public class GeometryDto

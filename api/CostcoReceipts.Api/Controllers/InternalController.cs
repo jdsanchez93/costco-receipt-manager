@@ -112,8 +112,27 @@ public class InternalController : ControllerBase
             });
         }
 
+        receipt.ProcessingStatus = ReceiptProcessingStatus.Completed;
         await _db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// The Lambda reports here when it caught an exception (Textract failure,
+    /// parse failure, etc) instead of silently leaving the receipt stuck on
+    /// "pending" forever. Called from its top-level except block, before it
+    /// re-raises for CloudWatch/DLQ visibility.
+    /// </summary>
+    [HttpPost("{receiptId}/ocr-failed")]
+    public async Task<IActionResult> PostOcrFailed(string receiptId, CancellationToken ct)
+    {
+        var receipt = await _db.Receipts.FindAsync([receiptId], ct);
+        if (receipt is null) return NotFound(new { error = "Receipt not found" });
+
+        receipt.ProcessingStatus = ReceiptProcessingStatus.Failed;
+        await _db.SaveChangesAsync(ct);
 
         return NoContent();
     }

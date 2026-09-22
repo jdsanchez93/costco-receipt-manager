@@ -7,7 +7,14 @@ import { Observable, of, throwError } from 'rxjs';
 
 import { Receipt } from './receipt';
 import { ReceiptsApi } from '../api/receipts-api';
-import { ReceiptItemDto, ReceiptMemberDto } from '../api/types';
+import { ReceiptItemDto, ReceiptMemberDto, ReceiptSummaryDto } from '../api/types';
+
+const summary = (extra: Partial<ReceiptSummaryDto> = {}): ReceiptSummaryDto => ({
+  receiptId: 'abc',
+  processingStatus: 'completed',
+  createdAt: '2026-01-01T00:00:00Z',
+  ...extra,
+});
 
 const member = (id: number, displayName: string, extra: Partial<ReceiptMemberDto> = {}): ReceiptMemberDto => ({
   id,
@@ -40,6 +47,7 @@ describe('Receipt', () => {
   let fixture: ComponentFixture<Receipt>;
   let component: Receipt;
   let apiSpy: {
+    getReceipt: ReturnType<typeof vi.fn>;
     getReceiptItems: ReturnType<typeof vi.fn>;
     getReceiptMembers: ReturnType<typeof vi.fn>;
     getReceiptGeometry: ReturnType<typeof vi.fn>;
@@ -55,6 +63,7 @@ describe('Receipt', () => {
 
   function setup(opts: {
     receiptId?: string | null;
+    summary?: Observable<ReceiptSummaryDto>;
     items?: Observable<ReceiptItemDto[]>;
     members?: Observable<ReceiptMemberDto[]>;
     user?: Observable<{ sub?: string } | undefined>;
@@ -63,6 +72,7 @@ describe('Receipt', () => {
   }): void {
     const receiptId = 'receiptId' in opts ? opts.receiptId : 'abc';
     apiSpy = {
+      getReceipt: vi.fn().mockReturnValue(opts.summary ?? of(summary())),
       getReceiptItems: vi.fn().mockReturnValue(opts.items ?? of([])),
       getReceiptMembers: vi.fn().mockReturnValue(opts.members ?? of([])),
       getReceiptGeometry: vi.fn().mockReturnValue(
@@ -383,6 +393,67 @@ describe('Receipt', () => {
       });
       expect(component.canManageShares()).toBe(false);
       expect(fixture.nativeElement.querySelector('app-receipt-shares')).toBeNull();
+    });
+  });
+
+  describe('OCR processing status', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('schedules a poll while pending, and applies the result once it completes', () => {
+      vi.useFakeTimers();
+      setup({ items: of([]), summary: of(summary({ processingStatus: 'pending' })) });
+
+      let s = component.state() as { kind: 'ok'; data: { processingStatus: string } };
+      expect(s.data.processingStatus).toBe('pending');
+      expect(component.pollAttempts()).toBe(1);
+
+      apiSpy.getReceiptItems.mockReturnValue(of([item(10, 'Milk', 3.99)]));
+      apiSpy.getReceipt.mockReturnValue(of(summary({ processingStatus: 'completed' })));
+
+      vi.advanceTimersByTime(2000); // the first poll's delay
+
+      s = component.state() as { kind: 'ok'; data: { processingStatus: string } };
+      expect(s.data.processingStatus).toBe('completed');
+      expect((s as any).data.items.length).toBe(1);
+      expect(apiSpy.getReceipt).toHaveBeenCalledTimes(2); // initial load + one poll
+    });
+
+    it('gives up after the max number of attempts, leaving pollExhausted() true', () => {
+      vi.useFakeTimers();
+      setup({ items: of([]), summary: of(summary({ processingStatus: 'pending' })) });
+
+      // 2s + 4s + 8s + 16s + 32s + 64s = 126s covers all 6 scheduled attempts.
+      vi.advanceTimersByTime(200_000);
+
+      expect(component.pollAttempts()).toBe(6);
+      expect(component.pollExhausted()).toBe(true);
+      expect(apiSpy.getReceipt).toHaveBeenCalledTimes(7); // initial load + 6 polls
+    });
+
+    it('does not poll when processingStatus is failed', () => {
+      vi.useFakeTimers();
+      setup({ items: of([]), summary: of(summary({ processingStatus: 'failed' })) });
+
+      vi.advanceTimersByTime(200_000);
+
+      expect(component.pollAttempts()).toBe(0);
+      expect(apiSpy.getReceipt).toHaveBeenCalledTimes(1);
+    });
+
+    it('load() restarts the backoff from the first attempt instead of continuing it', () => {
+      vi.useFakeTimers();
+      setup({ items: of([]), summary: of(summary({ processingStatus: 'pending' })) });
+
+      vi.advanceTimersByTime(2000); // one poll fires and reschedules
+      expect(component.pollAttempts()).toBe(2);
+
+      // load() resets the counter before its own (synchronous, in this test)
+      // fetch reschedules — so this should land back on the first attempt,
+      // not continue counting up from where the old backoff left off.
+      component.load();
+      expect(component.pollAttempts()).toBe(1);
     });
   });
 

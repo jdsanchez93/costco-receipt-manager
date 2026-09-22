@@ -6,6 +6,24 @@
 export type ReceiptRole = 'owner' | 'editor';
 
 /**
+ * A receipt's OCR processing status, set to 'pending' when the upload URL is
+ * issued and flipped to 'completed' or 'failed' once the receipt-processor
+ * Lambda reports in. Mirrors the backend ReceiptProcessingStatus constants.
+ */
+export type ReceiptProcessingStatus = 'pending' | 'completed' | 'failed';
+
+/**
+ * Receipt-level metadata — currently just enough to know whether OCR has
+ * finished. Mirrors the backend ReceiptSummaryDto.
+ */
+export interface ReceiptSummaryDto {
+  receiptId: string;
+  processingStatus: ReceiptProcessingStatus;
+  /** ISO-8601 timestamp. */
+  createdAt: string;
+}
+
+/**
  * One person's membership on one receipt. Identity fields (userId,
  * displayName, email) come through the linked Contact on the backend but
  * are projected flat into this shape for the client.

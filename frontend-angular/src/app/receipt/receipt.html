@@ -39,70 +39,87 @@
       }
 
       <section class="items">
-        <h2>Items ({{ s.data.items.length }})</h2>
+        @if (s.data.processingStatus === 'pending') {
+          <div class="processing">
+            <mat-spinner diameter="32" />
+            <p class="processing__text">Still processing this receipt's image…</p>
+            @if (pollExhausted()) {
+              <p class="processing__hint">This is taking longer than usual.</p>
+              <button mat-button (click)="load()">Check again</button>
+            }
+          </div>
+        } @else if (s.data.processingStatus === 'failed') {
+          <div class="processing processing--failed">
+            <mat-icon>error</mat-icon>
+            <p class="processing__text">We couldn't automatically read this receipt's image.</p>
+            <button mat-button (click)="load()">Check again</button>
+          </div>
+        } @else {
+          <h2>Items ({{ s.data.items.length }})</h2>
 
-        @if (s.data.items.length > 0) {
-          <div class="items__toolbar" [class.items__toolbar--active]="someSelected()">
-            <mat-checkbox
-              [checked]="allSelected()"
-              [indeterminate]="partialSelection()"
-              (change)="toggleSelectAll()"
-              aria-label="Select all items">
-            </mat-checkbox>
-            <span class="items__toolbar-count">
-              @if (someSelected()) {
-                {{ selectedItemIds().size }} selected
-              } @else {
-                Select items for bulk actions
-              }
-            </span>
-            @if (someSelected() && s.data.members.length > 0) {
-              <button
-                mat-button
-                class="items__toolbar-btn"
-                [matMenuTriggerFor]="bulkAssignMenu">
-                Assign to
-              </button>
-              <mat-menu #bulkAssignMenu="matMenu">
-                @for (m of s.data.members; track m.id) {
-                  <button mat-menu-item (click)="bulkAssignTo(m.id)">
-                    {{ m.displayName }}
-                  </button>
+          @if (s.data.items.length > 0) {
+            <div class="items__toolbar" [class.items__toolbar--active]="someSelected()">
+              <mat-checkbox
+                [checked]="allSelected()"
+                [indeterminate]="partialSelection()"
+                (change)="toggleSelectAll()"
+                aria-label="Select all items">
+              </mat-checkbox>
+              <span class="items__toolbar-count">
+                @if (someSelected()) {
+                  {{ selectedItemIds().size }} selected
+                } @else {
+                  Select items for bulk actions
                 }
-              </mat-menu>
-              @if (s.data.members.length > 1) {
+              </span>
+              @if (someSelected() && s.data.members.length > 0) {
                 <button
                   mat-button
                   class="items__toolbar-btn"
-                  (click)="splitEvenlySelected()">
-                  Split evenly
+                  [matMenuTriggerFor]="bulkAssignMenu">
+                  Assign to
                 </button>
+                <mat-menu #bulkAssignMenu="matMenu">
+                  @for (m of s.data.members; track m.id) {
+                    <button mat-menu-item (click)="bulkAssignTo(m.id)">
+                      {{ m.displayName }}
+                    </button>
+                  }
+                </mat-menu>
+                @if (s.data.members.length > 1) {
+                  <button
+                    mat-button
+                    class="items__toolbar-btn"
+                    (click)="splitEvenlySelected()">
+                    Split evenly
+                  </button>
+                }
               }
-            }
-          </div>
-        }
+            </div>
+          }
 
-        <app-receipt-items
-          [items]="s.data.items"
-          [members]="s.data.members"
-          [editable]="true"
-          [selectable]="true"
-          [selectedIds]="selectedItemIds()"
-          (assignmentAdd)="addAssignment($event.item, $event.memberId)"
-          (assignmentRemove)="removeAssignment($event.item, $event.memberId)"
-          (selectionToggle)="toggleItemSelection($event)" />
-
-        @if (s.data.members.length > 0) {
-          <app-member-totals
-            class="totals"
+          <app-receipt-items
             [items]="s.data.items"
-            [members]="s.data.members" />
-        }
+            [members]="s.data.members"
+            [editable]="true"
+            [selectable]="true"
+            [selectedIds]="selectedItemIds()"
+            (assignmentAdd)="addAssignment($event.item, $event.memberId)"
+            (assignmentRemove)="removeAssignment($event.item, $event.memberId)"
+            (selectionToggle)="toggleItemSelection($event)" />
 
-        <footer class="total">
-          <span class="total__label">Total</span>
-          <span class="total__value">{{ total() | currency }}</span>
-        </footer>
+          @if (s.data.members.length > 0) {
+            <app-member-totals
+              class="totals"
+              [items]="s.data.items"
+              [members]="s.data.members" />
+          }
+
+          <footer class="total">
+            <span class="total__label">Total</span>
+            <span class="total__value">{{ total() | currency }}</span>
+          </footer>
+        }
       </section>
     }
   }

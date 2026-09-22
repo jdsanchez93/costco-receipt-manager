@@ -15,6 +15,7 @@ import {
   ReceiptMemberMutationResponse,
   ReceiptRole,
   ReceiptShareDto,
+  ReceiptSummaryDto,
   SharedReceiptResponse,
 } from './types';
 
@@ -29,6 +30,16 @@ export class ReceiptsApi {
    */
   getUserReceipts(): Observable<ReceiptMemberDto[]> {
     return this.http.get<ReceiptMemberDto[]>(`${this.base}/receipts/user-receipts`);
+  }
+
+  /**
+   * Receipt-level metadata — currently just id, processingStatus, createdAt.
+   * Backend: GET /api/receipts/receipt/{receiptId}.
+   */
+  getReceipt(receiptId: string): Observable<ReceiptSummaryDto> {
+    return this.http.get<ReceiptSummaryDto>(
+      `${this.base}/receipts/receipt/${encodeURIComponent(receiptId)}`,
+    );
   }
 
   /**
