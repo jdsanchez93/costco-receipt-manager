@@ -148,6 +148,14 @@ describe('ReceiptsApi', () => {
     req.flush(null);
   });
 
+  it('deleteReceipt DELETEs the receipt endpoint', () => {
+    api.deleteReceipt('abc123').subscribe();
+
+    const req = httpMock.expectOne('/api/receipts/receipt/abc123');
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null);
+  });
+
   it('getDownloadUrl issues GET /api/receipts/get-download-url/{id}', () => {
     api.getDownloadUrl('abc123').subscribe();
 

@@ -227,6 +227,18 @@ export class ReceiptsApi {
   }
 
   /**
+   * Permanently delete a receipt and all its data. Requires ReceiptOwner.
+   * Backend: DELETE /api/receipts/receipt/{receiptId}. Used by
+   * receipt-upload.ts as best-effort cleanup for a Receipt row created by
+   * getUploadUrl() but then abandoned before the image ever reached S3.
+   */
+  deleteReceipt(receiptId: string): Observable<void> {
+    return this.http.delete<void>(
+      `${this.base}/receipts/receipt/${encodeURIComponent(receiptId)}`,
+    );
+  }
+
+  /**
    * Get a presigned S3 GET URL for a receipt's image. Requires the caller
    * to hold the ReceiptMember policy (owner or editor). Backend:
    * GET /api/receipts/get-download-url/{receiptId}. 404 { error } if the
