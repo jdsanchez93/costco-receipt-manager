@@ -1,6 +1,7 @@
 using CostcoReceipts.Api.Authorization;
 using CostcoReceipts.Api.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace CostcoReceipts.Api.Middleware;
 
@@ -13,16 +14,27 @@ namespace CostcoReceipts.Api.Middleware;
 ///
 /// Runs after <c>UseAuthentication</c> and before <c>UseAuthorization</c>
 /// so the auth handler can rely on the user + self-contact existing.
+///
+/// A per-process in-memory cache skips the upserts for a userId that was
+/// provisioned within <see cref="ProvisionedCacheTtl"/> — a single page load
+/// fans out into several authenticated requests, so without this the same
+/// two upserts run once per request. Staleness within the TTL window (e.g.
+/// <c>LastSeenAt</c> lagging by a few minutes) is harmless, and the cache
+/// resets on process restart, which just re-provisions the next request.
 /// </summary>
 public class UserProvisioningMiddleware
 {
+    private static readonly TimeSpan ProvisionedCacheTtl = TimeSpan.FromMinutes(10);
+
     private readonly RequestDelegate _next;
     private readonly ILogger<UserProvisioningMiddleware> _logger;
+    private readonly IMemoryCache _cache;
 
-    public UserProvisioningMiddleware(RequestDelegate next, ILogger<UserProvisioningMiddleware> logger)
+    public UserProvisioningMiddleware(RequestDelegate next, ILogger<UserProvisioningMiddleware> logger, IMemoryCache cache)
     {
         _next = next;
         _logger = logger;
+        _cache = cache;
     }
 
     public async Task InvokeAsync(HttpContext context, AppDbContext db)
@@ -39,6 +51,9 @@ public class UserProvisioningMiddleware
     {
         var userId = context.User.GetUserId();
         if (string.IsNullOrEmpty(userId)) return;
+
+        var cacheKey = $"UserProvisioningMiddleware:{userId}";
+        if (_cache.TryGetValue(cacheKey, out _)) return;
 
         var email = context.User.FindFirst("email")?.Value ?? string.Empty;
         var displayName = context.User.FindFirst("name")?.Value
@@ -65,6 +80,8 @@ public class UserProvisioningMiddleware
                 INSERT IGNORE INTO contacts (OwnerUserId, UserId, DisplayName, Email, CreatedAt)
                 VALUES ({userId}, {userId}, {displayName}, {email}, {now})
             ", ct);
+
+            _cache.Set(cacheKey, true, ProvisionedCacheTtl);
         }
         catch (Exception ex)
         {

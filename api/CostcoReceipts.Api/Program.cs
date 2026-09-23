@@ -16,6 +16,7 @@ builder.Services.Configure<AwsOptions>(builder.Configuration.GetSection(AwsOptio
 builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection(FrontendOptions.SectionName));
 builder.Services.Configure<InternalApiOptions>(builder.Configuration.GetSection(InternalApiOptions.SectionName));
 builder.Services.AddProblemDetails();
+builder.Services.AddMemoryCache();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
