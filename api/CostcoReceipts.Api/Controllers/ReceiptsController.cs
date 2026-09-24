@@ -21,9 +21,11 @@ namespace CostcoReceipts.Api.Controllers;
 [Route("api/receipts")]
 public class ReceiptsController : ControllerBase
 {
+    // Only formats Textract's DetectDocumentText can read — anything else
+    // uploads fine but fails OCR in the receipt processor Lambda.
     private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif",
+        "image/jpeg", "image/jpg", "image/png",
     };
 
     private readonly AppDbContext _db;
