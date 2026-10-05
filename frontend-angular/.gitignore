@@ -44,5 +44,7 @@ __screenshots__/
 Thumbs.db
 
 # Environment files
+# environment.ts is committed: it holds the production Auth0 domain/clientId/
+# audience, all of which already ship inside the deployed public bundle, and CI
+# needs it to build and test. Local dev overrides stay untracked.
 /src/environments/environment.development.ts
-/src/environments/environment.ts

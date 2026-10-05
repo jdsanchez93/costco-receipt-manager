@@ -1,5 +1,7 @@
-// Copy this file to environment.ts and environment.development.ts,
-// then fill in your Auth0 tenant values. Both files are gitignored.
+// Template for environment.development.ts (gitignored) — copy it there and
+// fill in your Auth0 tenant values for local dev.
+//
+// environment.ts, the production config, IS committed; edit it directly.
 export const environment = {
   apiUrl: '/api',
   auth0: {
