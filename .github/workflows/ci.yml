@@ -1,0 +1,137 @@
+# Pull-request checks. Nothing here deploys anything or needs credentials —
+# see .github/workflows/frontend.yml for the deploy pipeline.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: api (build + migration guard)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api/CostcoReceipts.Api
+    env:
+      # The design-time factory needs *a* connection string, but never connects,
+      # because Database:ServerVersion is pinned in appsettings.json (see
+      # Data/AppDbContextFactory.cs). So no database service container here.
+      ConnectionStrings__MySql: "Server=127.0.0.1;Port=3306;Database=costco_receipts;User=ci;Password=ci;"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Runs before the build so the readable table is always in the log. The
+      # build itself is what fails on an advisory (NuGet audit codes are not
+      # excluded from -warnaserror), and it would otherwise fail first and skip
+      # this.
+      - name: Report vulnerable packages
+        run: |
+          out=$(dotnet list package --vulnerable --include-transitive 2>&1) || true
+          echo "$out"
+          if echo "$out" | grep -q 'the following vulnerable packages'; then
+            echo "::warning::Vulnerable NuGet packages detected - see this job's log"
+          fi
+
+      # -warnaserror keeps code warnings from accumulating (both projects are
+      # warning-clean today) and also promotes NuGet audit warnings (NU19xx) to
+      # errors, so a newly published advisory against anything in the
+      # dependency tree fails the build rather than scrolling past. Note that
+      # this makes the job's result depend on the live advisory database, not
+      # only on the commit: a red build here can mean "a CVE was published",
+      # not "this PR broke something". Narrow it with
+      # -p:NuGetAuditLevel=high (or exclude NU1901-NU1904 via
+      # -p:WarningsNotAsErrors, %3B-escaped) if that becomes disruptive.
+      - name: Build API
+        run: dotnet build CostcoReceipts.Api.csproj -warnaserror
+
+      # Worth -warnaserror in its own right: this project's ProjectReference to
+      # CostcoReceipts.Api is what catches an entity rename breaking
+      # PlaceholderContactMerger at compile time, rather than on the day that
+      # cleanup is next needed. (It stays warning-clean because the csproj
+      # already NoWarns CS0436, the duplicate implicit Program class both
+      # projects' top-level statements emit.)
+      - name: Build Migration tool
+        working-directory: api/CostcoReceipts.Migration
+        run: dotnet build CostcoReceipts.Migration.csproj -warnaserror
+
+      # Pinned to match the EF Core 9 packages in CostcoReceipts.Api.csproj.
+      - name: Install dotnet-ef
+        run: |
+          dotnet tool install --global dotnet-ef --version 9.0.9
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+      # Fails the PR when an entity change lands without a matching migration.
+      - name: Check for model changes without a migration
+        run: dotnet ef migrations has-pending-model-changes
+
+  frontend:
+    name: frontend (build + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-angular
+    steps:
+      - uses: actions/checkout@v4
+
+      # Angular 22 requires Node >= 22.22.3.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+          cache-dependency-path: frontend-angular/package-lock.json
+
+      - run: npm ci
+
+      # Also enforces the bundle budgets in angular.json.
+      - name: Production build
+        run: npx ng build --configuration production
+
+      - name: Unit tests
+        run: npx ng test --watch=false
+
+  cdk:
+    name: cdk (typecheck + synth)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cdk-backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+          cache-dependency-path: cdk-backend/package-lock.json
+
+      - run: npm ci
+
+      - run: npx tsc --noEmit
+
+      # `cdk synth` is deliberately NOT run here yet. Lambda asset bundling
+      # happens while the CDK app is constructed, not when a stack is selected,
+      # so synthesizing anything also triggers the legacy stack's .NET publish
+      # inside Docker — slow and network-dependent for a PR check. (The
+      # `aws:cdk:bundling-stacks` context key that would skip it is rejected
+      # from the CLI: "User-provided context cannot use keys prefixed with
+      # 'aws:'".)
+      #
+      # Re-add it once RUNBOOK.md Phase 5 deletes that stack. Synth is worth
+      # having back — it catches CDK-level validation that tsc cannot, such as a
+      # CloudFront distribution given a certificate but no alias. At that point
+      # the only remaining bundle is one small Python Lambda, and CI will need
+      # to write a throwaway cdk.context.json (the real one is gitignored) with
+      # `dev` and `prod` stage blocks for the stacks to instantiate.
