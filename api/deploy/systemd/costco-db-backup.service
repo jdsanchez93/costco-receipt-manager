@@ -1,0 +1,15 @@
+[Unit]
+Description=Back up the costco_receipts database
+Documentation=https://github.com/jdsanchez93/costco-receipt-manager/blob/main/api/deploy/README.md
+After=mariadb.service
+
+[Service]
+Type=oneshot
+# Root is required: costco-db-backup authenticates to MariaDB over the
+# unix_socket plugin, which is what keeps a password out of the picture.
+User=root
+ExecStart=/usr/local/bin/costco-db-backup
+# The Pi also serves the API; a backup should never be the reason a request
+# feels slow.
+Nice=10
+IOSchedulingClass=idle

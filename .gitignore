@@ -70,3 +70,5 @@ temp/
 
 # Package manager lock files (keep one, ignore others)
 yarn.lock
+# Final DynamoDB export taken before deleting the SAM stacks (see cdk-backend/RUNBOOK.md)
+dynamo-final-export/

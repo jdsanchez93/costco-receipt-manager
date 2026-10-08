@@ -1,0 +1,12 @@
+[Unit]
+Description=Nightly costco_receipts database backup
+
+[Timer]
+OnCalendar=03:30
+# Avoids every timer on the box firing on the same second.
+RandomizedDelaySec=15m
+# Runs a missed backup on next boot, e.g. if the Pi was powered off overnight.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
