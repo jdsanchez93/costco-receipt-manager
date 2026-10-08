@@ -75,75 +75,60 @@ deliberately not done here.
 
 ---
 
-## Frontend deploy (AWS + GitHub, one-time)
+## Frontend deploy — remaining setup
 
 `.github/workflows/frontend.yml` authenticates with GitHub OIDC and assumes an
 IAM role, so no AWS access keys are stored in this repository.
 
-### 1. OIDC provider (once per AWS account)
+**Already done** during the 2026-10-05 cutover (see `cdk-backend/RUNBOOK.md`):
 
-AWS permits exactly one provider per URL per account, and it's a shared
-account-level resource rather than something an app stack should own — hence
-created out of band and referenced by ARN.
+- The account's GitHub OIDC provider already existed and is referenced by ARN
+  (`arn:aws:iam::515966506000:oidc-provider/token.actions.githubusercontent.com`).
+  Nothing to create — the account hosts other projects that may already use it,
+  which is why the stack references rather than creates it.
+- The deploy role is deployed as part of `Prod-CostcoReceipts-Frontend`:
+  `arn:aws:iam::515966506000:role/costco-receipts-prod-frontend-deploy`. It can
+  write only to the frontend bucket and invalidate only that one distribution,
+  and its trust policy requires both this repository **and** its `production`
+  environment — which matters because this repository is public.
 
-```bash
-aws iam list-open-id-connect-providers    # reuse the existing ARN if present
-```
+### What is left: GitHub configuration
 
-If there isn't one:
+Do this **before** committing `frontend.yml`. The workflow triggers on pushes
+touching `frontend-angular/**`, and if it runs first it will fail at credential
+assumption *and* implicitly create a `production` environment with no
+protection rules — losing the deployment-branch restriction the role's trust
+policy depends on.
 
-```bash
-aws iam create-open-id-connect-provider \
-  --url https://token.actions.githubusercontent.com \
-  --client-id-list sts.amazonaws.com
-```
-
-### 2. Deploy the role
-
-Add to `cdk-backend/cdk.context.json` (gitignored):
-
-```json
-"nextFrontendGithubRepo": "jdsanchez93/costco-receipt-manager",
-"nextFrontendGithubOidcProviderArn": "arn:aws:iam::<account>:oidc-provider/token.actions.githubusercontent.com"
-```
-
-```bash
-cd cdk-backend && npx cdk deploy NextFrontendStack
-```
-
-This adds only an `AWS::IAM::Role` and its policy — verified by diffing the
-synthesized template with and without those context values. The role can write
-only to the frontend bucket and invalidate only that one distribution, and its
-trust policy requires both this repository **and** its `production`
-environment, so a workflow on another branch or from a fork's pull request
-cannot assume it. That scoping matters because this repository is public.
-
-### 3. GitHub configuration
-
-Create a `production` **Environment** with a deployment branch rule limited to
-`main`, then set these repository **variables** (not secrets — none of them are
-sensitive, and secret masking only makes logs harder to read):
+1. Create a **`production` environment** with a deployment branch rule limited
+   to `main`. Optionally add yourself as a required reviewer.
+2. Set these repository **variables** (not secrets — none are sensitive, and
+   secret masking only makes logs harder to read):
 
 | Variable | Value |
 |---|---|
-| `AWS_DEPLOY_ROLE_ARN` | `GithubDeployRoleArn` stack output |
-| `FRONTEND_BUCKET` | `FrontendBucketName` stack output |
-| `CLOUDFRONT_DISTRIBUTION_ID` | `CloudFrontDistributionId` stack output |
+| `AWS_DEPLOY_ROLE_ARN` | `arn:aws:iam::515966506000:role/costco-receipts-prod-frontend-deploy` |
+| `FRONTEND_BUCKET` | `costco-receipts-prod-frontend-515966506000` |
+| `CLOUDFRONT_DISTRIBUTION_ID` | `E2EVLA19XVOJOI` |
+
+Re-read them from the stack rather than trusting this table if anything has
+been redeployed since:
 
 ```bash
-aws cloudformation describe-stacks --stack-name NextFrontendStack \
-  --query 'Stacks[0].Outputs' --output table
+aws cloudformation describe-stacks --stack-name Prod-CostcoReceipts-Frontend \
+  --query 'Stacks[0].Outputs' --output table --profile jd-sanch-admin
 ```
 
 ### Verifying a deploy
 
 ```bash
-curl -sI https://next.jd-sanchez.com/index.html | grep -i cache-control
+curl -sI https://costco.jd-sanchez.com/index.html | grep -i cache-control
 # expect: no-cache,must-revalidate
-curl -s https://next.jd-sanchez.com/ | grep -o 'main-[A-Za-z0-9_-]*\.js'
-curl -sI "https://next.jd-sanchez.com/<that file>" | grep -i cache-control
+
+curl -s https://costco.jd-sanchez.com/ | grep -o 'main-[A-Za-z0-9_-]*\.js'
+curl -sI "https://costco.jd-sanchez.com/<that file>" | grep -i cache-control
 # expect: public,max-age=31536000,immutable
 ```
 
-Then log in and load a receipt, to confirm the whole
-Auth0 → CloudFront → tunnel → API → MariaDB path.
+Then log in and open a receipt, to exercise
+Auth0 → CloudFront → Cloudflare Tunnel → Pi → MariaDB.
