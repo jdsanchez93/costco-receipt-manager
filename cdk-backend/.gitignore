@@ -68,3 +68,5 @@ src/**/out/
 
 # User secrets
 src/**/.config/
+# Phase 0 capture of live bucket config (see RUNBOOK.md / BUCKETS.md)
+bucket-config/

@@ -1,5 +1,12 @@
 # Costco Receipts CDK Backend
 
+> **Stale.** This describes the retired Lambda + API Gateway + DynamoDB
+> architecture, including Lambda functions that no longer exist. The current
+> layout is three stage-parameterized stacks (receipt processing per stage,
+> prod frontend) with the API running on a Raspberry Pi — see
+> `docs/redesign-plan.md`, `RUNBOOK.md` for the migration, and `BUCKETS.md` for
+> the buckets CDK no longer manages. Rewrite pending.
+
 A modern, serverless backend for the Costco Receipt Management application, built with AWS CDK and designed to work with **externally managed DynamoDB tables**.
 
 ## 🏗️ Architecture
