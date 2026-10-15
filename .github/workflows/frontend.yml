@@ -1,0 +1,87 @@
+# Builds the Angular app and deploys it to the NextFrontendStack S3 bucket +
+# CloudFront distribution. Those are the same resources before and after the
+# costco.jd-sanchez.com cutover (that step only moves a DNS record), so this
+# workflow needs no change at cutover.
+#
+# Auth is GitHub OIDC -> IAM role, so no AWS keys are stored in this repo. The
+# role's trust policy is scoped to this repo AND the `production` environment
+# below (see cdk-backend/lib/next-frontend-stack.ts).
+name: frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend-angular/**'
+      - '.github/workflows/frontend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # required to request the OIDC token
+
+concurrency:
+  group: frontend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    # Passed through env rather than interpolated straight into the run blocks
+    # below — the injection-safe pattern, and it keeps the commands readable.
+    env:
+      DIST: frontend-angular/dist/frontend-angular/browser
+      BUCKET: ${{ vars.FRONTEND_BUCKET }}
+      DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Angular 22 requires Node >= 22.22.3.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+          cache-dependency-path: frontend-angular/package-lock.json
+
+      - run: npm ci
+        working-directory: frontend-angular
+
+      # src/environments/environment.ts is committed, so there is nothing to
+      # inject here.
+      - name: Build
+        working-directory: frontend-angular
+        run: npx ng build --configuration production
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # Two passes. Everything but HTML is content-hashed by the build
+      # (outputHashing: all), so it can be cached forever; index.html is the
+      # mutable entry point and must never be cached. The --exclude/--include
+      # filters apply to the delete scan as well as the upload, so neither pass
+      # deletes the other's objects.
+      - name: Sync hashed assets
+        run: |
+          aws s3 sync "$DIST" "s3://$BUCKET" \
+            --delete \
+            --exclude "*.html" \
+            --cache-control "public,max-age=31536000,immutable"
+
+      - name: Sync HTML
+        run: |
+          aws s3 sync "$DIST" "s3://$BUCKET" \
+            --delete \
+            --exclude "*" --include "*.html" \
+            --cache-control "no-cache,must-revalidate"
+
+      # /* rather than just /index.html: the distribution's 403/404 ->
+      # /index.html error responses are cached per *requested* path, so a
+      # narrower invalidation can leave stale SPA routes served.
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "$DISTRIBUTION_ID" \
+            --paths "/*"
