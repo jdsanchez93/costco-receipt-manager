@@ -27,9 +27,9 @@ jobs:
       # Data/AppDbContextFactory.cs). So no database service container here.
       ConnectionStrings__MySql: "Server=127.0.0.1;Port=3306;Database=costco_receipts;User=ci;Password=ci;"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
@@ -84,10 +84,10 @@ jobs:
       run:
         working-directory: frontend-angular
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Angular 22 requires Node >= 22.22.3.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22.x'
           cache: npm
@@ -109,9 +109,9 @@ jobs:
       run:
         working-directory: cdk-backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22.x'
           cache: npm
