@@ -103,7 +103,7 @@ jobs:
         run: npx ng test --watch=false
 
   cdk:
-    name: cdk (typecheck + synth)
+    name: cdk (typecheck)
     runs-on: ubuntu-latest
     defaults:
       run:
