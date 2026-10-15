@@ -59,6 +59,11 @@
                   "with": "src/environments/environment.development.ts"
                 }
               ]
+            },
+            "test": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
             }
           },
           "defaultConfiguration": "production"
@@ -79,7 +84,10 @@
           "defaultConfiguration": "development"
         },
         "test": {
-          "builder": "@angular/build:unit-test"
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "buildTarget": "frontend-angular:build:test"
+          }
         }
       }
     }
