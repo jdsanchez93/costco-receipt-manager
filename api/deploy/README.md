@@ -102,14 +102,29 @@ policy depends on.
 
 1. Create a **`production` environment** with a deployment branch rule limited
    to `main`. Optionally add yourself as a required reviewer.
-2. Set these repository **variables** (not secrets — none are sensitive, and
-   secret masking only makes logs harder to read):
+2. Add these as **environment variables on that environment**, not repository
+   variables — Settings → Environments → `production` → "Environment
+   variables". They are variables rather than secrets because none of them is
+   sensitive, and secret masking only makes logs harder to read.
 
 | Variable | Value |
 |---|---|
 | `AWS_DEPLOY_ROLE_ARN` | `arn:aws:iam::515966506000:role/costco-receipts-prod-frontend-deploy` |
 | `FRONTEND_BUCKET` | `costco-receipts-prod-frontend-515966506000` |
 | `CLOUDFRONT_DISTRIBUTION_ID` | `E2EVLA19XVOJOI` |
+
+Environment scope rather than repository scope for two reasons. It matches the
+stage-parameterized CDK layout: adding a staging frontend later means creating
+a `staging` environment with its own three values, and `frontend.yml` works
+unchanged — whereas repository variables would force `PROD_*`/`STAGING_*`
+names and workflow edits. And repository variables are readable by any
+workflow including one triggered from a PR branch, while environment variables
+reach only a job that declares `environment: production` and therefore also
+passes the branch policy — the same boundary the role's trust policy draws.
+
+The tradeoff to recognize: `vars.X` silently resolves to empty in any job that
+does **not** declare `environment: production`. Only the deploy job reads them
+today.
 
 Re-read them from the stack rather than trusting this table if anything has
 been redeployed since:
