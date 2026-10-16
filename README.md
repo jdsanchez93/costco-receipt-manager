@@ -1,162 +1,97 @@
 # Costco Receipt Manager
 
-A full-stack web application for managing Costco receipts with item tracking and user assignment features.
+Upload a photo of a Costco receipt, have its line items read automatically, and
+split the total between the people who shared the trip.
 
-## Features
+Upload a receipt and it lands in S3, where Textract OCRs it and the parsed line
+items are written back to the database. Add members to a receipt, assign items
+to them, and the app computes per-person totals. Receipts can be shared
+read-only through an expiring public link.
 
-- 🔐 Secure authentication with Auth0
-- 📸 Drag-and-drop receipt upload
-- 📊 Item tracking with detailed table view
-- 👥 User assignment for receipt items
-- ☁️ AWS DynamoDB for scalable storage
-- 🐳 Docker containerization for easy deployment
+## Architecture
 
-## Prerequisites
+```
+browser ──► CloudFront ─┬─► S3            Angular single-page app
+                        └─► Cloudflare Tunnel ─► Raspberry Pi ─► MariaDB
+                                                   (.NET API in Docker)
 
-- Node.js 18+
-- AWS Account with DynamoDB access
-- Auth0 Account
-- Docker (for containerized deployment)
+upload ───► S3 ─► Lambda ─► Textract ─► back to the API ─► MariaDB
+```
 
-## Setup Instructions
+The API is self-hosted on a Raspberry Pi behind a Cloudflare Tunnel, so it has
+no inbound ports open. CloudFront is the only public front door and routes
+`/api/*` to the tunnel, which also means the browser talks to a single origin
+and CORS never enters the picture. OCR runs asynchronously off an S3 event.
 
-### 1. Clone the repository
+| Layer | Technology |
+|---|---|
+| Frontend | Angular 22, Angular Material, Auth0 |
+| API | ASP.NET Core 10, EF Core 9 (Pomelo) |
+| Database | MariaDB 11.8 (MySQL 8 locally) |
+| OCR | AWS Textract via a Python Lambda |
+| Hosting | S3 + CloudFront; self-hosted API behind Cloudflare Tunnel |
+| Infrastructure | AWS CDK (TypeScript) |
+
+## Running it locally
+
+Requires Docker, the .NET 10 SDK, and Node 22.
 
 ```bash
-git clone <repository-url>
-cd claude-costco-webapp
+# database
+docker compose -f api/docker-compose.yml up -d
+
+# API — http://localhost:5002 (Swagger at /swagger)
+cd api/CostcoReceipts.Api && dotnet run
+
+# frontend — http://localhost:4200, proxies /api to the API
+cd frontend-angular && npm install && npm start
 ```
 
-### 2. Configure Auth0
+Two pieces of configuration are gitignored and need creating first:
 
-1. Create an Auth0 application (Single Page Application)
-2. Create an Auth0 API
-3. Note down the Domain, Client ID, and API Identifier
-
-### 3. Set up AWS DynamoDB Tables
-
-Create two DynamoDB tables:
-
-**costco-user-receipts**
-- Partition Key: PK (String)
-- Sort Key: SK (String)
-
-**costco-receipt-items**
-- Partition Key: PK (String)  
-- Sort Key: SK (String)
-
-### 4. Configure Environment Variables
-
-#### Frontend
-```bash
-cd frontend
-cp .env.example .env
-# Edit .env with your Auth0 and API configuration
-```
-
-#### Backend
-```bash
-cd backend
-cp .env.example .env
-# Edit .env with your Auth0, AWS, and DynamoDB configuration
-```
-
-### 5. Install Dependencies
+- `frontend-angular/src/environments/environment.development.ts` — copy
+  `environment.example.ts` and fill in your Auth0 application.
+- API settings — put your Auth0 tenant, AWS profile and S3 bucket in user
+  secrets (`dotnet user-secrets`) or `appsettings.Development.json`.
 
 ```bash
-# Frontend
-cd frontend
-npm install
-
-# Backend
-cd ../backend
-npm install
+cd frontend-angular && npx ng test --watch=false   # unit tests
 ```
 
-### 6. Run Development Servers
-
-```bash
-# Terminal 1 - Backend
-cd backend
-npm run dev
-
-# Terminal 2 - Frontend
-cd frontend
-npm start
-```
-
-The application will be available at:
-- Frontend: http://localhost:3000
-- Backend: http://localhost:5000
-
-## Docker Deployment
-
-### Build and run with Docker Compose
-
-```bash
-# From root directory
-docker-compose up --build
-```
-
-### Build individual containers
-
-```bash
-# Frontend
-docker build -f Dockerfile.frontend -t costco-frontend .
-
-# Backend
-docker build -f Dockerfile.backend -t costco-backend .
-```
-
-## AWS Deployment
-
-1. Push Docker images to Amazon ECR
-2. Create ECS Task Definitions for frontend and backend
-3. Deploy to ECS Fargate or EC2
-4. Configure Application Load Balancer
-5. Set up Route 53 for domain management
-
-## Project Structure
+## Layout
 
 ```
-claude-costco-webapp/
-├── frontend/                 # React TypeScript frontend
-│   ├── src/
-│   │   ├── components/      # React components
-│   │   ├── services/        # API services
-│   │   └── App.tsx          # Main app component
-│   └── package.json
-├── backend/                  # Node.js Express backend
-│   ├── src/
-│   │   ├── config/          # Configuration files
-│   │   ├── controllers/     # Route controllers
-│   │   ├── middleware/      # Express middleware
-│   │   ├── models/          # Data models
-│   │   ├── routes/          # API routes
-│   │   └── index.ts         # Server entry point
-│   └── package.json
-├── docker-compose.yml        # Docker Compose configuration
-├── Dockerfile.frontend       # Frontend Docker configuration
-├── Dockerfile.backend        # Backend Docker configuration
-└── nginx.conf               # Nginx configuration for frontend
+api/
+  CostcoReceipts.Api/        ASP.NET Core API — controllers, EF Core model, migrations
+  CostcoReceipts.Migration/  data maintenance CLI (placeholder-contact merge)
+  deploy/                    database backup script and systemd units for the Pi
+  scripts/                   migration script generator
+frontend-angular/            Angular SPA
+cdk-backend/                 CDK stacks: S3 + CloudFront, and the OCR Lambda
+  receipt-processor/         the Python Textract handler
+docs/                        design record
 ```
 
-## API Endpoints
+## Deploying
 
-- `POST /api/receipts/upload` - Upload a receipt image
-- `GET /api/receipts/user-receipts` - Get user's receipts
-- `GET /api/receipts/receipt/:receiptId/items` - Get items for a specific receipt
-- `GET /api/receipts/items` - Get all items for the authenticated user
+The frontend deploys automatically: pushes to `main` that touch
+`frontend-angular/` build and publish to S3 and CloudFront via GitHub Actions,
+authenticating with OIDC rather than stored AWS keys.
 
-## Technologies Used
+The API is built and shipped to the Pi by hand, since the Pi has no inbound
+network path. Database migrations are applied deliberately, with a separate
+privileged account, after a backup. See `api/deploy/README.md`.
 
-- **Frontend**: React, TypeScript, Material-UI, Auth0 React SDK
-- **Backend**: Node.js, Express, TypeScript, AWS SDK
-- **Database**: AWS DynamoDB
-- **Authentication**: Auth0
-- **Deployment**: Docker, AWS ECS/Fargate
-- **Image Processing**: Sharp
+Infrastructure is three CDK stacks deployed by name — see
+`cdk-backend/README.md`.
 
-## License
+## Documentation
 
-MIT
+| File | Contents |
+|---|---|
+| `CLAUDE.md` | architecture and conventions, written for Claude Code but accurate for humans |
+| `cdk-backend/README.md` | the CDK stacks and how to deploy them |
+| `cdk-backend/BUCKETS.md` | receipt-image bucket configuration, which lives outside CDK |
+| `cdk-backend/RUNBOOK.md` | how the October 2026 migration off AWS Lambda/DynamoDB was carried out |
+| `api/deploy/README.md` | Pi operations and one-time AWS/GitHub setup |
+| `docs/redesign-plan.md` | running design record |
