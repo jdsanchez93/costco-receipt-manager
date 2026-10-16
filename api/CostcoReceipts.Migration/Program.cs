@@ -1,6 +1,3 @@
-using Amazon;
-using Amazon.DynamoDBv2;
-using Amazon.Extensions.NETCore.Setup;
 using CostcoReceipts.Api.Data;
 using CostcoReceipts.Migration;
 using Microsoft.EntityFrameworkCore;
@@ -20,20 +17,6 @@ builder.Logging.AddSimpleConsole(o =>
 });
 
 // ============================================================
-// AWS DynamoDB
-// ============================================================
-var awsOptions = new AWSOptions
-{
-    Region = RegionEndpoint.GetBySystemName(cli.Region),
-};
-if (!string.IsNullOrEmpty(cli.Profile))
-{
-    awsOptions.Profile = cli.Profile;
-}
-builder.Services.AddDefaultAWSOptions(awsOptions);
-builder.Services.AddAWSService<IAmazonDynamoDB>();
-
-// ============================================================
 // EF Core (targets the same MySQL as the API)
 // ============================================================
 var connectionString = cli.ConnectionString
@@ -44,7 +27,6 @@ var connectionString = cli.ConnectionString
 builder.Services.AddDbContext<AppDbContext>(o =>
     o.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
-builder.Services.AddScoped<Migrator>();
 builder.Services.AddScoped<PlaceholderContactMerger>();
 
 var app = builder.Build();
@@ -56,16 +38,8 @@ using var scope = app.Services.CreateScope();
 
 try
 {
-    if (cli.MergePlaceholdersByName)
-    {
-        var merger = scope.ServiceProvider.GetRequiredService<PlaceholderContactMerger>();
-        await merger.RunAsync(cli.DryRun, CancellationToken.None);
-    }
-    else
-    {
-        var migrator = scope.ServiceProvider.GetRequiredService<Migrator>();
-        await migrator.RunAsync(new MigratorOptions(cli.TableName, cli.DryRun), CancellationToken.None);
-    }
+    var merger = scope.ServiceProvider.GetRequiredService<PlaceholderContactMerger>();
+    await merger.RunAsync(cli.DryRun, CancellationToken.None);
     return 0;
 }
 catch (Exception ex)
@@ -87,15 +61,6 @@ static CliOptions? ParseArgs(string[] args)
     {
         switch (args[i])
         {
-            case "--table" when i + 1 < args.Length:
-                cli.TableName = args[++i];
-                break;
-            case "--profile" when i + 1 < args.Length:
-                cli.Profile = args[++i];
-                break;
-            case "--region" when i + 1 < args.Length:
-                cli.Region = args[++i];
-                break;
             case "--connection-string" when i + 1 < args.Length:
                 cli.ConnectionString = args[++i];
                 break;
@@ -115,42 +80,44 @@ static CliOptions? ParseArgs(string[] args)
         }
     }
 
+    // The merge is still required explicitly rather than being the implicit
+    // default. It rewrites contact rows and reassigns memberships, so running
+    // the tool with no arguments should print help, not mutate data.
+    if (!cli.MergePlaceholdersByName)
+    {
+        Console.Error.WriteLine("Nothing to do: pass --merge-placeholders-by-name.");
+        PrintUsage();
+        return null;
+    }
+
     return cli;
 }
 
 static void PrintUsage()
 {
     Console.WriteLine("""
-        Data tools for CostcoReceipts. Runs the DynamoDB -> MySQL migration by
-        default; pass --merge-placeholders-by-name to run the placeholder-contact
-        merge cleanup instead.
+        Data maintenance for CostcoReceipts.
+
+        Collapses same-owner placeholder contacts whose display names match.
+        ReceiptMembersController.AddMember deliberately creates a fresh
+        placeholder Contact every time ("two Johns are two Johns"), so
+        duplicates accumulate through ordinary use; this is the cleanup for
+        that. Touches MySQL only.
 
         Usage:
-          dotnet run --project api/CostcoReceipts.Migration -- [OPTIONS]
+          dotnet run --project api/CostcoReceipts.Migration -- --merge-placeholders-by-name [OPTIONS]
 
-        Migration options (default command):
-          --table <name>              DynamoDB table (default: dev-costco-receipt-parser-main)
-          --profile <name>            AWS profile (default: uses default credential chain)
-          --region <name>             AWS region (default: us-east-1)
-
-        Merge options:
-          --merge-placeholders-by-name  Collapse same-owner placeholder contacts
-                                        whose display names match (post-migration
-                                        cleanup). Ignores DynamoDB entirely.
-
-        Common:
-          --connection-string <cs>    MySQL connection string
-                                      (default: appsettings ConnectionStrings:MySql)
-          --dry-run                   Report what would happen, don't write anything
-          --help, -h                  Show this message
+        Options:
+          --merge-placeholders-by-name  Required. The operation to run.
+          --connection-string <cs>      MySQL connection string
+                                        (default: appsettings ConnectionStrings:MySql)
+          --dry-run                     Report what would happen, don't write anything
+          --help, -h                    Show this message
         """);
 }
 
 internal sealed class CliOptions
 {
-    public string TableName { get; set; } = "dev-costco-receipt-parser-main";
-    public string? Profile { get; set; }
-    public string Region { get; set; } = "us-east-1";
     public string? ConnectionString { get; set; }
     public bool DryRun { get; set; }
     public bool MergePlaceholdersByName { get; set; }
