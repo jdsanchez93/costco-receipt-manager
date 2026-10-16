@@ -390,6 +390,20 @@ never touched DynamoDB, so it should be unaffected.
   `lib/dev-receipt-processing-stack.ts`, `lib/receipt-processing.ts`.
   (That last one only existed as a free function, rather than a Construct, to
   keep logical IDs stable for the `cdk import`ed bucket. Both reasons are gone.)
+- Delete **`cdk-backend/src/`** — 15 files of old .NET Lambda API source.
+  `grep` confirms its only consumer is `costco-receipts-stack.ts:175`
+  (`lambda.Code.fromAsset('src', …)`), so it leaves with that stack. Deleting
+  it is also what finally retires the non-reproducible `dotnet publish` that
+  made every `cdk synth` slow.
+- Delete the original-stack leftovers at the repo root, which predate this
+  migration entirely and reference a `backend/` directory that no longer
+  exists: `Dockerfile.backend`, `Dockerfile.frontend`, `nginx.conf`,
+  `docker-compose.yml`, `package.json`, `package-lock.json` (and the
+  now-unreferenced root `node_modules/`). They form one cluster — the compose
+  file is the only thing referencing the two Dockerfiles and nginx.conf, and
+  the root `package.json` holds nothing but two stray `react-router-dom`
+  entries. Check whether the root `.dockerignore` is still needed once they
+  are gone; `api/.dockerignore` is the one that matters for the Pi image.
 - Remove their imports and instantiation blocks from `bin/app.ts`, leaving only
   the stage-parameterized section.
 - Remove the now-unused flat keys from `cdk.context.json`: `mainTableName`,
@@ -399,6 +413,8 @@ never touched DynamoDB, so it should be unaffected.
 - Delete `frontend/` (old React).
 - Strip the Dynamo half of `CostcoReceipts.Migration` per the note in
   `redesign-plan.md`'s step 9, keeping `PlaceholderContactMerger`.
+- Add `.github/dependabot.yml` **after** the deletions above, not before, or
+  it will open pull requests against the old Lambda API and the old React app.
 - Re-add `cdk synth` to the `cdk` job in `.github/workflows/ci.yml`. It was
   dropped because asset bundling runs at app-construction time, so synthesizing
   anything also triggered the legacy stack's .NET publish in Docker. With that
