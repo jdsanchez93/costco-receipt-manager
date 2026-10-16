@@ -121,17 +121,43 @@ jobs:
 
       - run: npx tsc --noEmit
 
-      # `cdk synth` is deliberately NOT run here yet. Lambda asset bundling
-      # happens while the CDK app is constructed, not when a stack is selected,
-      # so synthesizing anything also triggers the legacy stack's .NET publish
-      # inside Docker — slow and network-dependent for a PR check. (The
-      # `aws:cdk:bundling-stacks` context key that would skip it is rejected
-      # from the CLI: "User-provided context cannot use keys prefixed with
-      # 'aws:'".)
-      #
-      # Re-add it once RUNBOOK.md Phase 5 deletes that stack. Synth is worth
-      # having back — it catches CDK-level validation that tsc cannot, such as a
-      # CloudFront distribution given a certificate but no alias. At that point
-      # the only remaining bundle is one small Python Lambda, and CI will need
-      # to write a throwaway cdk.context.json (the real one is gitignored) with
-      # `dev` and `prod` stage blocks for the stacks to instantiate.
+      # The real cdk.context.json is gitignored — it holds live bucket names and
+      # the internal-API shared secrets — and the stage stacks skip
+      # instantiation entirely without one, so synth would cover nothing. Write
+      # a throwaway with the same shape.
+      - name: Write throwaway CDK context
+        run: |
+          cat > cdk.context.json <<'JSON'
+          {
+            "dev": {
+              "receiptBucketName": "ci-dev-bucket",
+              "internalApiUrl": "https://ci.invalid",
+              "internalApiKey": "ci",
+              "attachReceiptProcessorTrigger": true
+            },
+            "prod": {
+              "receiptBucketName": "ci-prod-bucket",
+              "internalApiUrl": "https://ci.invalid",
+              "internalApiKey": "ci",
+              "attachReceiptProcessorTrigger": true,
+              "frontend": {
+                "certificateDomainName": "ci.example.com",
+                "apiOriginDomainName": "api.ci.example.com",
+                "aliases": ["ci.example.com"],
+                "githubRepo": "jdsanchez93/costco-receipt-manager",
+                "githubOidcProviderArn": "arn:aws:iam::111111111111:oidc-provider/token.actions.githubusercontent.com"
+              }
+            }
+          }
+          JSON
+
+      # Catches CDK-level validation that tsc cannot — a CloudFront
+      # distribution given a certificate but no alias, for instance. Needs no
+      # AWS credentials; nothing here uses a context lookup. Two invocations
+      # because the stage switch picks different stacks.
+      - name: Synth
+        env:
+          AWS_ACCOUNT_ID: '111111111111'
+        run: |
+          npx cdk synth --all > /dev/null
+          npx cdk synth --all -c stage=prod > /dev/null
