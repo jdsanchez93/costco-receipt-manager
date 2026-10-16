@@ -1,0 +1,72 @@
+# Version updates. Note this is NOT what catches CVEs — Dependabot *security*
+# updates are a repository setting (Settings → Advanced Security → Dependabot),
+# need no file, and only open PRs for advisories. That is the one that would
+# have surfaced the Microsoft.OpenApi issue. Turn that on regardless of this
+# file; this one is for routine drift.
+#
+# Everything is grouped, because the failure mode on a solo repo is not missing
+# an update, it is twelve open PRs nobody reads.
+version: 2
+updates:
+  # The reason this file exists: actions drift silently, and a stale major
+  # eventually stops working when GitHub retires its Node runtime. Weekly,
+  # because the volume is tiny and the blast radius is CI only.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"
+
+  # Both API projects. Monthly: these move slowly, and anything urgent arrives
+  # through security updates instead.
+  - package-ecosystem: nuget
+    directories:
+      - "/api/CostcoReceipts.Api"
+      - "/api/CostcoReceipts.Migration"
+    schedule:
+      interval: monthly
+    groups:
+      aws-sdk:
+        patterns: ["AWSSDK.*"]
+      entity-framework:
+        patterns: ["Microsoft.EntityFrameworkCore*", "Pomelo.*"]
+      # Keep these together: they are the pair that produced the
+      # Microsoft.OpenApi advisory, and they share a transitive dependency.
+      openapi:
+        patterns: ["Microsoft.AspNetCore.OpenApi", "Swashbuckle.*"]
+
+  - package-ecosystem: npm
+    directory: "/frontend-angular"
+    schedule:
+      interval: monthly
+    groups:
+      # An Angular bump is ~10 packages that must move in lockstep; ungrouped,
+      # each arrives as its own unmergeable PR.
+      angular:
+        patterns: ["@angular/*", "@angular-devkit/*"]
+      dev-dependencies:
+        dependency-type: development
+
+  - package-ecosystem: npm
+    directory: "/cdk-backend"
+    schedule:
+      interval: monthly
+    groups:
+      aws-cdk:
+        patterns: ["aws-cdk", "aws-cdk-lib", "constructs"]
+
+  # Base images for the Pi's API container (mcr.microsoft.com/dotnet/*).
+  - package-ecosystem: docker
+    directory: "/api/CostcoReceipts.Api"
+    schedule:
+      interval: monthly
+
+  # Deliberately absent: pip for cdk-backend/receipt-processor. Its
+  # requirements.txt is a single unpinned `requests`, and Dependabot cannot
+  # bump a dependency with no version constraint. Pin it first — which is
+  # already a known issue, since the unpinned install is half the reason that
+  # Lambda's asset hash is non-reproducible.
