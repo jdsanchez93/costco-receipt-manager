@@ -51,7 +51,7 @@ Processing is async. `Receipt.ProcessingStatus` is `pending` → `completed` /
 ## Local development
 
 ```bash
-docker compose -f api/docker-compose.yml up -d        # MySQL 8 on 127.0.0.1:3306
+docker compose -f api/docker-compose.yml up -d        # MariaDB 11.8 on 127.0.0.1:3306
 cd api/CostcoReceipts.Api && dotnet run               # http://127.0.0.1:5002, Swagger at /swagger
 cd frontend-angular && npm start                      # http://localhost:4200, proxies /api → :5002
 ```
@@ -86,8 +86,12 @@ api/scripts/generate-prod-migration-script.sh    # idempotent SQL, sanity-applie
 # then, on the Pi: back up first, then apply as costco_migrator
 ```
 
-Note the local/production engine divergence: local dev is `mysql:8.0`, the Pi is
-MariaDB 11.8. Aligning them is an outstanding task.
+Local development runs the same engine as production — `mariadb:11.8`, matching
+the Pi's 11.8.6. The series tag rather than an exact patch, so local drifts the
+way the Pi does through apt rather than pinning against it; expect local to sit
+a few patches ahead. Moving off 11.8 means updating three places together: the
+image tag, `Database:ServerVersion`, and `MARIADB_VERSION` in
+`scripts/generate-prod-migration-script.sh`.
 
 ## Configuration
 

@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Generates an idempotent EF Core migration script against a throwaway
-# MariaDB container matching the Pi's real version -- not the local-dev
-# mysql:8.0 docker-compose service, whose dialect can differ enough
-# (e.g. JSON columns) to produce a script that fails or silently drifts
-# from what the real target needs. See docs/redesign-plan.local.md's
-# "Gotchas worth remembering" for why this matters.
+# MariaDB container matching the Pi's real version.
+#
+# Local dev now runs MariaDB too, so the dialect argument for a separate
+# container no longer applies. What does still apply: this one is empty.
+# An idempotent script has to be exercised from a clean schema for every
+# guard to be taken, and the local dev database already has the migrations
+# applied -- running it there would skip almost everything it needs to
+# prove.
 #
 # Never connects to the real Pi/prod database -- EF's design-time
 # factory needs *a* live connection just to detect the SQL dialect

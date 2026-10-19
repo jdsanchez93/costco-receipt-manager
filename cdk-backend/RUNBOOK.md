@@ -99,6 +99,3 @@ synth outputs, and it needs no baseline captured beforehand.
   the cutover.
 - **`receipt-processor/requirements.txt` is unpinned**, which is why that
   Lambda's asset hash is not reproducible.
-- **Local development runs MySQL 8 while production runs MariaDB 11.8.**
-  Migrations are generated against MariaDB by pinned configuration, but they are
-  tested locally against a different engine.
