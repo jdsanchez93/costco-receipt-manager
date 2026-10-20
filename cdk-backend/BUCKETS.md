@@ -14,77 +14,79 @@ documented gotchas (the no-other-changes rule, `Outputs` having to match
 exactly, silent drift on non-identity properties). Taking the bucket out instead
 makes every remaining resource disposable.
 
-**The tradeoff** is this file: the bucket's own configuration isn't IaC, so it
-lives here. Less of a loss than it looks — `cdk import` had already left drift
-on exactly these properties (dev's CORS stayed on the old SAM `localhost:3000`
-origin while CDK's declared state said `4200`), so the declared state was
-already not the real state.
+**The tradeoff** is that the configuration is not applied by `cdk deploy`. It is
+still version-controlled and reproducible, as JSON in `s3-config/` plus the
+commands below — just applied deliberately rather than on every deploy. Less of
+a loss than it sounds: `cdk import` had already left drift on exactly these
+properties (dev's CORS stayed on the old SAM `localhost:3000` origin while
+CDK's declared state said `4200`), so being CDK-managed never did guarantee the
+declared state was the real one.
 
-> **Verified against the live buckets on 2026-10-05** (Phase 0 of `RUNBOOK.md`).
-> Raw captures are in `cdk-backend/bucket-config/` (gitignored).
+The flip side is that nothing detects drift automatically. If something here
+ever looks wrong, compare against the live buckets rather than trusting this
+file.
+
+## Desired state lives in `s3-config/`
+
+Because these buckets are outside CDK, their configuration is kept as applyable
+JSON next to this file rather than only described here. To reapply any of it:
+
+```bash
+export AWS_PROFILE=jd-sanch-admin
+B=prod-costco-receipt-images          # or dev-costco-receipt-images
+
+aws s3api put-bucket-cors               --bucket $B --cors-configuration file://s3-config/cors-prod.json
+aws s3api put-public-access-block       --bucket $B --public-access-block-configuration file://s3-config/public-access-block.json
+aws s3api put-bucket-versioning         --bucket $B --versioning-configuration Status=Enabled
+aws s3api put-bucket-lifecycle-configuration --bucket $B --lifecycle-configuration file://s3-config/lifecycle.json
+```
+
+(`s3-config/` is the intended state and is tracked. `bucket-config/` is a
+gitignored point-in-time capture taken during the migration — different thing.)
 
 ## CORS
 
-Required for the browser's direct presigned `PUT` (upload) and `GET` (image
-display). Identical on both buckets except `AllowedOrigins`.
+Required for the browser's direct presigned `PUT`. Note the browser makes
+exactly one kind of request to S3: that `PUT`, with a `Content-Type` header, so
+it is preflighted. Receipt images render through a plain `<img [src]>` with no
+`crossorigin` attribute, which is not a CORS request at all — `GET` and `HEAD`
+are kept only so a future `fetch()` of an image does not fail mysteriously.
 
-```jsonc
-{
-  "CORSRules": [
-    {
-      "AllowedHeaders": ["*"],
-      "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-      // prod: ["https://costco.jd-sanchez.com", "https://next.jd-sanchez.com"]
-      //       drop the next. origin once that domain is retired
-      // dev:  ["http://localhost:4200"]
-      "AllowedOrigins": ["https://costco.jd-sanchez.com"],
-      "ExposeHeaders": ["ETag", "x-amz-meta-custom-header"],
-      "MaxAgeSeconds": 3000
-    }
-  ]
-}
-```
+`POST` and `DELETE` were in the original SAM rule and nothing ever used them.
+`ExposeHeaders` likewise carried an `x-amz-meta-custom-header` entry with no
+consumer.
 
-Reapply from a Phase 0 capture:
+Origins differ per stage: prod is `https://costco.jd-sanchez.com`, dev is
+`http://localhost:4200`.
 
-```bash
-aws s3api put-bucket-cors --bucket prod-costco-receipt-images \
-  --cors-configuration "$(python3 -c "import json;d=json.load(open('bucket-config/prod-costco-receipt-images.cors.json'));print(json.dumps({'CORSRules':d['CORSRules']}))")"
-```
+## Public access block
+
+All four settings on. Nothing here is public and nothing needs to be: presigned
+URLs are IAM-signed requests, unaffected by the block. These buckets predate
+S3's block-by-default change, which is why it had to be enabled explicitly.
+
+## Versioning and lifecycle
+
+Versioning is **on**. These buckets hold the only copy of every receipt image —
+no replication, no backup — so without it an accidental delete or a key
+overwrite is unrecoverable. It also makes the pending "delete the S3 object
+when a receipt is deleted" change safe to land, since deletes become delete
+markers.
+
+Two lifecycle rules keep that from growing without bound:
+
+- noncurrent versions expire after 90 days
+- incomplete multipart uploads are aborted after 7 days, so a failed large
+  upload cannot leave invisible billable parts behind
 
 ## Encryption
 
 SSE-S3 (`AES256`), `BucketKeyEnabled: false`, on both. Nothing to maintain.
 
-## Versioning — OFF on both
+## Bucket policy
 
-Worth knowing, because it's easy to assume otherwise: these buckets hold the
-**only** copy of every receipt image, with no versioning, no replication and no
-backup. An accidental delete or an overwrite of an existing key is
-unrecoverable. Enabling versioning is one command and costs almost nothing at
-this scale:
-
-```bash
-aws s3api put-bucket-versioning --bucket prod-costco-receipt-images \
-  --versioning-configuration Status=Enabled
-```
-
-(Deliberately not done as part of the migration — it's an independent
-durability decision, not a migration step.)
-
-## Bucket policy and lifecycle rules
-
-Neither bucket has either (`NoSuchBucketPolicy`, `NoSuchLifecycleConfiguration`).
-Access is entirely via IAM identity policies — the Pi's IAM user and the OCR
-Lambda's role.
-
-## Public access block
-
-All four settings **disabled** on both buckets, inherited from the original SAM
-template and predating S3's block-by-default change. Nothing is public, but the
-bucket permits a public ACL or policy to be set. Presigned URLs — the only way
-this app touches S3 — work fine with the block fully enabled, so tightening it
-is recommended; see `RUNBOOK.md`'s hardening section.
+Neither bucket has one. Access is entirely through IAM identity policies — the
+Pi's IAM user and the OCR Lambda's role.
 
 ## Key layout
 
