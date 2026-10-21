@@ -46,9 +46,12 @@ cutover the stack is deployed first with no aliases — letting the certificate
 issue and the distribution build outside the downtime window — and the alias is
 added in a second deploy.
 
-**`receipt-processor/requirements.txt` is unpinned**, which makes the Lambda's
-asset hash non-reproducible: the same source can produce a different hash and
-an unintended "code changed" diff. Worth pinning.
+**`receipt-processor/requirements.txt` is pinned down to transitive
+dependencies** so the Lambda's asset hash is reproducible — without that, the
+same source resolves different package versions and produces an unintended
+"code changed" diff on an unrelated deploy. Dependabot maintains the pins
+(`.github/dependabot.yml`); regenerate by hand with
+`pip install --dry-run --report r.json requests`.
 
 See `RUNBOOK.md` for how the current layout came about and what the migration
 taught us.

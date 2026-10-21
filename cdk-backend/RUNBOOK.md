@@ -86,16 +86,30 @@ removing the retired stacks, `cdk diff` against the live stacks reported "There
 were no differences" for all three — stronger evidence than comparing two local
 synth outputs, and it needs no baseline captured beforehand.
 
-## Still outstanding
+## Everything it surfaced is now closed
 
-- **Public access block is disabled on both receipt buckets**, inherited from
-  the original SAM template and predating S3's block-by-default change. Nothing
-  is public, but the buckets permit a public ACL or policy. Presigned URLs — the
-  only way this app reaches S3 — work fine with the block fully enabled.
-- **Versioning is off on both buckets**, which hold the only copy of every
-  receipt image. No versioning, no replication, no backup: an accidental delete
-  or key overwrite is unrecoverable.
-- **Prod CORS still allows `https://next.jd-sanchez.com`**, a domain retired at
-  the cutover.
-- **`receipt-processor/requirements.txt` is unpinned**, which is why that
-  Lambda's asset hash is not reproducible.
+The migration turned up five problems it did not stop to fix. All five were
+resolved between 2026-10-16 and 2026-10-21:
+
+- **Public access block** is now fully enabled on both receipt buckets. It had
+  been off since the original SAM template, predating S3's block-by-default
+  change. Presigned URLs are IAM-signed and unaffected; verified by upload in
+  both stages.
+- **Versioning is on**, with lifecycle rules expiring noncurrent versions after
+  90 days and aborting incomplete multipart uploads after 7. The buckets hold
+  the only copy of every receipt image, so a delete or overwrite used to be
+  unrecoverable.
+- **Prod CORS** no longer allows the retired `https://next.jd-sanchez.com`, and
+  its methods narrowed from `GET/PUT/POST/DELETE/HEAD` to `GET/PUT/HEAD` — the
+  browser only ever issues the one presigned `PUT`.
+- **`receipt-processor/requirements.txt` is pinned**, transitives included, so
+  the Lambda's asset hash no longer drifts. Worth knowing how real that was:
+  `certifi` moved from 2026.7.22 to 2026.10.19 in the sixteen days after the
+  cutover, which alone would have pushed an unintended "code changed" diff
+  during some unrelated deploy. Dependabot maintains the pins.
+- **Local development runs MariaDB 11.8**, the same engine as the Pi, instead
+  of MySQL 8.
+
+The intended S3 state now lives as applyable JSON in `cdk-backend/s3-config/`
+rather than only as prose — see `BUCKETS.md`. Nothing detects drift on it
+automatically, which is the standing cost of keeping those buckets out of CDK.
