@@ -170,6 +170,9 @@ and ship it by hand; `api/deploy/README.md` has the operational procedures.
 - `cdk-backend/RUNBOOK.md` — how the 2026-10 migration was executed, and what
   was learned
 - `api/deploy/README.md` — Pi operations and one-time AWS/GitHub setup
-- `docs/redesign-plan.md` — running design record. **Do not commit changes to
-  this file or to `docs/redesign-plan.local.md`**, which is gitignored and holds
-  real infrastructure identifiers. Read both at the start of infrastructure work.
+- `docs/redesign-plan.md` — roadmap: what is left to build and the decisions
+  already made about how. Forward-looking only; completed work lives in
+  `RUNBOOK.md` and `git log`.
+- `docs/redesign-plan.local.md` — **gitignored, never commit it.** Real
+  infrastructure identifiers and exact config. Not loaded automatically, so a
+  fresh session needs pointing at it before infrastructure work.

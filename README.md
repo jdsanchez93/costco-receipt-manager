@@ -94,4 +94,4 @@ Infrastructure is three CDK stacks deployed by name — see
 | `cdk-backend/BUCKETS.md` | receipt-image bucket configuration, which lives outside CDK |
 | `cdk-backend/RUNBOOK.md` | how the October 2026 migration off AWS Lambda/DynamoDB was carried out |
 | `api/deploy/README.md` | Pi operations and one-time AWS/GitHub setup |
-| `docs/redesign-plan.md` | running design record |
+| `docs/redesign-plan.md` | roadmap: remaining work and the design decisions behind it |
