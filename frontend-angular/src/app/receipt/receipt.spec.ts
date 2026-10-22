@@ -1,9 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
+import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { ActivatedRoute, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, provideRouter } from '@angular/router';
 import { AuthService } from '@auth0/auth0-angular';
-import { Observable, of, throwError } from 'rxjs';
+import { NEVER, Observable, of, throwError } from 'rxjs';
 
 import { Receipt } from './receipt';
 import { ReceiptsApi } from '../api/receipts-api';
@@ -58,8 +59,10 @@ describe('Receipt', () => {
     removeReceiptMember: ReturnType<typeof vi.fn>;
     getShares: ReturnType<typeof vi.fn>;
     getDownloadUrl: ReturnType<typeof vi.fn>;
+    deleteReceipt: ReturnType<typeof vi.fn>;
   };
   let snackSpy: { open: ReturnType<typeof vi.fn> };
+  let dialogSpy: { open: ReturnType<typeof vi.fn> };
 
   function setup(opts: {
     receiptId?: string | null;
@@ -69,6 +72,9 @@ describe('Receipt', () => {
     user?: Observable<{ sub?: string } | undefined>;
     updateItemAssignment?: () => Observable<void>;
     bulkUpdateAssignments?: () => Observable<void>;
+    deleteReceipt?: () => Observable<void>;
+    /** What the confirm dialog closes with. */
+    confirm?: boolean;
   }): void {
     const receiptId = 'receiptId' in opts ? opts.receiptId : 'abc';
     apiSpy = {
@@ -89,8 +95,12 @@ describe('Receipt', () => {
       removeReceiptMember: vi.fn(),
       getShares: vi.fn().mockReturnValue(of([])),
       getDownloadUrl: vi.fn().mockReturnValue(of({ downloadUrl: 'https://s3/img.jpg', expiresIn: 3600 })),
+      deleteReceipt: vi.fn().mockImplementation(
+        () => (opts.deleteReceipt ?? (() => of(void 0)))(),
+      ),
     };
     snackSpy = { open: vi.fn() };
+    dialogSpy = { open: vi.fn().mockReturnValue({ afterClosed: () => of(opts.confirm) }) };
 
     TestBed.configureTestingModule({
       imports: [Receipt],
@@ -105,6 +115,7 @@ describe('Receipt', () => {
         },
         { provide: ReceiptsApi, useValue: apiSpy },
         { provide: MatSnackBar, useValue: snackSpy },
+        { provide: MatDialog, useValue: dialogSpy },
         { provide: AuthService, useValue: { user$: opts.user ?? of(undefined) } },
       ],
     }).compileComponents();
@@ -480,6 +491,85 @@ describe('Receipt', () => {
       const s = component.state() as { kind: 'ok'; data: { items: any[] } };
       expect(s.data.items[0].assignedMemberIds).toEqual([1]);
       expect(s.data.items[0].assigneeNames).toEqual(['Alice']);
+    });
+  });
+
+  describe('delete receipt', () => {
+    const owner = () => of([member(1, 'Alice', { userId: 'auth0|me', role: 'owner' })]);
+    const me = () => of({ sub: 'auth0|me' });
+    const menuButton = () =>
+      fixture.nativeElement.querySelector('button[aria-label="Receipt actions"]');
+
+    it('offers the actions menu to an owner', () => {
+      setup({ members: owner(), user: me() });
+      expect(component.canDelete()).toBe(true);
+      expect(menuButton()).not.toBeNull();
+    });
+
+    it('hides the actions menu from an editor', () => {
+      setup({
+        members: of([member(1, 'Alice', { userId: 'auth0|me', role: 'editor' })]),
+        user: me(),
+      });
+      expect(component.canDelete()).toBe(false);
+      expect(menuButton()).toBeNull();
+    });
+
+    it('offers the actions menu on a receipt whose OCR failed', () => {
+      setup({ members: owner(), user: me(), summary: of(summary({ processingStatus: 'failed' })) });
+      expect(menuButton()).not.toBeNull();
+    });
+
+    it('deletes, toasts and replaces the URL with the list once confirmed', () => {
+      setup({ members: owner(), user: me(), confirm: true });
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+      component.deleteReceipt();
+
+      expect(apiSpy.deleteReceipt).toHaveBeenCalledWith('abc');
+      expect(snackSpy.open).toHaveBeenCalledWith('Receipt deleted.', 'Dismiss', expect.anything());
+      expect(navigate).toHaveBeenCalledWith(['/app/receipts'], { replaceUrl: true });
+    });
+
+    it('does nothing when the dialog is cancelled', () => {
+      setup({ members: owner(), user: me(), confirm: false });
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate');
+
+      component.deleteReceipt();
+
+      expect(apiSpy.deleteReceipt).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
+      expect(component.deleting()).toBe(false);
+    });
+
+    it('swaps the menu for a spinner while the request is in flight', () => {
+      setup({ members: owner(), user: me(), confirm: true, deleteReceipt: () => NEVER });
+
+      component.deleteReceipt();
+      fixture.detectChanges();
+
+      expect(component.deleting()).toBe(true);
+      expect(menuButton()).toBeNull();
+      expect(fixture.nativeElement.querySelector('mat-spinner.header__menu')).not.toBeNull();
+    });
+
+    it('stays on the page, re-enables the menu and toasts when the delete fails', () => {
+      setup({
+        members: owner(),
+        user: me(),
+        confirm: true,
+        deleteReceipt: () => throwError(() => new Error('boom')),
+      });
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate');
+
+      component.deleteReceipt();
+      fixture.detectChanges();
+
+      expect(navigate).not.toHaveBeenCalled();
+      expect(component.deleting()).toBe(false);
+      expect(component.state().kind).toBe('ok');
+      expect(snackSpy.open).toHaveBeenCalledWith('Could not delete receipt.', 'Dismiss', expect.anything());
+      expect(menuButton()).not.toBeNull();
     });
   });
 });
