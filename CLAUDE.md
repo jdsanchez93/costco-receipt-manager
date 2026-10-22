@@ -38,7 +38,7 @@ and the API. CloudFront reaches the tunnel over ordinary HTTPS.
 **OCR pipeline**, entirely separate from the request path:
 
 ```
-browser → presigned PUT → S3 uploads/<auth0-sub>/<receiptId>.jpg
+browser → presigned PUT → S3 uploads/<auth0-sub>/<receiptId>.{jpg,png}
                             → ObjectCreated event
                             → Python Lambda → Textract
                             → POST /api/internal/receipts/{id}/ocr-results  (shared secret)

@@ -91,9 +91,13 @@ Pi's IAM user and the OCR Lambda's role.
 
 ## Key layout
 
-Uploads live under `uploads/<url-encoded-auth0-sub>/<receiptId>.jpg`. The
-`uploads/` prefix is load-bearing in two places: the OCR Lambda's IAM grant is
-scoped to `uploads/*`, and the S3 event notification filters on it.
+Uploads live under `uploads/<url-encoded-auth0-sub>/<receiptId>.<ext>`, the
+extension following the upload's content type (`.jpg` or `.png`; everything
+uploaded before 2026-10-22 is `.jpg` regardless). The key is chosen once at
+upload and stored in `receipts.ImageKey`, so download and delete read it rather
+than rebuild it. The `uploads/` prefix is load-bearing in two places: the OCR
+Lambda's IAM grant is scoped to `uploads/*`, and the S3 event notification
+filters on it.
 
 ## Who writes to them
 
