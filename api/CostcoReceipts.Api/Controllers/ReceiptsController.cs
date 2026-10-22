@@ -108,7 +108,7 @@ public class ReceiptsController : ControllerBase
         var uploadUrl = await _s3Client.GetPreSignedURLAsync(new GetPreSignedUrlRequest
         {
             BucketName = bucket,
-            Key = $"uploads/{userId}/{receiptId}.jpg",
+            Key = ImageKey(userId, receiptId),
             Verb = HttpVerb.PUT,
             Expires = now.AddSeconds(expiresIn),
             ContentType = contentType,
@@ -143,7 +143,7 @@ public class ReceiptsController : ControllerBase
             // Keyed by the receipt's owner, not the requesting caller — a
             // shared receipt's non-owner members must still resolve to the
             // actual uploader's S3 path.
-            Key = $"uploads/{receipt.OwnerUserId}/{receiptId}.jpg",
+            Key = ImageKey(receipt.OwnerUserId, receiptId),
             Verb = HttpVerb.GET,
             Expires = DateTime.UtcNow.AddSeconds(expiresIn),
         });
@@ -219,7 +219,32 @@ public class ReceiptsController : ControllerBase
         _db.Receipts.Remove(receipt);
         await _db.SaveChangesAsync(ct);
 
-        // TODO(upload-pipeline): once we own image storage, delete the S3 object here.
+        // The row is the source of truth and it's gone, so the delete has
+        // succeeded; removing the image is best-effort cleanup. A failure
+        // leaves an orphaned object rather than failing a request whose
+        // effect already happened. Versioning is on, so this only writes a
+        // delete marker. CancellationToken.None so a client disconnecting
+        // after the commit doesn't abandon the cleanup.
+        try
+        {
+            await _s3Client.DeleteObjectAsync(new DeleteObjectRequest
+            {
+                BucketName = _s3.Value.BucketName,
+                Key = ImageKey(receipt.OwnerUserId, receiptId),
+            }, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Deleted receipt {ReceiptId} but could not delete its image", receiptId);
+        }
+
         return NoContent();
     }
+
+    /// <summary>
+    /// S3 key of a receipt's image. Keyed by the receipt's owner, not the
+    /// caller — upload, download and delete must all resolve to the same path.
+    /// </summary>
+    private static string ImageKey(string ownerUserId, string receiptId) =>
+        $"uploads/{ownerUserId}/{receiptId}.jpg";
 }

@@ -69,9 +69,10 @@ S3's block-by-default change, which is why it had to be enabled explicitly.
 
 Versioning is **on**. These buckets hold the only copy of every receipt image —
 no replication, no backup — so without it an accidental delete or a key
-overwrite is unrecoverable. It also makes the pending "delete the S3 object
-when a receipt is deleted" change safe to land, since deletes become delete
-markers.
+overwrite is unrecoverable. It is also what makes deleting a receipt's image
+when the receipt is deleted safe: the API's delete only writes a delete
+marker, and the Pi's IAM user has no `s3:DeleteObjectVersion`, so the image
+stays recoverable until the noncurrent-version rule below expires it.
 
 Two lifecycle rules keep that from growing without bound:
 
@@ -96,8 +97,9 @@ scoped to `uploads/*`, and the S3 event notification filters on it.
 
 ## Who writes to them
 
-- **The Pi's API** (`ReceiptsController`) mints presigned PUT/GET URLs with an
-  IAM user scoped to `s3:PutObject`/`GetObject`/`HeadObject` on `uploads/*`.
-  See `redesign-plan.md`'s "AWS credentials on the Pi".
+- **The Pi's API** (`ReceiptsController`) mints presigned PUT/GET URLs, and
+  deletes a receipt's image when the receipt is deleted, with an IAM user
+  scoped to `s3:PutObject`/`GetObject`/`HeadObject`/`DeleteObject` on
+  `uploads/*`. See `redesign-plan.md`'s "AWS credentials on the Pi".
 - **The OCR Lambda** reads `uploads/*` only, triggered by the bucket
   notification configured in `ReceiptProcessingStack`.

@@ -4,6 +4,25 @@
       <mat-icon>arrow_back</mat-icon>
     </a>
     <h1>Receipt {{ receiptId }}</h1>
+    @if (canDelete()) {
+      @if (deleting()) {
+        <mat-spinner class="header__menu" diameter="24" aria-label="Deleting receipt" />
+      } @else {
+        <button
+          mat-icon-button
+          class="header__menu"
+          [matMenuTriggerFor]="receiptMenu"
+          aria-label="Receipt actions">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+        <mat-menu #receiptMenu="matMenu" xPosition="before">
+          <button mat-menu-item (click)="deleteReceipt()">
+            <mat-icon>delete</mat-icon>
+            <span>Delete receipt</span>
+          </button>
+        </mat-menu>
+      }
+    }
   </header>
 
   @let s = state();

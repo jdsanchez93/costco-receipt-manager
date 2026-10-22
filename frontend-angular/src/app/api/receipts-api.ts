@@ -227,10 +227,12 @@ export class ReceiptsApi {
   }
 
   /**
-   * Permanently delete a receipt and all its data. Requires ReceiptOwner.
-   * Backend: DELETE /api/receipts/receipt/{receiptId}. Used by
-   * receipt-upload.ts as best-effort cleanup for a Receipt row created by
-   * getUploadUrl() but then abandoned before the image ever reached S3.
+   * Permanently delete a receipt and all its data, including its image (the
+   * backend removes that best-effort after the DB delete). Requires
+   * ReceiptOwner. Backend: DELETE /api/receipts/receipt/{receiptId}. Used by
+   * the receipt page's "Delete receipt" action, and by receipt-upload.ts as
+   * best-effort cleanup for a Receipt row created by getUploadUrl() but then
+   * abandoned before the image ever reached S3.
    */
   deleteReceipt(receiptId: string): Observable<void> {
     return this.http.delete<void>(

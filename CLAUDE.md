@@ -156,9 +156,13 @@ and ship it by hand; `api/deploy/README.md` has the operational procedures.
   WebP, and non-Safari browsers cannot render HEIC. Enforced on both sides.
   Client-side conversion is a known gap — a Mac Photos export currently has to
   be converted by hand.
-- **Deleting a receipt leaves its S3 object orphaned** — an explicit TODO in
-  `ReceiptsController`. The abandoned-upload path therefore also burns Textract
-  calls and lands an event in the DLQ.
+- **Deleting a receipt removes its image only best-effort.** `DeleteReceipt`
+  commits the DB delete first, then deletes the S3 object (a delete marker,
+  since the bucket is versioned), logging a warning rather than failing if S3
+  refuses — so a missing `s3:DeleteObject` grant shows up as orphans, not 500s.
+  Deleting while OCR is still pending, and the abandoned-upload path, still let
+  the Lambda POST results for a receipt that is gone: a 404, a burned Textract
+  call, and an event in the DLQ.
 - **`docker compose restart` does not re-read `.env`**; use
   `up -d --force-recreate`.
 

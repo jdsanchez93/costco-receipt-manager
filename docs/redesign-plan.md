@@ -141,6 +141,12 @@ Static and long-lived, but tight IAM scoping is proportionate for a
 single personal device — revisit Roles Anywhere with an external CA if
 eliminating static keys ever becomes a real priority.
 
+**Widened 2026-10-22 with `s3:DeleteObject`**, so deleting a receipt
+also deletes its image. On a versioned bucket that only writes a delete
+marker; `s3:DeleteObjectVersion` is deliberately withheld, so a leaked
+key still cannot destroy history before the 90-day noncurrent-version
+expiry.
+
 ---
 
 ## Open questions
