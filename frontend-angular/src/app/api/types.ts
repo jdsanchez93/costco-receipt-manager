@@ -154,7 +154,7 @@ export interface GeometryDto {
  * Body for POST /api/receipts/get-upload-url. Matches the backend
  * GetUploadUrlRequest DTO. `contentType` defaults to image/jpeg on the
  * backend when omitted; allowed values are image/jpeg, image/jpg,
- * image/png, image/webp, image/heic, image/heif.
+ * image/png (what Textract can OCR).
  */
 export interface GetUploadUrlRequest {
   contentType?: string;

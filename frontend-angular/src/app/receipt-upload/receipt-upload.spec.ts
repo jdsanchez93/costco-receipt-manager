@@ -67,6 +67,22 @@ describe('ReceiptUpload', () => {
     );
   });
 
+  it.each([
+    ['IMG_0001.heic', 'image/heic'],
+    ['IMG_0001.heif', 'image/heif'],
+    ['receipt.webp', 'image/webp'],
+  ])('rejects %s, which Textract cannot OCR', (name, type) => {
+    setup();
+    component['select'](fileList([file(name, type)]));
+
+    expect(component.selection()).toBeNull();
+    expect(snackSpy.open).toHaveBeenCalledWith(
+      `${name}: unsupported file type.`,
+      'Dismiss',
+      expect.anything(),
+    );
+  });
+
   it('rejects a file over the 10MB limit', () => {
     setup();
     const big = file('huge.jpg', 'image/jpeg', 11 * 1024 * 1024);

@@ -144,6 +144,9 @@ disposable. Their configuration lives in `cdk-backend/BUCKETS.md`.
 The API is **not** deployed by CI — the Pi has no inbound path. Build the image
 and ship it by hand; `api/deploy/README.md` has the operational procedures.
 
+PR descriptions follow `.github/pull_request_template.md` — short; the
+reasoning lives in the commits.
+
 ## Things that have bitten before
 
 - **MariaDB `localhost` grants only match Unix-socket connections.** A user that
