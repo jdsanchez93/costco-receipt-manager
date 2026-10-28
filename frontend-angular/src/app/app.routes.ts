@@ -33,6 +33,10 @@ export const routes: Routes = [
         path: 'receipts/:receiptId',
         loadComponent: () => import('./receipt/receipt').then(m => m.Receipt),
       },
+      {
+        path: 'profile',
+        loadComponent: () => import('./profile/profile').then(m => m.Profile),
+      },
     ],
   },
 

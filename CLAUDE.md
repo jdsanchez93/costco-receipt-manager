@@ -166,6 +166,13 @@ reasoning lives in the commits.
   Deleting while OCR is still pending, and the abandoned-upload path, still let
   the Lambda POST results for a receipt that is gone: a 404, a burned Textract
   call, and an event in the DLQ.
+- **Access tokens carry no profile claims** — no `email`, `name` or
+  `nickname`, only the ID token does. `UserProvisioningMiddleware` gets them
+  from Auth0's `/userinfo` with the caller's own access token (valid there
+  because the SPA requests `openid` alongside the API audience), and only
+  while the self-contact is missing, still named after the `sub`, or has no
+  email. A real name belongs to the user (`/api/me`) and is never
+  overwritten from Auth0.
 - **`docker compose restart` does not re-read `.env`**; use
   `up -d --force-recreate`.
 

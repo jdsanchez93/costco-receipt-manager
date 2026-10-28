@@ -1,0 +1,49 @@
+<section class="page">
+  <div class="page__head">
+    <h1>Your profile</h1>
+  </div>
+
+  @let s = state();
+  @switch (s.kind) {
+    @case ('loading') {
+      <div class="center">
+        <mat-spinner diameter="40" />
+      </div>
+    }
+    @case ('error') {
+      <div class="error">
+        <p>{{ s.message }}</p>
+        <button mat-flat-button (click)="load()">Retry</button>
+      </div>
+    }
+    @case ('ok') {
+      <form class="profile-form" (ngSubmit)="save()">
+        <mat-form-field appearance="outline">
+          <mat-label>Display name</mat-label>
+          <input
+            matInput
+            name="displayName"
+            [(ngModel)]="name"
+            [disabled]="busy()"
+            required
+            maxlength="256"
+            autocomplete="name" />
+          <mat-hint>Everyone on your receipts sees this name.</mat-hint>
+        </mat-form-field>
+
+        <dl class="profile-form__email">
+          <dt>Email</dt>
+          <dd>{{ s.data.email ?? 'Not provided by your sign-in' }}</dd>
+        </dl>
+        <p class="profile-form__hint">
+          Your email comes from the account you sign in with, so it can't be
+          changed here.
+        </p>
+
+        <div class="profile-form__actions">
+          <button mat-flat-button type="submit" [disabled]="!canSave(s.data)">Save</button>
+        </div>
+      </form>
+    }
+  }
+</section>

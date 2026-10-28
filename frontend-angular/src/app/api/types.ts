@@ -203,3 +203,14 @@ export interface SharedReceiptResponse {
     expiresAt: string;
   };
 }
+
+/**
+ * The caller's own profile, from GET /api/me — read from their self-contact,
+ * which is what other members see on receipts. Mirrors the backend MeDto.
+ * `email` comes from the identity provider and isn't editable.
+ */
+export interface MeDto {
+  userId: string;
+  displayName: string;
+  email: string | null;
+}

@@ -222,3 +222,21 @@ public class SharedReceiptResponse
     public GeometryDto Geometry { get; set; } = new();
     public ShareInfoDto ShareInfo { get; set; } = new();
 }
+
+/// <summary>
+/// The caller's own profile. Read from their self-contact, since that is
+/// what other members see on receipts.
+/// </summary>
+public class MeDto
+{
+    public string UserId { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string? Email { get; set; }
+
+    public static MeDto From(Contact self) => new()
+    {
+        UserId = self.UserId ?? string.Empty,
+        DisplayName = self.DisplayName,
+        Email = self.Email,
+    };
+}

@@ -87,3 +87,8 @@ public class ReceiptShareDto
     public bool IsActive { get; set; }
     public int CurrentUses { get; set; }
 }
+
+public class UpdateMeRequest
+{
+    public string DisplayName { get; set; } = string.Empty;
+}
