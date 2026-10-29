@@ -5,16 +5,23 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { AuthService } from '@auth0/auth0-angular';
+import { forkJoin } from 'rxjs';
+import { take } from 'rxjs/operators';
 
 import { ProfileApi } from '../api/profile-api';
 import { MeDto } from '../api/types';
 import { Loadable } from '../receipts/receipt-view';
+import { suggestedName } from './suggested-name';
 
 /**
  * The signed-in user's profile. Only the display name is editable — it's
  * what other members see on every receipt. The backend seeds it from the
  * Auth0 profile on first sign-in and never overwrites it after that. Email
  * is shown read-only, since it comes from the sign-in provider.
+ *
+ * If the backend fell back to the sub (`needsName`), the field starts with
+ * the ID token's name instead, so saving it is one click.
  */
 @Component({
   selector: 'app-profile',
@@ -31,6 +38,7 @@ import { Loadable } from '../receipts/receipt-view';
 export class Profile {
   private api = inject(ProfileApi);
   private snackBar = inject(MatSnackBar);
+  private auth = inject(AuthService);
 
   state = signal<Loadable<MeDto>>({ kind: 'loading' });
   /** A save is in flight. */
@@ -45,9 +53,9 @@ export class Profile {
 
   load(): void {
     this.state.set({ kind: 'loading' });
-    this.api.getMe().subscribe({
-      next: data => {
-        this.name = data.displayName;
+    forkJoin([this.api.getMe(), this.auth.user$.pipe(take(1))]).subscribe({
+      next: ([data, user]) => {
+        this.name = data.needsName ? suggestedName(user) : data.displayName;
         this.state.set({ kind: 'ok', data });
       },
       error: err => this.state.set({

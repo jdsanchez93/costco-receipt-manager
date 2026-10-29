@@ -35,6 +35,16 @@
   background: var(--mat-sys-error-container);
 }
 
+.profile-notice {
+  max-width: 480px;
+  margin: 0 0 1.5rem;
+  padding: 1rem;
+  border-radius: 8px;
+  font: var(--mat-sys-body-medium);
+  color: var(--mat-sys-on-secondary-container);
+  background: var(--mat-sys-secondary-container);
+}
+
 .profile-form {
   display: flex;
   flex-direction: column;

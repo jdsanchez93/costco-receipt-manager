@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { AuthService } from '@auth0/auth0-angular';
 import { Observable, of, throwError } from 'rxjs';
 
 import { Profile } from './profile';
@@ -11,6 +12,7 @@ const me = (displayName: string, email: string | null = 'ana@example.com'): MeDt
   userId: 'auth0|1',
   displayName,
   email,
+  needsName: displayName === 'auth0|1',
 });
 
 describe('Profile', () => {
@@ -34,6 +36,7 @@ describe('Profile', () => {
         provideAnimationsAsync('noop'),
         { provide: ProfileApi, useValue: { getMe, updateMe } },
         { provide: MatSnackBar, useValue: snackSpy },
+        { provide: AuthService, useValue: { user$: of({ name: 'Ana Silva', email: 'ana@example.com' }) } },
       ],
     }).compileComponents();
 
@@ -47,6 +50,13 @@ describe('Profile', () => {
     expect(component.state()).toEqual({ kind: 'ok', data: me('Ana') });
     expect(component.name).toBe('Ana');
     expect(fixture.nativeElement.textContent).toContain('ana@example.com');
+  });
+
+  it('prefills the ID token name, not the sub, when the backend fell back', () => {
+    setup({ getMe: () => of(me('auth0|1')) });
+    expect(component.name).toBe('Ana Silva');
+    expect(component.canSave(me('auth0|1'))).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain("You haven't picked a name yet");
   });
 
   it('shows the backend error when loading fails', () => {

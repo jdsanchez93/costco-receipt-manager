@@ -232,11 +232,17 @@ public class MeDto
     public string UserId { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
     public string? Email { get; set; }
+    /// <summary>
+    /// The name is still the sub, standing in because the /userinfo fetch
+    /// failed. The client prompts for a real one.
+    /// </summary>
+    public bool NeedsName { get; set; }
 
     public static MeDto From(Contact self) => new()
     {
         UserId = self.UserId ?? string.Empty,
         DisplayName = self.DisplayName,
         Email = self.Email,
+        NeedsName = self.DisplayName == self.UserId,
     };
 }

@@ -15,11 +15,12 @@ namespace CostcoReceipts.Api.Middleware;
 /// swallowed — a users-table hiccup should not fail the underlying request.
 ///
 /// The access token carries no email or name, so those come from Auth0's
-/// /userinfo (<see cref="Auth0UserInfoClient"/>), fetched only while the
-/// caller's self-contact is missing, still named after their sub, or has no
-/// email. The sub is the stand-in name when the fetch fails, and the upserts
-/// only ever replace that stand-in or a missing email: once a real name is
-/// in place the app owns it, and the user changes it through <c>/api/me</c>.
+/// /userinfo (<see cref="Auth0UserInfoClient"/>), fetched while the caller
+/// has no self-contact yet and retried while it has no email. When a fetch
+/// fails the sub stands in as the name; <c>GET /api/me</c> reports that as
+/// <c>needsName</c> and the shell prompts the user for a real one. The
+/// upserts only ever fill a stand-in name or a missing email, so a retry
+/// landing after the user picked a name leaves it alone.
 ///
 /// Runs after <c>UseAuthentication</c> and before <c>UseAuthorization</c>
 /// so the auth handler can rely on the user + self-contact existing.
@@ -75,7 +76,10 @@ public class UserProvisioningMiddleware
                 .Where(c => c.OwnerUserId == userId && c.UserId == userId)
                 .Select(c => new { c.DisplayName, c.Email })
                 .FirstOrDefaultAsync(ct);
-            var needsProfile = self is null || self.DisplayName == userId || string.IsNullOrEmpty(self.Email);
+            // A failed fetch always leaves the email missing, and every
+            // connection the tenant offers (email/password, Google) supplies
+            // one — so no email means no successful fetch yet.
+            var needsProfile = self is null || string.IsNullOrEmpty(self.Email);
 
             Auth0UserProfile? profile = null;
             if (needsProfile)

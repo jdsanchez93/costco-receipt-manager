@@ -17,6 +17,12 @@
       </div>
     }
     @case ('ok') {
+      @if (s.data.needsName) {
+        <p class="profile-notice">
+          You haven't picked a name yet, so receipts show your account ID.
+          Save a name below.
+        </p>
+      }
       <form class="profile-form" (ngSubmit)="save()">
         <mat-form-field appearance="outline">
           <mat-label>Display name</mat-label>
