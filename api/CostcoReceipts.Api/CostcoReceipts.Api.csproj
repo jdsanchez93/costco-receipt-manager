@@ -14,16 +14,16 @@
     <PackageReference Include="AWSSDK.SSOOIDC" Version="4.0.100.6" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.14" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <!-- Pins Pomelo's transitive MySqlConnector (>= 2.4.0) past GHSA-473q-m89c-ghf8,
-         which NuGet audit fails the build on. Drop it once the provider itself
-         depends on a patched version. -->
-    <PackageReference Include="MySqlConnector" Version="2.6.2" />
-    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
+    <!-- Pomelo has no EF Core 10 release; this fork of it keeps the same public
+         API (UseMySql, ServerVersion) and annotation names. It requires
+         Microsoft.EntityFrameworkCore.Relational [own version, 10.0.999], so the
+         EF packages above can never be older than it. -->
+    <PackageReference Include="Microting.EntityFrameworkCore.MySql" Version="10.0.14" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
   </ItemGroup>
 
