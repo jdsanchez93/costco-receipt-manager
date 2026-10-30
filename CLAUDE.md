@@ -11,7 +11,7 @@ totals are computed.
 | Piece | Stack |
 |---|---|
 | `frontend-angular/` | Angular 22 + Angular Material, Auth0 SDK v2.11 |
-| `api/CostcoReceipts.Api/` | ASP.NET Core 10, EF Core 9 via Pomelo (MySQL/MariaDB) |
+| `api/CostcoReceipts.Api/` | ASP.NET Core 10, EF Core 10 via `Microting.EntityFrameworkCore.MySql` (a Pomelo fork; MySQL/MariaDB) |
 | `api/CostcoReceipts.Migration/` | one-off data maintenance CLI (see below) |
 | `cdk-backend/` | AWS CDK: S3 + CloudFront, and the Textract OCR Lambda |
 
