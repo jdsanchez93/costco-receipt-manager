@@ -37,10 +37,15 @@ public class UserProvisioningMiddleware
         _cache = cache;
     }
 
-    public async Task InvokeAsync(HttpContext context, AppDbContext db)
+    // AppDbContext is resolved here rather than method-injected, so anonymous
+    // requests never build one. Building it runs ServerVersion.AutoDetect, a
+    // round trip to the database, and with the database down that throws, which
+    // would turn /healthz's 503 into a 500 before the health check ever ran.
+    public async Task InvokeAsync(HttpContext context)
     {
         if (context.User.Identity?.IsAuthenticated == true)
         {
+            var db = context.RequestServices.GetRequiredService<AppDbContext>();
             await ProvisionAsync(context, db);
         }
 

@@ -27,6 +27,21 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
 });
 
+// One-shot schema migration: api/deploy/costco-deploy.sh runs the image it is
+// about to deploy with this flag, as costco_migrator rather than costco_app, so
+// the schema and the code that expects it always come from the same build.
+// Returns before AddAuth0Jwt and the rest, which would throw: the migrate
+// container is given a connection string and nothing else.
+if (args.Contains("--migrate"))
+{
+    using var migrator = builder.Build();
+    using var scope = migrator.Services.CreateScope();
+    scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.Migrate();
+    return;
+}
+
+builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
+
 // AWS credentials: an explicit named profile for local dev (AWS:Profile),
 // otherwise the SDK's default credential provider chain (env vars, etc. —
 // relevant once this runs somewhere with no IAM role, e.g. the Pi).
@@ -94,5 +109,10 @@ app.UseAuthentication();
 app.UseMiddleware<UserProvisioningMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
+
+// Polled by costco-deploy on the Pi before it keeps a new image. Loopback
+// only: requests through the Cloudflare Tunnel carry the public hostname as
+// their Host header, so this 404s there.
+app.MapHealthChecks("/healthz").RequireHost("127.0.0.1", "localhost");
 
 app.Run();
