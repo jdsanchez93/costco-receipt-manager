@@ -9,14 +9,16 @@ namespace CostcoReceipts.Api.Data;
 /// nothing touches the database until the first request.
 ///
 /// Resolves <see cref="AppDbContext"/> inside the check rather than taking it
-/// as a constructor dependency: building the context runs
-/// <c>ServerVersion.AutoDetect</c>, which throws when the database is down, and
-/// the health check service only turns exceptions from the check itself into
-/// an Unhealthy result — one thrown while constructing the check is a 500.
+/// as a constructor dependency. Building the context runs the server-version
+/// detection in Program.cs until that first succeeds, and it throws while the
+/// database is down. The health check service turns only exceptions from the
+/// check itself into an Unhealthy result: it constructs the check outside its
+/// try, so one thrown there is a 500. That is exactly the case a deploy
+/// probes, a fresh container whose detection hasn't run yet.
 ///
-/// Hand-written rather than taken from
+/// Hand-written rather than <c>AddDbContextCheck</c> from
 /// Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore, whose
-/// 10.x line depends on EF Core 10; Pomelo holds this project on EF Core 9.
+/// check takes the context as a constructor dependency.
 /// </summary>
 public class DatabaseHealthCheck : IHealthCheck
 {
