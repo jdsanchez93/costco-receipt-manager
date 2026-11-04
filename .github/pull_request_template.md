@@ -4,7 +4,7 @@
 
 ## Deploy
 
-<!-- Anything beyond merging: migration, manual API deploy, IAM/config, ordering. Otherwise "Merge only." -->
+<!-- Anything beyond merging: a migration that isn't additive, Pi-side files (costco-deploy, compose, sudoers), IAM/config, ordering. Otherwise "Merge only." -->
 
 ## Testing
 

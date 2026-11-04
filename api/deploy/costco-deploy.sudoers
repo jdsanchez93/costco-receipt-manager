@@ -1,0 +1,11 @@
+# The self-hosted runner's only privilege. Installed by hand, after
+# `sudo visudo -cf costco-deploy.sudoers` passes:
+#
+#   sudo install -o root -g root -m 0440 costco-deploy.sudoers /etc/sudoers.d/costco-deploy
+#
+# The installed name must not contain a dot: sudo silently skips any file in
+# /etc/sudoers.d whose name does.
+#
+# No argument pattern. A sudoers glob can't say "exactly one sha256 digest"
+# (its * also matches spaces), so costco-deploy validates its own argument.
+gh-runner ALL=(root) NOPASSWD: /usr/local/sbin/costco-deploy

@@ -3,10 +3,221 @@
 One-time setup for the pieces CI can't do itself. Everything here is manual on
 purpose — see the notes on each section for why.
 
-Phase 1 (this directory today) covers database backups and the frontend deploy
-pipeline. Phase 2 — the self-hosted runner and automated API deploy — is
-deliberately deferred until after the `costco.jd-sanchez.com` cutover and the
-decommissioning of the old Lambda stack; nothing for it exists here yet.
+Covers the API deploy pipeline and the Pi it deploys to, database backups, and
+the frontend deploy pipeline.
+
+---
+
+## API deploy
+
+Merging a pull request that touches `api/CostcoReceipts.Api/**` deploys it:
+
+```
+costco-receipt-manager (public)  .github/workflows/api.yml
+├─ build   GitHub-hosted arm64: docker build → ghcr.io/jdsanchez93/costco-api:sha-<sha>, :main
+└─ deploy  environment: production — starts the private workflow, then watches it
+     └─ costco-deploy (private)  deploy.yml, on the Pi's self-hosted runner
+          sudo costco-deploy sha256:<digest>
+            pull → costco-db-backup → migrate (one-shot container) → compose up → /healthz
+            unhealthy → previous image back, run fails
+```
+
+**Why two repositories.** A self-hosted runner executes whatever job it is
+sent, and in a public repository any workflow can send it one, including a
+workflow edited in a fork's pull request, since a `pull_request` run uses the
+PR's own workflow files. Restricting the deploy workflow to `main` and the
+`production` environment doesn't help; another workflow simply wouldn't
+declare them. GitHub's advice is to keep self-hosted runners off public
+repositories, and on a personal account there are no runner groups to limit
+one to chosen workflows. So the runner is registered on
+`jdsanchez93/costco-deploy`, where only the owner can write workflows. The
+image is still built here, on the arm64 runner that is free for public
+repositories.
+
+**The link between them** is a GitHub App, installed only on
+`costco-deploy`, with one repository permission: **Actions: read and write**.
+That is enough to start and re-run `deploy.yml`, and too little to change it:
+pushing a commit needs Contents, and touching a workflow file needs Workflows.
+A leaked key can therefore redeploy an image that is already in the GHCR
+package, and nothing else. It is a `production` environment secret here, so
+only a job on `main` can read it. An App rather than a fine-grained token,
+because it doesn't expire and doesn't act as you, so it doesn't carry your
+bypass of the `main` ruleset.
+
+**Why the script lives on the Pi, not in the private repository.** If the
+runner ran a script it had checked out, its sudo entry would amount to root
+for whatever that repository contains. Installed by hand and root-owned,
+`costco-deploy` is the runner user's only privilege, and it takes nothing but
+a digest from a fixed GHCR repository. So someone with your GitHub account can
+deploy a bad *image*, which runs as non-root in a container with the API's
+secrets, but can't get root on the host. The price is that changes to
+`costco-deploy.sh`, `costco-deploy.sudoers` or `docker-compose.prod.yml` are
+installed by hand. CI never touches them; that is deliberate.
+
+**Migrations** run from the image being deployed (`--migrate`), as
+`costco_migrator`, after a verified backup, before the container swap. Its
+credentials are in `migrator.env`, never `.env`: `.env` is the API container's
+`env_file`, and the API gets DML only. Two consequences:
+
+- **Migrations must stay additive.** The old container keeps serving while a
+  migration runs, and rolling back an image never rolls back the schema.
+- MariaDB commits DDL implicitly, so a migration that fails partway is left
+  half-applied. The backup taken just before is what undoes that.
+
+### On the Pi
+
+| Path | Owner, mode | What |
+|---|---|---|
+| `/usr/local/sbin/costco-deploy` | root, `0755` | `costco-deploy.sh` |
+| `/etc/sudoers.d/costco-deploy` | root, `0440` | `costco-deploy.sudoers` |
+| `/opt/costco-api/` | root, `0700` | everything below |
+| `/opt/costco-api/docker-compose.prod.yml` | root, `0644` | from this directory's parent |
+| `/opt/costco-api/.env` | root, `0600` | the API's config and secrets (`api/.env.example`) |
+| `/opt/costco-api/migrator.env` | root, `0600` | `costco_migrator`'s connection string, nothing else |
+| `/opt/costco-api/deploy.env` | root | written by `costco-deploy`: current and previous image |
+| `/home/gh-runner/actions-runner/` | `gh-runner` | the runner, registered on `costco-deploy` |
+
+### Day to day
+
+- **Deploy:** merge. The `api` run's summary links the deploy run in
+  `costco-deploy`, and the `api` run fails if the deploy does.
+- **Roll back:** re-run an earlier successful run in `costco-deploy`. A re-run
+  keeps its inputs, so it redeploys that run's digest. Or, on the Pi,
+  `sudo costco-deploy --rollback`, which swaps to the previous image without
+  migrating.
+- **After editing `.env`:** `sudo costco-deploy --recreate`. `docker compose
+  restart` doesn't re-read `.env`.
+- **A specific image, by hand:** `sudo costco-deploy sha256:<digest>`. Every
+  `api` run's summary records its digest.
+- **Rebuild without a code change**, say for base-image patches: run the `api`
+  workflow from the Actions tab, on `main`.
+
+### One-time setup
+
+In this order. Steps 2 and 9 lean on the first merge, since there is no image
+to deploy until `api.yml` has run once.
+
+1. **Create the private repository** with `deploy.yml` and its README. It has
+   no secrets and no environment, and its workflow uses no actions, so it can
+   be told to allow none:
+
+   ```bash
+   gh repo create jdsanchez93/costco-deploy --private
+   gh api -X PUT repos/jdsanchez93/costco-deploy/actions/permissions \
+     -F enabled=true -f allowed_actions=selected
+   gh api -X PUT repos/jdsanchez93/costco-deploy/actions/permissions/selected-actions \
+     --input - <<<'{"github_owned_allowed":false,"verified_allowed":false,"patterns_allowed":[]}'
+   ```
+
+2. **Merge the pull request that adds `api.yml`.** `build` pushes the first
+   image and `deploy` fails at minting a token, because the App doesn't exist
+   yet. Note the digest from the run's summary.
+
+3. **Make the package public**, so the Pi pulls with no credential: Package
+   settings for `costco-api` → Change visibility → Public. This can't be
+   undone. The image is the compiled contents of a public repository, and
+   `api/.dockerignore` keeps local config out of the build context.
+
+4. **Give `costco_migrator` a TCP grant.** The migrate container connects to
+   `127.0.0.1`, and an `@'localhost'` grant only matches Unix-socket
+   connections. Copy the existing grants, which include the
+   `CREATE ROUTINE`/`ALTER ROUTINE`/`EXECUTE` set:
+
+   ```sql
+   -- sudo mariadb
+   SHOW GRANTS FOR 'costco_migrator'@'localhost';
+   CREATE USER 'costco_migrator'@'127.0.0.1' IDENTIFIED BY '<new password>';
+   -- then each GRANT line from above, with @'127.0.0.1' in place of @'localhost'
+   ```
+
+5. **Lay out `/opt/costco-api`**, moving `.env` from wherever the API's compose
+   project lives today:
+
+   ```bash
+   sudo install -d -o root -g root -m 0700 /opt/costco-api
+   sudo install -o root -g root -m 0644 docker-compose.prod.yml /opt/costco-api/
+   sudo install -o root -g root -m 0600 <old dir>/.env /opt/costco-api/.env
+   sudo install -o root -g root -m 0600 /dev/null /opt/costco-api/migrator.env
+   sudoedit /opt/costco-api/migrator.env
+   # ConnectionStrings__MySql=Server=127.0.0.1;Port=3306;Database=costco_receipts;User=costco_migrator;Password=<it>;
+   ```
+
+6. **Install `costco-deploy` and run the first deploy by hand**, watching it.
+   Take the old compose project down first: the new one is named
+   `costco-api` and would otherwise fight it for port 8080.
+
+   ```bash
+   sudo install -o root -g root -m 0755 costco-deploy.sh /usr/local/sbin/costco-deploy
+   (cd <old dir> && docker compose -f docker-compose.prod.yml down)
+   sudo costco-deploy sha256:<digest from step 2>
+   ```
+
+   Then log in to the site and open a receipt.
+
+7. **Create the runner user and register the runner on `costco-deploy`.** The
+   user is deliberately not in the `docker` group, which would be root by
+   another name. Get the download commands and a registration token from
+   `costco-deploy` → Settings → Actions → Runners → New self-hosted runner
+   (Linux, ARM64), and run them as that user:
+
+   ```bash
+   sudo useradd --system --create-home --shell /usr/sbin/nologin gh-runner
+   sudo -u gh-runner mkdir /home/gh-runner/actions-runner
+   sudo -u gh-runner bash -c 'cd /home/gh-runner/actions-runner && <download and extract, from that page>'
+   sudo -u gh-runner bash -c 'cd /home/gh-runner/actions-runner && ./config.sh --unattended \
+     --url https://github.com/jdsanchez93/costco-deploy --token <token> \
+     --name costco-pi --labels costco-pi'
+   cd /home/gh-runner/actions-runner && sudo ./svc.sh install gh-runner && sudo ./svc.sh start
+
+   sudo visudo -cf costco-deploy.sudoers
+   sudo install -o root -g root -m 0440 costco-deploy.sudoers /etc/sudoers.d/costco-deploy
+   ```
+
+   Check that it got the one privilege and nothing else:
+
+   ```bash
+   sudo -u gh-runner sudo -l                       # only /usr/local/sbin/costco-deploy
+   sudo -u gh-runner cat /opt/costco-api/.env      # Permission denied
+   sudo -u gh-runner docker ps                     # permission denied on docker.sock
+   sudo -u gh-runner ls /home/<you>                # Permission denied
+   ```
+
+8. **Create the GitHub App** at github.com/settings/apps/new:
+   - Webhook off.
+   - Repository permissions: **Actions: Read and write**, nothing else.
+     Metadata read-only is added automatically.
+   - "Only on this account".
+
+   Then generate a private key, and install the App on **only**
+   `costco-deploy`. Store the App ID and key on this repository's `production`
+   environment, and delete the downloaded `.pem`:
+
+   ```bash
+   gh variable set DEPLOY_APP_ID --env production --body <app id>
+   gh secret set DEPLOY_APP_PRIVATE_KEY --env production < <key>.pem
+   ```
+
+9. **Re-run the failed `deploy` job from step 2.** It starts `deploy.yml`,
+   which redeploys the digest that step 6 already deployed. That makes the
+   first automated deploy a deliberate no-op, exercising the whole path with
+   nothing at stake.
+
+### Verifying
+
+```bash
+# A deploy that can't succeed: the run fails at `docker pull` and nothing on the Pi changes.
+gh workflow run deploy.yml -R jdsanchez93/costco-deploy \
+  -f digest=sha256:0000000000000000000000000000000000000000000000000000000000000000 \
+  -f source_sha=test
+
+# The health check is loopback-only. Expect 404 through the tunnel; a 200
+# would mean cloudflared rewrote the Host header, which is harmless but worth knowing.
+curl -s -o /dev/null -w '%{http_code}\n' https://costco-api.jd-sanchez.dev/healthz
+```
+
+After the second real deploy, try `sudo costco-deploy --rollback` and check the
+older commit is serving (`costco-deploy` prints it), then roll forward the
+same way.
 
 ---
 
@@ -40,8 +251,8 @@ gzip integrity and that the output actually contains `CREATE TABLE`, and only
 then renames. A truncated dump that looks restorable is worse than no dump,
 because it's the file a panicked restore reaches for first.
 
-**Run this by hand before applying any migration script**, until Phase 2 wires
-it into the deploy:
+`costco-deploy` runs it before every migration. **Run it by hand before
+applying SQL any other way:**
 
 ```bash
 sudo /usr/local/bin/costco-db-backup

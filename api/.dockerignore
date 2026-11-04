@@ -6,3 +6,7 @@
 .env
 .env.*
 !.env.example
+# Mirrors api/.gitignore. The image is public, so anything that slips into
+# the build context is published.
+**/appsettings.Local.json
+**/appsettings.*.Local.json
