@@ -18,14 +18,23 @@ builder.Services.Configure<InternalApiOptions>(builder.Configuration.GetSection(
 builder.Services.AddProblemDetails();
 builder.Services.AddMemoryCache();
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-{
-    var connectionString = builder.Configuration.GetConnectionString("MySql")
+string MySqlConnectionString() =>
+    builder.Configuration.GetConnectionString("MySql")
         ?? throw new InvalidOperationException(
             "ConnectionStrings:MySql is required. Set it in appsettings, user secrets, or env vars.");
 
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
-});
+// EF runs the AddDbContext options lambda once per scope, so calling AutoDetect
+// in it cost every request a connection and a SELECT VERSION(). Detect once,
+// on first use rather than at startup, so the host still starts with the
+// database down. PublicationOnly because the default mode caches an exception:
+// one failed detection would then fail every later request, even after the
+// database came back. The price is that racing first requests each detect.
+var serverVersion = new Lazy<ServerVersion>(
+    () => ServerVersion.AutoDetect(MySqlConnectionString()),
+    LazyThreadSafetyMode.PublicationOnly);
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseMySql(MySqlConnectionString(), serverVersion.Value));
 
 // AWS credentials: an explicit named profile for local dev (AWS:Profile),
 // otherwise the SDK's default credential provider chain (env vars, etc. —
