@@ -44,6 +44,14 @@ public static class Auth0JwtExtensions
 
         services.AddAuthorization();
 
+        // Short timeout: it is called from a user's first request, which
+        // waits on the answer.
+        services.AddHttpClient<Auth0UserInfoClient>(client =>
+        {
+            client.BaseAddress = new Uri($"https://{auth0.Domain}/");
+            client.Timeout = TimeSpan.FromSeconds(5);
+        });
+
         return services;
     }
 }

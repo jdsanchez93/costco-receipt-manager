@@ -67,10 +67,10 @@ jobs:
         working-directory: api/CostcoReceipts.Migration
         run: dotnet build CostcoReceipts.Migration.csproj -warnaserror
 
-      # Pinned to match the EF Core 9 packages in CostcoReceipts.Api.csproj.
+      # Pinned to match the EF Core 10 packages in CostcoReceipts.Api.csproj.
       - name: Install dotnet-ef
         run: |
-          dotnet tool install --global dotnet-ef --version 9.0.9
+          dotnet tool install --global dotnet-ef --version 10.0.14
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
       # Fails the PR when an entity change lands without a matching migration.

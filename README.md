@@ -26,7 +26,7 @@ and CORS never enters the picture. OCR runs asynchronously off an S3 event.
 | Layer | Technology |
 |---|---|
 | Frontend | Angular 22, Angular Material, Auth0 |
-| API | ASP.NET Core 10, EF Core 9 (Pomelo) |
+| API | ASP.NET Core 10, EF Core 10 (Microting fork of Pomelo) |
 | Database | MariaDB 11.8 |
 | OCR | AWS Textract via a Python Lambda |
 | Hosting | S3 + CloudFront; self-hosted API behind Cloudflare Tunnel |
