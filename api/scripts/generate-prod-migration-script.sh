@@ -9,11 +9,9 @@
 # applied -- running it there would skip almost everything it needs to
 # prove.
 #
-# Never connects to the real Pi/prod database -- EF's design-time
-# factory needs *a* live connection just to detect the SQL dialect
-# (ServerVersion.AutoDetect), even though script generation itself
-# writes nothing. The throwaway container satisfies that without ever
-# touching real credentials.
+# Never connects to the real Pi/prod database. Generating the script needs
+# no database at all, since Database:ServerVersion pins the dialect; the
+# throwaway container is only what the script is test-applied to.
 #
 # Usage:
 #   api/scripts/generate-prod-migration-script.sh [output-file]

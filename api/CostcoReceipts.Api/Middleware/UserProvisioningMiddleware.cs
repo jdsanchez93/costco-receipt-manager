@@ -49,21 +49,11 @@ public class UserProvisioningMiddleware
         _cache = cache;
     }
 
-    // Resolved here, for authenticated requests only, rather than
-    // method-injected. Building AppDbContext runs the server-version detection
-    // in Program.cs until that first succeeds, and it throws while the
-    // database is down. Method-injected, every request would build one, so a
-    // freshly started container without its database would answer /healthz
-    // with a 500 before the health check could report 503.
-    public async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(HttpContext context, AppDbContext db, Auth0UserInfoClient userInfo)
     {
         if (context.User.Identity?.IsAuthenticated == true)
         {
-            var services = context.RequestServices;
-            await ProvisionAsync(
-                context,
-                services.GetRequiredService<AppDbContext>(),
-                services.GetRequiredService<Auth0UserInfoClient>());
+            await ProvisionAsync(context, db, userInfo);
         }
 
         await _next(context);

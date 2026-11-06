@@ -75,7 +75,9 @@ for the authenticated/placeholder distinction, which is load-bearing.
 **Creating a migration** is ordinary `dotnet ef migrations add`. The dialect is
 pinned to production's engine by `Database:ServerVersion` in `appsettings.json`,
 so `AppDbContextFactory` never needs a live database and migrations are always
-generated against MariaDB 11.8 regardless of what is running locally.
+generated against MariaDB 11.8 regardless of what is running locally. The API
+reads the same setting at runtime rather than detecting the version, so
+building a `DbContext` never touches the database.
 
 **Applying to production happens on deploy.** The API's DB user (`costco_app`)
 has DML only; DDL belongs to `costco_migrator`. `costco-deploy` on the Pi backs
