@@ -9,18 +9,16 @@
 # applied -- running it there would skip almost everything it needs to
 # prove.
 #
-# Never connects to the real Pi/prod database -- EF's design-time
-# factory needs *a* live connection just to detect the SQL dialect
-# (ServerVersion.AutoDetect), even though script generation itself
-# writes nothing. The throwaway container satisfies that without ever
-# touching real credentials.
+# Never connects to the real Pi/prod database. Generating the script needs
+# no database at all, since Database:ServerVersion pins the dialect; the
+# throwaway container is only what the script is test-applied to.
 #
 # Usage:
 #   api/scripts/generate-prod-migration-script.sh [output-file]
 #
-# Then apply the result on the Pi as costco_migrator (see
-# docs/redesign-plan.md for the recommended process and
-# docs/redesign-plan.local.md for the credential setup).
+# Deploys apply migrations themselves (costco-deploy runs the new image with
+# --migrate), so this is for reviewing the SQL a migration will run, or for
+# applying it by hand when a deploy can't (see api/deploy/README.md).
 
 set -euo pipefail
 
@@ -74,6 +72,5 @@ echo
 echo "Done: $OUTPUT_FILE"
 echo "Applied cleanly against a real MariaDB $MARIADB_VERSION instance -- safe to review and ship."
 echo
-echo "Next, on the Pi as costco_migrator (see docs/redesign-plan.local.md for credential setup):"
-echo "  scp $OUTPUT_FILE pi:~/migrate.sql"
-echo "  ssh pi 'mysql costco_receipts < ~/migrate.sql && rm ~/migrate.sql'"
+echo "Deploys apply migrations on their own. To apply this by hand instead, back up first:"
+echo "  see api/deploy/README.md, Database backups"

@@ -75,16 +75,21 @@ for the authenticated/placeholder distinction, which is load-bearing.
 **Creating a migration** is ordinary `dotnet ef migrations add`. The dialect is
 pinned to production's engine by `Database:ServerVersion` in `appsettings.json`,
 so `AppDbContextFactory` never needs a live database and migrations are always
-generated against MariaDB 11.8 regardless of what is running locally.
+generated against MariaDB 11.8 regardless of what is running locally. The API
+reads the same setting at runtime rather than detecting the version, so
+building a `DbContext` never touches the database.
 
-**Applying to production is manual and deliberate.** The API's DB user
-(`costco_app`) has DML only; DDL belongs to `costco_migrator`, used
-interactively over SSH:
+**Applying to production happens on deploy.** The API's DB user (`costco_app`)
+has DML only; DDL belongs to `costco_migrator`. `costco-deploy` on the Pi backs
+the database up, then runs the new image once with `--migrate` as
+`costco_migrator`, and only then swaps containers. So **migrations must stay
+additive**: the old container keeps serving while one runs, and rolling back an
+image never rolls back the schema. A migration that can't be additive needs a
+plan of its own, not a merge.
 
-```bash
-api/scripts/generate-prod-migration-script.sh    # idempotent SQL, sanity-applied to a throwaway MariaDB
-# then, on the Pi: back up first, then apply as costco_migrator
-```
+`api/scripts/generate-prod-migration-script.sh` still produces the idempotent
+SQL, sanity-applied to a throwaway MariaDB, for reviewing what a migration will
+run.
 
 Local development runs the same engine as production — `mariadb:11.8`, matching
 the Pi's 11.8.6. The series tag rather than an exact patch, so local drifts the
@@ -100,7 +105,8 @@ gitignored real file:
 
 | Real file | Template | Holds |
 |---|---|---|
-| `api/.env` (on the Pi) | `api/.env.example` | DB password, AWS keys, internal shared secret |
+| `/opt/costco-api/.env` (on the Pi) | `api/.env.example` | DB password, AWS keys, internal shared secret |
+| `/opt/costco-api/migrator.env` (on the Pi) | — | `costco_migrator`'s connection string; never in `.env`, which the API container loads |
 | `cdk-backend/cdk.context.json` | — | bucket names, internal API keys, per-stage config |
 | `frontend-angular/src/environments/environment.development.ts` | `environment.example.ts` | local Auth0 app |
 
@@ -140,9 +146,19 @@ disposable. Their configuration lives in `cdk-backend/BUCKETS.md`.
   with GitHub OIDC (no stored AWS keys). Runs in the protected `production`
   environment, which supplies the role ARN, bucket and distribution ID as
   environment-scoped variables.
+- `.github/workflows/api.yml` — on pushes to `main` touching
+  `api/CostcoReceipts.Api/**`: builds the image on a GitHub-hosted arm64
+  runner, pushes it to GHCR (public), then starts and watches `deploy.yml` in
+  the **private** repository `jdsanchez93/costco-deploy`. That repository
+  exists only to hold the Pi's self-hosted runner, because a self-hosted runner
+  on a public repository can be sent jobs from fork pull requests. The link is
+  a GitHub App with Actions read/write on that one repository.
 
-The API is **not** deployed by CI — the Pi has no inbound path. Build the image
-and ship it by hand; `api/deploy/README.md` has the operational procedures.
+The Pi has no inbound path, so the runner polls GitHub. The deploy runs
+`/usr/local/sbin/costco-deploy`, which deploys by digest, health-checks, and
+puts the previous image back on failure. That script, its sudoers entry and
+`docker-compose.prod.yml` are installed on the Pi by hand, never by CI.
+`api/deploy/README.md` has the design, setup and rollback.
 
 PR descriptions follow `.github/pull_request_template.md` — short; the
 reasoning lives in the commits.
@@ -174,8 +190,9 @@ reasoning lives in the commits.
   fetch leaves the `sub` as a stand-in name, which `GET /api/me` reports as
   `needsName` and the shell prompts the user to replace. A real name belongs
   to the user (`/api/me`) and is never overwritten from Auth0.
-- **`docker compose restart` does not re-read `.env`**; use
-  `up -d --force-recreate`.
+- **`docker compose restart` does not re-read `.env`**; it takes a recreate. On
+  the Pi that is `sudo costco-deploy --recreate`, since plain `compose` there
+  also needs the image from `deploy.env`.
 
 ## Documentation map
 
@@ -184,7 +201,8 @@ reasoning lives in the commits.
 - `cdk-backend/BUCKETS.md` — bucket config that lives outside CDK
 - `cdk-backend/RUNBOOK.md` — how the 2026-10 migration was executed, and what
   was learned
-- `api/deploy/README.md` — Pi operations and one-time AWS/GitHub setup
+- `api/deploy/README.md` — the API deploy pipeline, Pi operations, and one-time
+  AWS/GitHub setup
 - `docs/redesign-plan.md` — roadmap: what is left to build and the decisions
   already made about how. Forward-looking only; completed work lives in
   `RUNBOOK.md` and `git log`.
