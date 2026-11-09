@@ -88,40 +88,6 @@ Decided approach when this gets picked up:
 
 ---
 
-## CI/CD Phase 2 — designed, not built
-
-Automated API deploy. Shape is decided, nothing is built:
-- Image built on a GitHub-hosted `ubuntu-24.04-arm` runner (free for
-  public repos, so native arm64 with the Dockerfile unchanged) and
-  pushed to **GHCR** — `GITHUB_TOKEN` authenticates with no stored
-  credential, and a public package needs no `docker login` on the Pi.
-- Deploy triggered by a **self-hosted runner on the Pi**, because the
-  tunnel exposes only `127.0.0.1:8080` and no cloud runner can reach
-  the box. Hardened so the repo can't dictate what runs there: the
-  deploy script lives on the Pi rather than in the workflow, the runner
-  user is not in the `docker` group and gets one `NOPASSWD` sudoers
-  entry for that script alone, and the job runs only on push to `main`
-  inside a branch-pinned `production` Environment, never on
-  `pull_request`. Same boundary a separate private deploy repo would
-  buy, without the cross-repo plumbing.
-- Migrations via a **one-shot container from the same image**
-  (`--migrate` flag) run as `costco_migrator`, preserving the DML/DDL
-  split and making code/schema version skew structurally impossible.
-  Needs a `costco_migrator'@'127.0.0.1'` grant — the existing
-  `@localhost` grant only matches Unix-socket connections, the same
-  distinction that made `costco_app@127.0.0.1` necessary.
-- **Rule this introduces:** migrations must stay additive /
-  backward-compatible, so an image rollback never needs a schema
-  rollback.
-- Known cost of deferring: the API pipeline's first real deploy lands
-  on production rather than staging. Mitigated by making that first run
-  a deliberate no-op deploy of an identical SHA.
-- The deploy script and `docker-compose.prod.yml` are copied to the Pi
-  by hand, never by CI — that's the point. Changes to either need a
-  manual `scp`.
-
----
-
 ## Standing decision: AWS credentials on the Pi (2026-09-13)
 
 The API runs in a Docker container on the Pi, not on AWS-managed

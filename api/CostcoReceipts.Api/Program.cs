@@ -23,18 +23,34 @@ string MySqlConnectionString() =>
         ?? throw new InvalidOperationException(
             "ConnectionStrings:MySql is required. Set it in appsettings, user secrets, or env vars.");
 
-// EF runs the AddDbContext options lambda once per scope, so calling AutoDetect
-// in it cost every request a connection and a SELECT VERSION(). Detect once,
-// on first use rather than at startup, so the host still starts with the
-// database down. PublicationOnly because the default mode caches an exception:
-// one failed detection would then fail every later request, even after the
-// database came back. The price is that racing first requests each detect.
-var serverVersion = new Lazy<ServerVersion>(
-    () => ServerVersion.AutoDetect(MySqlConnectionString()),
-    LazyThreadSafetyMode.PublicationOnly);
+// The SQL dialect, read from the setting the design-time factory pins
+// migrations with (Data/AppDbContextFactory.cs), so the app writes SQL for the
+// engine its migrations were generated for. Pinned rather than detected, so
+// building a DbContext never touches the database.
+var serverVersion = ServerVersion.Parse(
+    builder.Configuration["Database:ServerVersion"]
+        ?? throw new InvalidOperationException(
+            "Database:ServerVersion is required. appsettings.json sets it."));
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseMySql(MySqlConnectionString(), serverVersion.Value));
+    options.UseMySql(MySqlConnectionString(), serverVersion));
+
+// One-shot schema migration: api/deploy/costco-deploy.sh runs the image it is
+// about to deploy with this flag, as costco_migrator rather than costco_app, so
+// the schema and the code that expects it always come from the same build.
+// Returns before AddAuth0Jwt and the rest, which would throw: the migrate
+// container is given a connection string and nothing else.
+if (args.Contains("--migrate"))
+{
+    using var migrator = builder.Build();
+    using var scope = migrator.Services.CreateScope();
+    scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.Migrate();
+    return;
+}
+
+// A database check, because the API otherwise starts fine with a wrong
+// connection string: nothing touches the database until a request does.
+builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>("database");
 
 // AWS credentials: an explicit named profile for local dev (AWS:Profile),
 // otherwise the SDK's default credential provider chain (env vars, etc. —
@@ -103,5 +119,10 @@ app.UseAuthentication();
 app.UseMiddleware<UserProvisioningMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
+
+// Polled by costco-deploy on the Pi before it keeps a new image. Loopback
+// only: requests through the Cloudflare Tunnel carry the public hostname as
+// their Host header, so this 404s there.
+app.MapHealthChecks("/healthz").RequireHost("127.0.0.1", "localhost");
 
 app.Run();
