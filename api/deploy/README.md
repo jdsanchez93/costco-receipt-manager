@@ -99,14 +99,14 @@ to deploy until `api.yml` has run once.
 
 1. **Create the private repository** with `deploy.yml` and its README. It has
    no secrets and no environment, and its workflow uses no actions, so it can
-   be told to allow none:
+   be limited to actions defined in the repository itself, of which there are
+   none. (GitHub refuses a `selected` list with everything turned off;
+   `local_only` is how it spells that.)
 
    ```bash
    gh repo create jdsanchez93/costco-deploy --private
    gh api -X PUT repos/jdsanchez93/costco-deploy/actions/permissions \
-     -F enabled=true -f allowed_actions=selected
-   gh api -X PUT repos/jdsanchez93/costco-deploy/actions/permissions/selected-actions \
-     --input - <<<'{"github_owned_allowed":false,"verified_allowed":false,"patterns_allowed":[]}'
+     -F enabled=true -f allowed_actions=local_only
    ```
 
 2. **Merge the pull request that adds `api.yml`.** `build` pushes the first
@@ -179,29 +179,44 @@ to deploy until `api.yml` has run once.
    user is deliberately not in the `docker` group, which would be root by
    another name. Get the download commands and a registration token from
    `costco-deploy` → Settings → Actions → Runners → New self-hosted runner
-   (Linux, ARM64), and run them as that user:
+   (Linux, ARM64). The token lasts an hour. Run the download and `config.sh`
+   as that user, not as root: files unpacked as root leave a runner that can't
+   write its own directory. If that happens, delete the directory and start
+   again; nothing is registered until `config.sh` finishes. Each line below
+   runs wholly as `gh-runner` or wholly as root, with no `cd` in your own
+   shell, which the runner's home may not let in:
 
    ```bash
    sudo useradd --system --create-home --shell /usr/sbin/nologin gh-runner
    sudo -u gh-runner mkdir /home/gh-runner/actions-runner
-   sudo -u gh-runner bash -c 'cd /home/gh-runner/actions-runner && <download and extract, from that page>'
+   sudo -u gh-runner bash -c 'cd /home/gh-runner/actions-runner && <download, checksum and extract, from that page>'
    sudo -u gh-runner bash -c 'cd /home/gh-runner/actions-runner && ./config.sh --unattended \
      --url https://github.com/jdsanchez93/costco-deploy --token <token> \
      --name costco-pi --labels costco-pi'
-   cd /home/gh-runner/actions-runner && sudo ./svc.sh install gh-runner && sudo ./svc.sh start
+   sudo bash -c 'cd /home/gh-runner/actions-runner && ./svc.sh install gh-runner && ./svc.sh start'
 
    sudo visudo -cf costco-deploy.sudoers
    sudo install -o root -g root -m 0440 costco-deploy.sudoers /etc/sudoers.d/costco-deploy
    ```
 
-   Check that it got the one privilege and nothing else:
+   If `config.sh` reports missing libraries (usually ICU), run the runner's
+   own installer as root, then `config.sh` again:
+   `sudo bash -c 'cd /home/gh-runner/actions-runner && ./bin/installdependencies.sh'`.
+
+   Check that it got the one privilege and nothing else. The first check runs
+   as you: `gh-runner` has no password, so its own `sudo -l` would ask for one
+   whenever its sudoers rule is missing.
 
    ```bash
-   sudo -u gh-runner sudo -l                       # only /usr/local/sbin/costco-deploy
+   sudo -l -U gh-runner                            # only (root) NOPASSWD: /usr/local/sbin/costco-deploy
    sudo -u gh-runner cat /opt/costco-api/.env      # Permission denied
+   sudo -u gh-runner cat <old dir>/.env            # Permission denied; step 5 copied it, so it's still there
    sudo -u gh-runner docker ps                     # permission denied on docker.sock
    sudo -u gh-runner ls /home/<you>                # Permission denied
    ```
+
+   The runner should now show as Idle under `costco-deploy` → Settings →
+   Actions → Runners.
 
 8. **Create the GitHub App** at github.com/settings/apps/new:
    - Webhook off.
@@ -211,10 +226,13 @@ to deploy until `api.yml` has run once.
 
    Then generate a private key, and install the App on **only**
    `costco-deploy`. Store the App ID and key on this repository's `production`
-   environment, and delete the downloaded `.pem`:
+   environment, and delete the downloaded `.pem`. The App ID is the number
+   under General on the App's settings page, not its Client ID (`Iv23…`) or
+   its name; a name fails at minting the token with "'Issuer' claim ('iss')
+   must be an Integer".
 
    ```bash
-   gh variable set DEPLOY_APP_ID --env production --body <app id>
+   gh variable set DEPLOY_APP_ID --env production --body <numeric App ID>
    gh secret set DEPLOY_APP_PRIVATE_KEY --env production < <key>.pem
    ```
 
@@ -222,6 +240,16 @@ to deploy until `api.yml` has run once.
    which redeploys the digest that step 6 already deployed. That makes the
    first automated deploy a deliberate no-op, exercising the whole path with
    nothing at stake.
+
+   Once it passes, delete the old compose project and the image it ran. The
+   new project is serving, and from the next deploy on, `costco-deploy
+   --rollback` is the way back. The old directory's `.env` is a second copy of
+   the production secrets:
+
+   ```bash
+   sudo rm -r <old dir>
+   docker image rm costco-api:latest
+   ```
 
 ### Verifying
 
