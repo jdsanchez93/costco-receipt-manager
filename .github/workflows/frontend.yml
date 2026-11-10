@@ -1,11 +1,12 @@
-# Builds the Angular app and deploys it to the NextFrontendStack S3 bucket +
-# CloudFront distribution. Those are the same resources before and after the
-# costco.jd-sanchez.com cutover (that step only moves a DNS record), so this
-# workflow needs no change at cutover.
+# Builds the Angular app and deploys it to the S3 bucket and CloudFront
+# distribution in the Prod-CostcoReceipts-Frontend stack
+# (cdk-backend/lib/frontend-stack.ts). The `production` environment's
+# variables name both, and the deploy role; api/deploy/README.md shows how to
+# read them from the stack's outputs.
 #
 # Auth is GitHub OIDC -> IAM role, so no AWS keys are stored in this repo. The
 # role's trust policy is scoped to this repo AND the `production` environment
-# below (see cdk-backend/lib/next-frontend-stack.ts).
+# below (see cdk-backend/lib/frontend-stack.ts).
 name: frontend
 
 on:

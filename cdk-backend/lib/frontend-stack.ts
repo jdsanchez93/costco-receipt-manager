@@ -177,8 +177,9 @@ function handler(event) {
     if (props.githubRepo && props.githubOidcProviderArn) {
       const deployRole = new iam.Role(this, 'GithubDeployRole', {
         // Pinned rather than CDK-generated so the ARN survives a stack
-        // recreation — .github/workflows/frontend.yml reads it from a GitHub
-        // repository variable, which would otherwise silently go stale.
+        // recreation — .github/workflows/frontend.yml reads it from a variable
+        // on the `production` GitHub environment, which would otherwise
+        // silently go stale.
         roleName: `costco-receipts-${props.stage}-frontend-deploy`,
         description: 'Assumed by GitHub Actions to deploy the Angular build',
         maxSessionDuration: cdk.Duration.hours(1),
@@ -208,13 +209,13 @@ function handler(event) {
 
       new cdk.CfnOutput(this, 'GithubDeployRoleArn', {
         value: deployRole.roleArn,
-        description: 'Set as the AWS_DEPLOY_ROLE_ARN repository variable in GitHub',
+        description: 'Set as the AWS_DEPLOY_ROLE_ARN variable on the production GitHub environment',
       });
     }
 
     new cdk.CfnOutput(this, 'CloudFrontDistributionId', {
       value: this.distribution.distributionId,
-      description: 'Set as the CLOUDFRONT_DISTRIBUTION_ID repository variable in GitHub',
+      description: 'Set as the CLOUDFRONT_DISTRIBUTION_ID variable on the production GitHub environment',
     });
 
     new cdk.CfnOutput(this, 'CloudFrontDomainName', {
@@ -224,7 +225,7 @@ function handler(event) {
 
     new cdk.CfnOutput(this, 'FrontendBucketName', {
       value: this.frontendBucket.bucketName,
-      description: 'Set as the FRONTEND_BUCKET repository variable in GitHub',
+      description: 'Set as the FRONTEND_BUCKET variable on the production GitHub environment',
     });
   }
 }
