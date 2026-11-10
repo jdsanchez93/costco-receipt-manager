@@ -305,7 +305,7 @@ applying SQL any other way:**
 
 ```bash
 sudo /usr/local/bin/costco-db-backup
-mysql costco_receipts < ~/migrate.sql    # as costco_migrator, see redesign-plan.local.md
+mariadb -u costco_migrator -p costco_receipts < ~/migrate.sql
 ```
 
 ### Restore drill

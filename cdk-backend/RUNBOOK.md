@@ -86,6 +86,31 @@ removing the retired stacks, `cdk diff` against the live stacks reported "There
 were no differences" for all three — stronger evidence than comparing two local
 synth outputs, and it needs no baseline captured beforehand.
 
+**`cdk import` is narrower than it looks.** From adopting the receipt buckets
+into CDK in September, before they left it again (see `BUCKETS.md`):
+
+- It refuses to run if the change set holds anything besides the imported
+  resources, including updates to resources connected to them, such as a
+  policy switching from a hard-coded ARN to `Fn::GetAtt`. Split it: create
+  everything else first with the bucket referenced by name
+  (`s3.Bucket.fromBucketName`), import the bucket alone, then tidy up in a
+  normal change set.
+- It also refuses if `Outputs` differ at all from what's deployed, which AWS
+  documents as intended. Strip `Outputs` in a change set of their own, import,
+  then restore them.
+- It records the template's properties as the resource's state without
+  applying them, and `cdk diff` can't see the gap because both templates
+  agree. `aws cloudformation detect-stack-resource-drift` can. A plain deploy
+  won't repair it; a direct API call, or a two-step change through a
+  placeholder value, will.
+- `cdk synth` and `cdk diff` don't publish Lambda assets; only `cdk deploy`
+  does. A hand-built change set needs
+  `npx cdk-assets publish --path cdk.out/<Stack>.assets.json` first, or it
+  fails into `UPDATE_ROLLBACK_COMPLETE`.
+
+`scripts/adopt_receipt_bucket.py` in the old `costco-receipt-parser`
+repository is a working example of the retain-and-import sequence.
+
 ## Everything it surfaced is now closed
 
 The migration turned up five problems it did not stop to fix. All five were

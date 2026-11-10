@@ -7,9 +7,6 @@ DynamoDB was carried out (`cdk-backend/RUNBOOK.md`), or the bucket
 configuration that lives outside CDK (`cdk-backend/BUCKETS.md`). Earlier
 revisions of this file carried all of that; `git log` has them.
 
-`docs/redesign-plan.local.md` is gitignored and holds the infrastructure
-identifiers and exact config that do not belong here.
-
 ---
 
 ## Frontend — not started

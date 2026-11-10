@@ -35,6 +35,13 @@ browser → CloudFront (costco.jd-sanchez.com)
 The browser only ever talks to one origin, so there is no CORS between the SPA
 and the API. CloudFront reaches the tunnel over ordinary HTTPS.
 
+Two domains. `jd-sanchez.com` is in Route 53, in a different AWS account from
+these stacks, and carries the site and Auth0's custom domain
+(`auth0.jd-sanchez.com`). `jd-sanchez.dev` is on Cloudflare and carries only
+tunnel hostnames, which nothing reaches except through CloudFront or the OCR
+Lambda. `jd-sanchez.com` can't move to Cloudflare on its free plan: delegating
+a subdomain needs Enterprise, and a partial (CNAME) setup needs Business.
+
 **OCR pipeline**, entirely separate from the request path:
 
 ```
@@ -55,6 +62,18 @@ docker compose -f api/docker-compose.yml up -d        # MariaDB 11.8 on 127.0.0.
 cd api/CostcoReceipts.Api && dotnet run               # http://127.0.0.1:5002, Swagger at /swagger
 cd frontend-angular && npm start                      # http://localhost:4200, proxies /api → :5002
 ```
+
+The dev OCR pipeline posts its results to `https://costco-api-dev.jd-sanchez.dev`,
+a Cloudflare Tunnel to the local API, run only while testing uploads:
+
+```bash
+docker run --rm -v ~/.cloudflared:/home/nonroot/.cloudflared cloudflare/cloudflared \
+  tunnel --url http://host.docker.internal:5002 run costco-dev
+```
+
+The image runs as `nonroot`, so a mount at `/root/.cloudflared` silently loses
+the tunnel's credentials. Docker Desktop has no real host networking, hence
+`host.docker.internal` rather than `network_mode: host`.
 
 ```bash
 cd frontend-angular && npx ng test --watch=false      # vitest
@@ -174,6 +193,12 @@ reasoning lives in the commits.
   `@'127.0.0.1'` only, which matches by IP either way; turning on
   `skip-name-resolve` would leave `@'localhost'` matching socket connections
   only.
+- **`costco_migrator` needs `CREATE ROUTINE`, `ALTER ROUTINE` and `EXECUTE`**,
+  not just DDL. Pomelo, and so the fork, can't drop and recreate a primary key
+  on an `AUTO_INCREMENT` column with a plain `ALTER TABLE`, so it defines
+  helper stored procedures such as `POMELO_BEFORE_DROP_PRIMARY_KEY`, and
+  MariaDB grants routines separately from tables. Without them such a
+  migration fails with error 1370, "alter routine command denied".
 - **S3 notifications on a non-CDK-managed bucket merge rather than overwrite**
   (`Managed: false`). Two stacks owning a trigger on the same prefix OCRs every
   upload twice.
@@ -212,6 +237,7 @@ reasoning lives in the commits.
 - `docs/redesign-plan.md` — roadmap: what is left to build and the decisions
   already made about how. Forward-looking only; completed work lives in
   `RUNBOOK.md` and `git log`.
-- `docs/redesign-plan.local.md` — **gitignored, never commit it.** Real
-  infrastructure identifiers and exact config. Not loaded automatically, so a
-  fresh session needs pointing at it before infrastructure work.
+- `PI.md` in the **private** repository `jdsanchez93/costco-deploy` — the Pi's
+  exact configuration: storage and boot, MariaDB tuning and accounts, the
+  tunnel ID, firewall and SSH. Kept out of this public repository because it
+  fingerprints the box. It holds no secrets.
