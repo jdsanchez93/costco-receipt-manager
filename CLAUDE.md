@@ -78,7 +78,7 @@ the tunnel's credentials. Docker Desktop has no real host networking, hence
 ```bash
 cd frontend-angular && npx ng test --watch=false      # vitest
 cd api/CostcoReceipts.Api && dotnet build -warnaserror
-cd cdk-backend && npx tsc --noEmit && npx cdk synth --all
+cd cdk-backend && npx tsc --noEmit && npx cdk synth
 ```
 
 There is no .NET test project. The Angular suite is the only automated test
