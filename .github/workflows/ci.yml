@@ -159,5 +159,5 @@ jobs:
         env:
           AWS_ACCOUNT_ID: '111111111111'
         run: |
-          npx cdk synth --all > /dev/null
-          npx cdk synth --all -c stage=prod > /dev/null
+          npx cdk synth > /dev/null
+          npx cdk synth -c stage=prod > /dev/null
