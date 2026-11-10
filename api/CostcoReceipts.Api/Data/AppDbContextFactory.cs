@@ -25,8 +25,9 @@ public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
         // learn it. Pinning means `dotnet ef` runs with no database at all,
         // and — more importantly — `migrations add` generates against prod's
         // engine by construction instead of against whatever happens to be
-        // running locally. See docs/redesign-plan.local.md's "MySQL/MariaDB
-        // dialect matters" gotcha.
+        // running locally. MySQL and MariaDB differ in places such as JSON
+        // columns, so a migration generated against the wrong one can fail or
+        // drift.
         //
         // Program.cs reads the same setting, so the app writes SQL for the
         // engine its migrations were generated for.
