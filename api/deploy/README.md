@@ -118,17 +118,20 @@ to deploy until `api.yml` has run once.
    undone. The image is the compiled contents of a public repository, and
    `api/.dockerignore` keeps local config out of the build context.
 
-4. **Give `costco_migrator` a TCP grant.** The migrate container connects to
-   `127.0.0.1`, and an `@'localhost'` grant only matches Unix-socket
-   connections. Copy the existing grants, which include the
-   `CREATE ROUTINE`/`ALTER ROUTINE`/`EXECUTE` set:
+4. **Check that `costco_migrator` can log in the way the migrate container
+   will.** The container connects over TCP to `127.0.0.1`. The Pi's MariaDB
+   resolves client names, so it treats that connection as coming from
+   `localhost`, and the existing `costco_migrator@'localhost'` account is the
+   one it matches. There is nothing to create; type that account's password:
 
-   ```sql
-   -- sudo mariadb
-   SHOW GRANTS FOR 'costco_migrator'@'localhost';
-   CREATE USER 'costco_migrator'@'127.0.0.1' IDENTIFIED BY '<new password>';
-   -- then each GRANT line from above, with @'127.0.0.1' in place of @'localhost'
+   ```bash
+   mariadb -h 127.0.0.1 -u costco_migrator -p -e 'SELECT CURRENT_USER()'
+   # expect costco_migrator@localhost
    ```
+
+   Don't add a `costco_migrator@'127.0.0.1'` account. MariaDB would still pick
+   `@'localhost'` and never try the other, so a different password on it only
+   fails. See "Things that have bitten before" in `CLAUDE.md`.
 
 5. **Lay out `/opt/costco-api`**, moving `.env` from wherever the API's compose
    project lives today:
@@ -139,7 +142,17 @@ to deploy until `api.yml` has run once.
    sudo install -o root -g root -m 0600 <old dir>/.env /opt/costco-api/.env
    sudo install -o root -g root -m 0600 /dev/null /opt/costco-api/migrator.env
    sudoedit /opt/costco-api/migrator.env
-   # ConnectionStrings__MySql=Server=127.0.0.1;Port=3306;Database=costco_receipts;User=costco_migrator;Password=<it>;
+   # ConnectionStrings__MySql=Server=127.0.0.1;Port=3306;Database=costco_receipts;User=costco_migrator;Password=<step 4's password>;
+   ```
+
+   Then check the password in it without printing it. The first command gives
+   its hash, which must equal the one in the `IDENTIFIED BY PASSWORD` line of
+   the second:
+
+   ```bash
+   sudo sed -n 's/.*Password=\([^;]*\).*/\1/p' /opt/costco-api/migrator.env | tr -d '\n' |
+     openssl dgst -sha1 -binary | openssl dgst -sha1 | awk '{print "*" toupper($NF)}'
+   sudo mariadb -e "SHOW GRANTS FOR 'costco_migrator'@'localhost'"
    ```
 
 6. **Install `costco-deploy` and run the first deploy by hand**, watching it.
@@ -153,6 +166,14 @@ to deploy until `api.yml` has run once.
    ```
 
    Then log in to the site and open a receipt.
+
+   If this deploy fails, nothing is serving: the old project is already down,
+   and there is no previous image to put back. Bring the old one back up while
+   you fix the cause, and take it down again before retrying:
+
+   ```bash
+   (cd <old dir> && docker compose -f docker-compose.prod.yml up -d)
+   ```
 
 7. **Create the runner user and register the runner on `costco-deploy`.** The
    user is deliberately not in the `docker` group, which would be root by

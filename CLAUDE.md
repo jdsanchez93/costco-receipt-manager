@@ -165,9 +165,15 @@ reasoning lives in the commits.
 
 ## Things that have bitten before
 
-- **MariaDB `localhost` grants only match Unix-socket connections.** A user that
-  connects over TCP to `127.0.0.1` needs a separate `@'127.0.0.1'` grant. This
-  caught both `costco_app` and `costco_migrator`.
+- **A TCP connection to `127.0.0.1` counts as `localhost`.** The Pi's MariaDB
+  resolves client names (no `skip-name-resolve`), so a loopback connection
+  matches `@'localhost'` accounts as well as `@'127.0.0.1'` ones. When a user
+  has both, MariaDB picks `@'localhost'` and never tries the other, so a
+  different password on `@'127.0.0.1'` just fails: that broke
+  `costco_migrator`'s first deploy. Keep one account per user. `costco_app` is
+  `@'127.0.0.1'` only, which matches by IP either way; turning on
+  `skip-name-resolve` would leave `@'localhost'` matching socket connections
+  only.
 - **S3 notifications on a non-CDK-managed bucket merge rather than overwrite**
   (`Managed: false`). Two stacks owning a trigger on the same prefix OCRs every
   upload twice.
