@@ -77,9 +77,11 @@ jobs:
             --exclude "*" --include "*.html" \
             --cache-control "no-cache,must-revalidate"
 
-      # /* rather than just /index.html: the distribution's 403/404 ->
-      # /index.html error responses are cached per *requested* path, so a
-      # narrower invalidation can leave stale SPA routes served.
+      # /* is one invalidation path, so it costs no more than naming
+      # /index.html, and it covers any other HTML the build emits. Deep links
+      # need nothing of their own: the distribution's viewer-request function
+      # rewrites them to /index.html before the cache lookup, so they share
+      # its cache entry.
       - name: Invalidate CloudFront
         run: |
           aws cloudfront create-invalidation \
