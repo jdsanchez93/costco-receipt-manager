@@ -70,6 +70,10 @@ namespace CostcoReceipts.Api.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("ImageKey")
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
                     b.Property<string>("OwnerUserId")
                         .IsRequired()
                         .HasMaxLength(128)

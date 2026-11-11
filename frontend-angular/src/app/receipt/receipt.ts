@@ -2,14 +2,15 @@ import { CurrencyPipe } from '@angular/common';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { AuthService } from '@auth0/auth0-angular';
-import { forkJoin, map, timer } from 'rxjs';
+import { filter, forkJoin, map, switchMap, timer } from 'rxjs';
 
 import { ReceiptsApi } from '../api/receipts-api';
 import {
@@ -18,6 +19,7 @@ import {
   ReceiptProcessingStatus,
   SubtotalMatchDto,
 } from '../api/types';
+import { ConfirmDialog, ConfirmDialogData } from '../confirm-dialog/confirm-dialog';
 import { MemberTotals } from '../member-totals/member-totals';
 import { ReceiptImage } from '../receipt-image/receipt-image';
 import { ReceiptItems } from '../receipt-items/receipt-items';
@@ -63,7 +65,9 @@ const POLL_BASE_DELAY_MS = 2000;
 export class Receipt {
   private api = inject(ReceiptsApi);
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private snackBar = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
   private auth = inject(AuthService);
   private destroyRef = inject(DestroyRef);
 
@@ -74,18 +78,20 @@ export class Receipt {
   pollAttempts = signal(0);
   pollExhausted = computed(() => this.pollAttempts() >= MAX_POLL_ATTEMPTS);
 
+  /**
+   * A delete request is in flight. Deliberately not a `state` kind: the
+   * page stays rendered, and a failure just re-enables the menu.
+   */
+  deleting = signal(false);
+
   /** Auth0 `sub` of the signed-in user, or null before the profile resolves. */
   private currentUserId = toSignal(
     this.auth.user$.pipe(map(u => u?.sub ?? null)),
     { initialValue: null },
   );
 
-  /**
-   * True when the signed-in user is an owner of this receipt — gates the
-   * add / change-role / remove controls in the members panel. Editors and
-   * placeholders see a read-only roster.
-   */
-  canManageMembers = computed(() => {
+  /** True when the signed-in user is an owner of this receipt. */
+  private isOwner = computed(() => {
     const s = this.state();
     if (s.kind !== 'ok') return false;
     const uid = this.currentUserId();
@@ -93,16 +99,20 @@ export class Receipt {
   });
 
   /**
-   * True when the signed-in user owns this receipt — gates the share-links
-   * panel. Deliberately the same predicate as {@link canManageMembers};
-   * kept separate so the two panels can diverge later without coupling.
+   * Gates the add / change-role / remove controls in the members panel.
+   * Editors and placeholders see a read-only roster.
    */
-  canManageShares = computed(() => {
-    const s = this.state();
-    if (s.kind !== 'ok') return false;
-    const uid = this.currentUserId();
-    return !!uid && s.data.members.some(m => m.userId === uid && m.role === 'owner');
-  });
+  canManageMembers = computed(() => this.isOwner());
+
+  /**
+   * Gates the share-links panel. Deliberately the same predicate as
+   * {@link canManageMembers}; kept separate so the two panels can diverge
+   * later without coupling.
+   */
+  canManageShares = computed(() => this.isOwner());
+
+  /** Gates the header's actions menu, which today holds only "Delete receipt". */
+  canDelete = computed(() => this.isOwner());
 
   /** Set of item ids currently ticked for bulk actions. */
   selectedItemIds = signal<ReadonlySet<number>>(new Set());
@@ -399,5 +409,45 @@ export class Receipt {
         : i,
     );
     this.state.set({ kind: 'ok', data: { ...s.data, items } });
+  }
+
+  /**
+   * Confirm, then delete and leave for the receipts list. Unlike assignment
+   * changes this is not optimistic: the page stays put until the server
+   * agrees, so a failure leaves nothing to revert. `replaceUrl` keeps Back
+   * from landing on the now-missing receipt.
+   */
+  deleteReceipt(): void {
+    if (this.deleting()) return;
+
+    this.dialog
+      .open<ConfirmDialog, ConfirmDialogData, boolean>(ConfirmDialog, {
+        data: {
+          title: 'Delete this receipt?',
+          message:
+            'Its items, members and share links are removed for everyone on it. ' +
+            'This can\'t be undone.',
+          confirmLabel: 'Delete',
+          destructive: true,
+        },
+      })
+      .afterClosed()
+      .pipe(
+        filter(confirmed => confirmed === true),
+        switchMap(() => {
+          this.deleting.set(true);
+          return this.api.deleteReceipt(this.receiptId);
+        }),
+      )
+      .subscribe({
+        next: () => {
+          this.snackBar.open('Receipt deleted.', 'Dismiss', { duration: 3000 });
+          this.router.navigate(['/app/receipts'], { replaceUrl: true });
+        },
+        error: () => {
+          this.deleting.set(false);
+          this.snackBar.open('Could not delete receipt.', 'Dismiss', { duration: 4000 });
+        },
+      });
   }
 }

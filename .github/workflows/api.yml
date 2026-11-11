@@ -1,0 +1,137 @@
+# Builds the API image, pushes it to GHCR, and has the Pi deploy it by digest.
+#
+# The deploy itself runs in a separate private repository,
+# jdsanchez93/costco-deploy, on a self-hosted runner on the Pi. That runner
+# can't be registered here: a runner executes whatever job it is sent, and in
+# a public repository any workflow can send it one, including a workflow
+# edited in a fork's pull request. In the private repository only its owner
+# can write a workflow that reaches the Pi. See api/deploy/README.md.
+#
+# This repository starts the deploy through a GitHub App that has Actions
+# read/write on the deploy repository and nothing else, so its key can start
+# or re-run the deploy but can't change what the deploy does. The key is a
+# `production` environment secret, so only a job on main can read it.
+name: api
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'api/CostcoReceipts.Api/**'
+      - 'api/.dockerignore'
+      - '.github/workflows/api.yml'
+  workflow_dispatch:
+
+permissions: {}
+
+# Workflow-level rather than per job, so one run's deploy finishes before the
+# next run's build starts. Per-job groups would let an older commit's deploy
+# land after a newer one's. GitHub keeps only the newest pending run.
+concurrency:
+  group: api-deploy
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # workflow_dispatch can name any branch, and a branch build would
+    # otherwise overwrite :main.
+    if: github.ref == 'refs/heads/main'
+    # Native arm64, so the Dockerfile needs no emulation. Free for public
+    # repositories, which is why the build stays here rather than moving to
+    # the deploy repository.
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/costco-api
+    steps:
+      - uses: actions/checkout@v7
+
+      # The runner's own docker CLI rather than docker/* actions: what this
+      # job produces runs in production, so it uses nothing from outside
+      # GitHub.
+      - name: Log in to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      # image.source links the package to this repository, which is what
+      # lets GITHUB_TOKEN push to it. image.revision is what costco-deploy
+      # prints as the commit it is starting.
+      - name: Build
+        run: |
+          docker build api \
+            --file api/CostcoReceipts.Api/Dockerfile \
+            --platform linux/arm64 \
+            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --tag "$IMAGE:sha-$GITHUB_SHA" \
+            --tag "$IMAGE:main"
+
+      # The digest is the only thing the deploy is told; the tags are for
+      # people. It is read back from the registry, because what local build
+      # metadata calls a digest depends on the build driver.
+      - name: Push
+        id: push
+        run: |
+          docker push --quiet "$IMAGE:sha-$GITHUB_SHA"
+          docker push --quiet "$IMAGE:main"
+          digest=$(docker buildx imagetools inspect "$IMAGE:sha-$GITHUB_SHA" --format '{{json .Manifest}}' | jq -r .digest)
+          if [[ ! $digest =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::unexpected digest '$digest'"
+            exit 1
+          fi
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "Pushed \`$IMAGE@$digest\`" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    permissions: {}
+    # Covers the deploy run's own 15 minutes plus queueing. A Pi that is off
+    # shows up here as a timeout.
+    timeout-minutes: 25
+    steps:
+      - name: Mint a token for the deploy repository
+        id: token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: costco-deploy
+
+      # The dispatch API doesn't say which run it started, so request_id goes
+      # into the deploy run's run-name and is how this finds it. Watching it
+      # here rather than leaving it to the deploy repository means a failure
+      # turns this run red: GitHub notifies whoever triggered a run, and over
+      # there that is the App, which has no inbox.
+      - name: Deploy
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          DIGEST: ${{ needs.build.outputs.digest }}
+          REQUEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          repo="$GITHUB_REPOSITORY_OWNER/costco-deploy"
+          gh workflow run deploy.yml --repo "$repo" --ref main \
+            -f digest="$DIGEST" -f source_sha="$GITHUB_SHA" -f request_id="$REQUEST_ID"
+
+          run_id=
+          for _ in $(seq 1 30); do
+            run_id=$(gh run list --repo "$repo" --workflow deploy.yml --event workflow_dispatch \
+              --limit 20 --json databaseId,displayTitle \
+              --jq 'map(select(.displayTitle | endswith("(" + $ENV.REQUEST_ID + ")"))) | .[0].databaseId // empty')
+            [[ -n $run_id ]] && break
+            sleep 2
+          done
+          if [[ -z $run_id ]]; then
+            echo "::error::the deploy run never appeared in $repo"
+            exit 1
+          fi
+
+          echo "Deploy run: $GITHUB_SERVER_URL/$repo/actions/runs/$run_id" >> "$GITHUB_STEP_SUMMARY"
+          gh run watch "$run_id" --repo "$repo" --exit-status --interval 10

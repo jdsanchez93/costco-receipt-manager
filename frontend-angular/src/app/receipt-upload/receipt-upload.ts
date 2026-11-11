@@ -23,14 +23,10 @@ interface Selection {
   upload?: CachedUpload;
 }
 
-const ACCEPTED_TYPES = [
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-  'image/webp',
-  'image/heic',
-  'image/heif',
-];
+// Limited to what Textract can OCR — it rejects HEIC/HEIF and WebP outright.
+// Mirrors the backend's AllowedContentTypes; converting those formats to JPEG
+// client-side before upload is a deferred follow-up (see docs/redesign-plan.md).
+const ACCEPTED_TYPES = ['image/jpeg', 'image/jpg', 'image/png'];
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 
 // Treat a cached presigned URL as expired this far before its real expiry,

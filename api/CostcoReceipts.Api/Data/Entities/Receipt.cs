@@ -15,6 +15,13 @@ public class Receipt
     /// "pending" at upload time (see ReceiptsController.GetUploadUrl).</summary>
     public string ProcessingStatus { get; set; } = ReceiptProcessingStatus.Completed;
 
+    /// <summary>S3 key of the uploaded image, set at upload time with the
+    /// extension its content type implies. Rows predating this column were
+    /// backfilled by the AddReceiptImageKey migration; null only for a row
+    /// written by an older API image during a rollback, which is why readers
+    /// go through ReceiptsController.ImageKeyOf rather than this directly.</summary>
+    public string? ImageKey { get; set; }
+
     public User Owner { get; set; } = null!;
     public List<ReceiptItem> Items { get; set; } = new();
     public List<ReceiptMember> Members { get; set; } = new();

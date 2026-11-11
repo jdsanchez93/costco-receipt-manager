@@ -1,1 +1,18 @@
-requests
+# Pinned, transitive dependencies included, so this Lambda's asset hash is
+# reproducible. Without it the bundle re-resolves on every build: certifi alone
+# moved from 2026.7.22 to 2026.10.19 between the 2026-10-05 deploy and
+# 2026-10-21, which is enough to push an unintended "code changed" diff to a
+# Lambda during some unrelated deploy.
+#
+# Pinning means these go stale, so Dependabot maintains them — see the pip
+# entry in .github/dependabot.yml. Regenerate by hand with:
+#   pip install --dry-run --report r.json requests
+#
+# boto3 is deliberately absent: the Lambda runtime provides it.
+requests==2.34.2
+
+# Transitive dependencies of requests, pinned for the same reason.
+certifi==2026.10.19
+charset-normalizer==3.5.2
+idna==3.20
+urllib3==2.8.0

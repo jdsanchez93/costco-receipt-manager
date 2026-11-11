@@ -7,8 +7,8 @@
 #
 # Runs as root and authenticates through MariaDB's unix_socket plugin, so no
 # password is stored, passed, or logged anywhere. Invoked by the nightly
-# systemd timer, by hand before applying a migration script, and (in Phase 2)
-# by costco-deploy before it migrates.
+# systemd timer, by costco-deploy before every migration, and by hand before
+# applying SQL any other way.
 set -euo pipefail
 
 DB=costco_receipts

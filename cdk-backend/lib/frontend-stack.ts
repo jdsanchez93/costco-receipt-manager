@@ -101,6 +101,36 @@ export class FrontendStack extends cdk.Stack {
       protocolPolicy: cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
     });
 
+    // Angular client-side routing. A path whose last segment has no "." is an
+    // app route rather than a file, so it's served the app shell. Every build
+    // output has an extension, and no route segment can contain a dot:
+    // receipt IDs are GUIDs and share tokens are base64url.
+    //
+    // This is a function on the S3 behavior, not distribution-wide
+    // `errorResponses`, because custom error responses apply to every
+    // behavior: they turned each API 403 and 404 into `200 text/html`. Running
+    // at viewer request, the rewrite also happens before the cache lookup, so
+    // every deep link shares /index.html's cache entry and its Cache-Control.
+    //
+    // A missing file (say a stale lazy chunk after a deploy) now reaches the
+    // browser as S3's own error: 403, not 404, because the origin access
+    // control grants s3:GetObject without s3:ListBucket. A dynamic import fails
+    // the same way on either.
+    const spaRewrite = new cloudfront.Function(this, 'SpaRewrite', {
+      comment: 'Serve /index.html for Angular routes (paths without a file extension)',
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+      code: cloudfront.FunctionCode.fromInline(`
+function handler(event) {
+  var request = event.request;
+  var lastSegment = request.uri.slice(request.uri.lastIndexOf('/') + 1);
+  if (lastSegment.indexOf('.') === -1) {
+    request.uri = '/index.html';
+  }
+  return request;
+}
+`),
+    });
+
     this.distribution = new cloudfront.Distribution(this, 'Distribution', {
       // See the `aliases` prop comment: CloudFront only accepts a certificate
       // together with at least one alternate domain name, so during the
@@ -114,6 +144,9 @@ export class FrontendStack extends cdk.Stack {
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
         originRequestPolicy: cloudfront.OriginRequestPolicy.CORS_S3_ORIGIN,
+        functionAssociations: [
+          { function: spaRewrite, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST },
+        ],
       },
       additionalBehaviors: {
         '/api/*': {
@@ -125,22 +158,10 @@ export class FrontendStack extends cdk.Stack {
           compress: false,
         },
       },
+      // Redundant while spaRewrite maps "/" to /index.html. Kept so that "/"
+      // never reaches S3 as a request for the bucket itself if the function
+      // is ever detached.
       defaultRootObject: 'index.html',
-      errorResponses: [
-        // Angular client-side routing: unknown paths are app routes, not 404s.
-        {
-          httpStatus: 404,
-          responseHttpStatus: 200,
-          responsePagePath: '/index.html',
-          ttl: cdk.Duration.seconds(300),
-        },
-        {
-          httpStatus: 403,
-          responseHttpStatus: 200,
-          responsePagePath: '/index.html',
-          ttl: cdk.Duration.seconds(300),
-        },
-      ],
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
       httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
     });
@@ -156,8 +177,9 @@ export class FrontendStack extends cdk.Stack {
     if (props.githubRepo && props.githubOidcProviderArn) {
       const deployRole = new iam.Role(this, 'GithubDeployRole', {
         // Pinned rather than CDK-generated so the ARN survives a stack
-        // recreation — .github/workflows/frontend.yml reads it from a GitHub
-        // repository variable, which would otherwise silently go stale.
+        // recreation — .github/workflows/frontend.yml reads it from a variable
+        // on the `production` GitHub environment, which would otherwise
+        // silently go stale.
         roleName: `costco-receipts-${props.stage}-frontend-deploy`,
         description: 'Assumed by GitHub Actions to deploy the Angular build',
         maxSessionDuration: cdk.Duration.hours(1),
@@ -187,13 +209,13 @@ export class FrontendStack extends cdk.Stack {
 
       new cdk.CfnOutput(this, 'GithubDeployRoleArn', {
         value: deployRole.roleArn,
-        description: 'Set as the AWS_DEPLOY_ROLE_ARN repository variable in GitHub',
+        description: 'Set as the AWS_DEPLOY_ROLE_ARN variable on the production GitHub environment',
       });
     }
 
     new cdk.CfnOutput(this, 'CloudFrontDistributionId', {
       value: this.distribution.distributionId,
-      description: 'Set as the CLOUDFRONT_DISTRIBUTION_ID repository variable in GitHub',
+      description: 'Set as the CLOUDFRONT_DISTRIBUTION_ID variable on the production GitHub environment',
     });
 
     new cdk.CfnOutput(this, 'CloudFrontDomainName', {
@@ -203,7 +225,7 @@ export class FrontendStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'FrontendBucketName', {
       value: this.frontendBucket.bucketName,
-      description: 'Set as the FRONTEND_BUCKET repository variable in GitHub',
+      description: 'Set as the FRONTEND_BUCKET variable on the production GitHub environment',
     });
   }
 }

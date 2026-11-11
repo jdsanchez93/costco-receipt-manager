@@ -21,9 +21,14 @@ namespace CostcoReceipts.Api.Controllers;
 [Route("api/receipts")]
 public class ReceiptsController : ControllerBase
 {
-    private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    // Only formats Textract's DetectDocumentText can read — anything else
+    // uploads fine but fails OCR in the receipt processor Lambda. Doubles as
+    // the allowlist, so a type can't be accepted without a key extension.
+    private static readonly Dictionary<string, string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        "image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif",
+        ["image/jpeg"] = ".jpg",
+        ["image/jpg"] = ".jpg",
+        ["image/png"] = ".png",
     };
 
     private readonly AppDbContext _db;
@@ -64,7 +69,7 @@ public class ReceiptsController : ControllerBase
         }
 
         var contentType = request?.ContentType ?? "image/jpeg";
-        if (!AllowedContentTypes.Contains(contentType))
+        if (!ImageExtensions.TryGetValue(contentType, out var extension))
         {
             return BadRequest(new { error = $"Unsupported content type: {contentType}" });
         }
@@ -85,6 +90,7 @@ public class ReceiptsController : ControllerBase
         }
 
         var receiptId = Guid.NewGuid().ToString();
+        var imageKey = $"uploads/{userId}/{receiptId}{extension}";
         var now = DateTime.UtcNow;
 
         _db.Receipts.Add(new Receipt
@@ -93,6 +99,7 @@ public class ReceiptsController : ControllerBase
             OwnerUserId = userId,
             CreatedAt = now,
             ProcessingStatus = ReceiptProcessingStatus.Pending,
+            ImageKey = imageKey,
         });
         _db.ReceiptMembers.Add(new ReceiptMember
         {
@@ -108,7 +115,7 @@ public class ReceiptsController : ControllerBase
         var uploadUrl = await _s3Client.GetPreSignedURLAsync(new GetPreSignedUrlRequest
         {
             BucketName = bucket,
-            Key = $"uploads/{userId}/{receiptId}.jpg",
+            Key = imageKey,
             Verb = HttpVerb.PUT,
             Expires = now.AddSeconds(expiresIn),
             ContentType = contentType,
@@ -140,10 +147,10 @@ public class ReceiptsController : ControllerBase
         var downloadUrl = await _s3Client.GetPreSignedURLAsync(new GetPreSignedUrlRequest
         {
             BucketName = bucket,
-            // Keyed by the receipt's owner, not the requesting caller — a
+            // The key stored at upload, never one built from the caller — a
             // shared receipt's non-owner members must still resolve to the
             // actual uploader's S3 path.
-            Key = $"uploads/{receipt.OwnerUserId}/{receiptId}.jpg",
+            Key = ImageKeyOf(receipt),
             Verb = HttpVerb.GET,
             Expires = DateTime.UtcNow.AddSeconds(expiresIn),
         });
@@ -219,7 +226,35 @@ public class ReceiptsController : ControllerBase
         _db.Receipts.Remove(receipt);
         await _db.SaveChangesAsync(ct);
 
-        // TODO(upload-pipeline): once we own image storage, delete the S3 object here.
+        // The row is the source of truth and it's gone, so the delete has
+        // succeeded; removing the image is best-effort cleanup. A failure
+        // leaves an orphaned object rather than failing a request whose
+        // effect already happened. Versioning is on, so this only writes a
+        // delete marker. CancellationToken.None so a client disconnecting
+        // after the commit doesn't abandon the cleanup.
+        try
+        {
+            await _s3Client.DeleteObjectAsync(new DeleteObjectRequest
+            {
+                BucketName = _s3.Value.BucketName,
+                Key = ImageKeyOf(receipt),
+            }, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Deleted receipt {ReceiptId} but could not delete its image", receiptId);
+        }
+
         return NoContent();
     }
+
+    /// <summary>
+    /// S3 key of a receipt's image, as stored at upload. The fallback is the
+    /// fixed key every upload used before ImageKey existed. Existing rows were
+    /// backfilled, so it only covers a row written by an older API image during
+    /// a rollback — and it stays, because migrations must remain
+    /// backward-compatible with the previous image.
+    /// </summary>
+    private static string ImageKeyOf(Receipt receipt) =>
+        receipt.ImageKey ?? $"uploads/{receipt.OwnerUserId}/{receipt.ReceiptId}.jpg";
 }

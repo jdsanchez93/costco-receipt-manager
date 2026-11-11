@@ -60,6 +60,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.ReceiptId).HasMaxLength(64);
             e.Property(x => x.OwnerUserId).HasMaxLength(128).IsRequired();
             e.Property(x => x.ProcessingStatus).HasMaxLength(16).IsRequired().HasDefaultValue("completed");
+            e.Property(x => x.ImageKey).HasMaxLength(256);
             e.HasIndex(x => x.OwnerUserId);
             e.HasOne(x => x.Owner)
                 .WithMany()

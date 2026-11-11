@@ -1,397 +1,243 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) working in this repository.
 
-## Project Overview
+## What this is
 
-This is a full-stack Costco receipt management application with:
-- React TypeScript frontend with Material-UI
-- **ASP.NET Core 8** backend (Lambda function deployed via AWS CDK)
-- AWS DynamoDB single-table design for data storage
-- Auth0 for JWT-based authentication
-- AWS S3 for receipt image storage
-- AWS CloudFront distribution for frontend hosting
-- AWS API Gateway for API routing
+A receipt-splitting app: upload a Costco receipt photo, OCR extracts the line
+items, then members assigned to the receipt are allocated items and per-person
+totals are computed.
 
-### Migration Status
-The project is undergoing a migration from ASP.NET Core 8 Serverless API (Lambda + API Gateway) / React / DynamoDB to .NET 10 / Angular / MySQL stack targeted for self-hosted deployment. The old `cdk-backend/` directory contains the existing infrastructure for the serverless API. The `api/` directory contains the new .NET 10 api and a Migrations project to move DynamoDB data into MySQL. The `frontend/` directory contains the existing React implementation. The `frontend-angular/` directory contains the new frontend in progress.
+| Piece | Stack |
+|---|---|
+| `frontend-angular/` | Angular 22 + Angular Material, Auth0 SDK v2.11 |
+| `api/CostcoReceipts.Api/` | ASP.NET Core 10, EF Core 10 via `Microting.EntityFrameworkCore.MySql` (a Pomelo fork; MySQL/MariaDB) |
+| `api/CostcoReceipts.Migration/` | one-off data maintenance CLI (see below) |
+| `cdk-backend/` | AWS CDK: S3 + CloudFront, and the Textract OCR Lambda |
 
-## Common Development Commands
+The API is **self-hosted** on a Raspberry Pi, in Docker with
+`network_mode: host`, behind a Cloudflare Tunnel. MariaDB 11.8 runs natively on
+the same box, bound to loopback. Everything else is AWS.
 
-### Old React Frontend (from /frontend directory)
+An earlier Node/React/DynamoDB/SAM architecture was fully retired on
+2026-10-05. If you find documentation or code referring to DynamoDB, a
+`backend/` directory, API Gateway, or a Lambda-hosted API, it is stale —
+report it rather than following it.
+
+## Request path
+
+```
+browser → CloudFront (costco.jd-sanchez.com)
+            ├── /*      → S3 bucket with the Angular build
+            └── /api/*  → Cloudflare Tunnel (costco-api.jd-sanchez.dev) → Pi → MariaDB
+```
+
+The browser only ever talks to one origin, so there is no CORS between the SPA
+and the API. CloudFront reaches the tunnel over ordinary HTTPS.
+
+Two domains. `jd-sanchez.com` is in Route 53, in a different AWS account from
+these stacks, and carries the site and Auth0's custom domain
+(`auth0.jd-sanchez.com`). `jd-sanchez.dev` is on Cloudflare and carries only
+tunnel hostnames, which nothing reaches except through CloudFront or the OCR
+Lambda. `jd-sanchez.com` can't move to Cloudflare on its free plan: delegating
+a subdomain needs Enterprise, and a partial (CNAME) setup needs Business.
+
+**OCR pipeline**, entirely separate from the request path:
+
+```
+browser → presigned PUT → S3 uploads/<auth0-sub>/<receiptId>.{jpg,png}
+                            → ObjectCreated event
+                            → Python Lambda → Textract
+                            → POST /api/internal/receipts/{id}/ocr-results  (shared secret)
+                            → MariaDB
+```
+
+Processing is async. `Receipt.ProcessingStatus` is `pending` → `completed` /
+`failed`, and the receipt view polls it with bounded backoff.
+
+## Local development
+
 ```bash
-npm start          # Start development server on port 3000
-npm run build      # Build production bundle
-npm test           # Run tests
+docker compose -f api/docker-compose.yml up -d        # MariaDB 11.8 on 127.0.0.1:3306
+cd api/CostcoReceipts.Api && dotnet run               # http://127.0.0.1:5002, Swagger at /swagger
+cd frontend-angular && npm start                      # http://localhost:4200, proxies /api → :5002
 ```
 
-### Backend API (from /cdk-backend/src/CostcoReceipts.Api directory)
+The dev OCR pipeline posts its results to `https://costco-api-dev.jd-sanchez.dev`,
+a Cloudflare Tunnel to the local API, run only while testing uploads:
+
 ```bash
-dotnet run         # Start local development server on port 5002
-dotnet watch run   # Start with hot reload
-dotnet build       # Compile the project
-dotnet test        # Run tests
-dotnet clean       # Clean build artifacts
+docker run --rm -v ~/.cloudflared:/home/nonroot/.cloudflared cloudflare/cloudflared \
+  tunnel --url http://host.docker.internal:5002 run costco-dev
 ```
 
-**For detailed local development setup**, see `cdk-backend/LOCAL_DEV.md` which covers:
-- AWS profile configuration and SSO login
-- User secrets management
-- Swagger UI access (http://localhost:5002/swagger)
-- Debugging and troubleshooting
+The image runs as `nonroot`, so a mount at `/root/.cloudflared` silently loses
+the tunnel's credentials. Docker Desktop has no real host networking, hence
+`host.docker.internal` rather than `network_mode: host`.
 
-### CDK Infrastructure (from /cdk-backend directory)
 ```bash
-npm install        # Install CDK dependencies
-cdk synth          # Synthesize CloudFormation template
-cdk deploy         # Deploy to AWS
-cdk diff           # Show infrastructure changes
-cdk destroy        # Tear down infrastructure
+cd frontend-angular && npx ng test --watch=false      # vitest
+cd api/CostcoReceipts.Api && dotnet build -warnaserror
+cd cdk-backend && npx tsc --noEmit && npx cdk synth
 ```
 
-## Architecture
+There is no .NET test project. The Angular suite is the only automated test
+coverage.
 
-### Infrastructure (AWS CDK)
-The application is deployed using AWS CDK (`cdk-backend/lib/costco-receipts-stack.ts`):
+## Database and migrations
 
-- **Lambda Function**: Single .NET 8 Lambda running ASP.NET Core API
-  - Timeout: 30 seconds
-  - Memory: 1024 MB
-  - Runtime: .NET 8
-  - Bundled using Docker during CDK deployment
+Eight entities under `Data/Entities/`: `User`, `Contact`, `Receipt`,
+`ReceiptMember`, `ReceiptItem`, `ReceiptItemAssignment`, `ReceiptGeometry`,
+`ReceiptShare`. `Contact` is an owner-scoped address book — see its doc comment
+for the authenticated/placeholder distinction, which is load-bearing.
 
-- **API Gateway**: REST API with Lambda proxy integration
-  - CORS configured for CloudFront origin
-  - Binary media types support for images
-  - Proxy all routes to single Lambda function
+**Creating a migration** is ordinary `dotnet ef migrations add`. The dialect is
+pinned to production's engine by `Database:ServerVersion` in `appsettings.json`,
+so `AppDbContextFactory` never needs a live database and migrations are always
+generated against MariaDB 11.8 regardless of what is running locally. The API
+reads the same setting at runtime rather than detecting the version, so
+building a `DbContext` never touches the database.
 
-- **CloudFront Distribution**:
-  - Serves frontend from S3
-  - Routes `/api/*` requests to API Gateway
-  - Custom domain support (optional)
-  - HTTPS redirect enforced
+**Applying to production happens on deploy.** The API's DB user (`costco_app`)
+has DML only; DDL belongs to `costco_migrator`. `costco-deploy` on the Pi backs
+the database up, then runs the new image once with `--migrate` as
+`costco_migrator`, and only then swaps containers. So **migrations must stay
+additive**: the old container keeps serving while one runs, and rolling back an
+image never rolls back the schema. A migration that can't be additive needs a
+plan of its own, not a merge.
 
-- **S3 Bucket**: Hosts React frontend build
-  - Origin Access Control (OAC) for security
-  - Versioned for rollback capability
+`api/scripts/generate-prod-migration-script.sh` still produces the idempotent
+SQL, sanity-applied to a throwaway MariaDB, for reviewing what a migration will
+run.
 
-### Database Schema (DynamoDB Single-Table Design)
-The application uses a **single DynamoDB table** (`dev-costco-receipt-parser-main`) with the following access patterns:
+Local development runs the same engine as production — `mariadb:11.8`, matching
+the Pi's 11.8.6. The series tag rather than an exact patch, so local drifts the
+way the Pi does through apt rather than pinning against it; expect local to sit
+a few patches ahead. Moving off 11.8 means updating three places together: the
+image tag, `Database:ServerVersion`, and `MARIADB_VERSION` in
+`scripts/generate-prod-migration-script.sh`.
 
-**Entity Types:**
-- **Receipt Members** (`USER#<user_id>` / `RECEIPT#<receipt_id>`)
-  - Stores user's relationship to receipts
-  - Attributes: receipt_id, display_name, email, user_type, validation_status, validated_by, validated_at, comments
+## Configuration
 
-- **Receipt Items** (`RECEIPT#<receipt_id>` / `ITEM#<item_index>`)
-  - Stores individual line items from receipt
-  - Attributes: item_number, item_name, price, discount, assigned_users[]
+Secrets never live in the repo. The pattern is a committed `.example` plus a
+gitignored real file:
 
-- **Receipt Geometry** (`RECEIPT#<receipt_id>` / `GEOMETRY#<field_name>#<field_type>`)
-  - Stores AWS Textract OCR data for validation
-  - Attributes: text, confidence, bounding_box, polygon
+| Real file | Template | Holds |
+|---|---|---|
+| `/opt/costco-api/.env` (on the Pi) | `api/.env.example` | DB password, AWS keys, internal shared secret |
+| `/opt/costco-api/migrator.env` (on the Pi) | — | `costco_migrator`'s connection string; never in `.env`, which the API container loads |
+| `cdk-backend/cdk.context.json` | — | bucket names, internal API keys, per-stage config |
+| `frontend-angular/src/environments/environment.development.ts` | `environment.example.ts` | local Auth0 app |
 
-- **Receipt Shares** (`RECEIPT#<receipt_id>` / `SHARE#<share_token>`)
-  - Stores public sharing links
-  - Attributes: share_token, owner_user_id, expires_at, is_active, current_uses
+`environment.ts` (production) **is** committed: its Auth0 domain, clientId and
+audience already ship in the public bundle. The dev one is not, because its
+clientId belongs to a separate local-only Auth0 application and is not public
+anywhere. The test applied to any config file is "would committing this leak
+something new?"
 
-**Global Secondary Indexes:**
-- GSI1: Allows querying shares by share_token for public access
+Local API config goes in user secrets or `appsettings.Development.json`, never
+in `appsettings.json`.
 
-### API Endpoints
+## Infrastructure
 
-**Upload/Download (authenticated):**
-- `POST /api/receipts/get-upload-url` - Get S3 presigned upload URL
-- `GET /api/receipts/get-download-url/:receiptId` - Get S3 presigned download URL
-
-**Receipt Data (authenticated):**
-- `GET /api/receipts/user-receipts` - Get user's receipts
-- `GET /api/receipts/receipt/:receiptId/items` - Get items for a receipt
-- `GET /api/receipts/receipt/:receiptId/geometry` - Get Textract OCR geometry data
-- `POST /api/receipts/validate/:receiptId` - Validate receipt subtotal
-
-**Receipt Members (authenticated):**
-- `GET /api/receipts/receipt/:receiptId/members` - Get receipt members
-- `POST /api/receipts/receipt/:receiptId/members` - Add member to receipt
-- `PUT /api/receipts/receipt/:receiptId/members/update-details` - Update member details
-
-**Receipt Sharing (authenticated):**
-- `POST /api/receipts/receipt/:receiptId/share` - Create shareable link
-- `GET /api/receipts/receipt/:receiptId/shares` - Get receipt shares
-
-**Public Sharing (no auth):**
-- `GET /api/receipts/shared/:shareToken` - Access shared receipt publicly
-
-**Item Assignments (authenticated):**
-- `PUT /api/receipts/receipt/:receiptId/items/:itemId/assignment` - Update item assignment
-- `PUT /api/receipts/receipt/:receiptId/items/assignments/bulk` - Bulk update assignments
-- `DELETE /api/receipts/receipt/:receiptId/items/assignments/all` - Clear all assignments
-
-### Authentication Flow
-1. Frontend uses Auth0 React SDK for authentication
-2. Backend validates JWT tokens using ASP.NET Core Auth0 middleware
-3. All API endpoints (except `/shared/:shareToken`) require valid Auth0 JWT token
-4. User identity extracted from JWT `sub` claim
-
-## Environment Configuration
-
-### Frontend (.env)
-- `REACT_APP_AUTH0_DOMAIN` - Auth0 tenant domain
-- `REACT_APP_AUTH0_CLIENT_ID` - Auth0 application client ID
-- `REACT_APP_AUTH0_REDIRECT_URI` - OAuth callback URL
-- `REACT_APP_API_BASE_URL` - Backend API URL (http://localhost:5002 for local dev)
-- `REACT_APP_AUTH0_AUDIENCE` - Auth0 API identifier
-
-### ASP.NET Core Backend Configuration
-
-The backend uses a **layered configuration** approach:
-1. `appsettings.json` - Base configuration
-2. `appsettings.Development.json` - Development overrides
-3. **User Secrets** - Sensitive data (local development only)
-4. **Environment Variables** - Lambda/production configuration
-
-**Configuration Values:**
-- `AUTH0_DOMAIN` - Auth0 tenant domain
-- `AUTH0_AUDIENCE` - Auth0 API identifier
-- `AWS:Profile` - AWS CLI profile (local dev only)
-- `AWS:Region` - AWS region (default: us-east-1)
-- `DYNAMODB_TABLE_MAIN` - Single DynamoDB table name
-- `S3_UPLOAD_API_URL` - External S3 upload API endpoint
-- `S3_DOWNLOAD_API_URL` - External S3 download API endpoint
-- `CLOUDFRONT_DOMAIN` - Custom domain for frontend (optional)
-- `Cors:AllowedOrigins` - Array of allowed CORS origins
-
-**Local Development:**
-See `cdk-backend/LOCAL_DEV.md` for setting up user secrets and AWS credentials.
-
-## JSON Serialization Strategy
-
-The application uses **separate naming conventions** for the API layer and DynamoDB storage:
-
-### API Layer (camelCase)
-- **All API responses** use default ASP.NET Core camelCase serialization
-- C# PascalCase properties automatically serialize to camelCase (e.g., `ReceiptId` → `receiptId`)
-- Frontend TypeScript interfaces use camelCase to match
-
-**Example API Response:**
-```json
-{
-  "receiptId": "abc123",
-  "createdAt": "2024-01-01T00:00:00Z",
-  "validationStatus": "confirmed",
-  "validatedAt": "2024-01-02T00:00:00Z"
-}
-```
-
-### DynamoDB Layer (snake_case)
-- DynamoDB attributes use `snake_case` naming via `[DynamoDBProperty("snake_case")]` attributes
-- This is configured per-property in `DynamoDbModels.cs`
-- The `SingleTableService._jsonOptions` uses `SnakeCaseLower` for DynamoDB writes only
-- PK/SK keys remain uppercase as stored in the table
-
-**Example Model Property:**
-```csharp
-[DynamoDBProperty("receipt_id")]
-public string ReceiptId { get; set; }
-```
-
-## Key Features
-1. Drag-and-drop receipt upload with react-dropzone
-2. Receipt validation with AWS Textract OCR data visualization
-3. Multi-user receipt sharing with assignment tracking
-4. Public shareable links with expiration
-5. Receipt subtotal validation workflow
-6. Individual receipt detail pages with items table and receipt image viewing
-7. Receipt image display with fullscreen modal view
-8. React Router navigation between receipts list and detail views
-9. Material-UI DataGrid for displaying data
-10. Integration with external S3 upload/download APIs using JWT passthrough
-11. JWT-based authentication with Auth0
-12. DynamoDB single-table design for scalable data storage
-
-## UI Structure
-- **Dashboard** (`/`): Main receipts table with upload functionality
-- **Receipt Details** (`/receipt/:receiptId`): Individual receipt view with receipt image, metadata, and items table
-- **Receipt Image Display**: Embedded image with fullscreen modal view
-- Navigation between views using React Router
-- Responsive Material-UI components
-
-## S3 Upload Integration
-The application integrates with an external API Gateway endpoint for S3 uploads:
-
-1. **Two-step upload process**:
-   - Frontend calls `/api/receipts/get-upload-url` (no body required)
-   - Backend forwards JWT to external API Gateway to get presigned S3 URL
-   - Frontend uploads directly to S3 using presigned URL
-
-2. **External API Gateway Requirements**:
-   - POST request to 'upload-url' endpoint with optional content_type in body
-   - Must use same Auth0 domain/audience for JWT validation  
-   - Should return `{ upload_url, receipt_id, expires_in }` response format
-   - Configured via `S3_UPLOAD_API_URL` environment variable
-
-3. **Request Format**:
-   ```json
-   {
-     "content_type": "image/jpeg"
-   }
-   ```
-   (content_type is optional, defaults to image/jpeg if not provided)
-
-4. **Response Format**:
-   ```json
-   {
-     "upload_url": "presigned S3 URL", 
-     "receipt_id": "generated receipt ID",
-     "expires_in": 3600
-   }
-   ```
-
-## Troubleshooting
-
-### Auth0 Issues
-The ASP.NET Core backend includes Auth0 logging middleware in development mode (`Auth0LoggingMiddleware.cs`):
-
-**To debug Auth0 issues:**
-1. Check console for Auth0 configuration on startup
-2. Review logged token details for each authenticated request
-3. Verify `AUTH0_DOMAIN` and `AUTH0_AUDIENCE` are set correctly
-4. Ensure frontend and backend use the same Auth0 tenant and audience
-5. Confirm JWT tokens include "Bearer " prefix in Authorization header
-
-**Common Auth0 Setup Issues:**
-- **401 Unauthorized**: Check that Auth0 audience matches between frontend and backend
-- **Missing claims**: Verify Auth0 API settings include user metadata in access token
-- **Token expired**: Frontend should automatically refresh tokens using Auth0 SDK
-- **CORS errors with auth**: Ensure preflight OPTIONS requests don't require authentication
-
-**Local Development:**
-Run `dotnet user-secrets list` to verify Auth0 secrets are configured properly.
-
-### AWS Credentials Issues
-
-**Local Development:**
-- Ensure AWS CLI profile is configured: `aws configure --profile <profile-name>`
-- For SSO profiles: Run `aws sso login --profile <profile-name>` before starting the API
-- Verify profile name matches `AWS:Profile` in user secrets
-
-**Lambda Deployment:**
-- Lambda uses IAM role - no credentials needed
-- Verify Lambda execution role has DynamoDB and S3 permissions
-- Check CloudWatch logs for permission errors
-
-### DynamoDB Access Errors
-
-**Verify table access:**
-```bash
-aws dynamodb describe-table --table-name dev-costco-receipt-parser-main --profile <profile-name>
-```
-
-**Common issues:**
-- Table name mismatch in configuration
-- Insufficient IAM permissions
-- AWS region mismatch (default: us-east-1)
-
-### CORS Issues
-
-**Local Development (localhost:3000):**
-- Frontend runs on port 3000, backend on port 5002
-- CORS is configured in `appsettings.Development.json`
-- Both ports must be whitelisted
-
-**Production (CloudFront):**
-- CORS configured via `Cors:AllowedOrigins` environment variable array
-- Set in CDK stack: `Cors__AllowedOrigins__0=https://your-domain.com`
-- API Gateway has separate CORS preflight configuration
-
-### JSON Serialization Issues
-
-If the frontend receives unexpected field names:
-1. Verify API responses use camelCase (default ASP.NET Core behavior)
-2. Check frontend TypeScript interfaces match camelCase naming
-3. Use browser DevTools Network tab to inspect actual API responses
-4. For DynamoDB issues, verify `[DynamoDBProperty("snake_case")]` attributes are set correctly in `DynamoDbModels.cs`
-
-### Build and Deployment Issues
-
-**CDK Deployment Failures:**
-- Ensure .NET 8 SDK is installed: `dotnet --version`
-- Clean build artifacts: `cd cdk-backend/src/CostcoReceipts.Api && dotnet clean`
-- Check CDK stack parameters are set correctly
-- Review CloudFormation events in AWS console
-
-**Lambda Cold Start:**
-- First request after deployment may take 5-10 seconds
-- Subsequent requests should be fast (< 1 second)
-- Consider provisioned concurrency for production
-
-## Deployment Notes
-
-### Infrastructure as Code (CDK)
-The application is deployed using **AWS CDK** (`cdk-backend/lib/costco-receipts-stack.ts`):
+Three CDK stacks, stage-parameterized from a nested `dev`/`prod` block in
+`cdk.context.json`:
 
 ```bash
 cd cdk-backend
-npm install
-cdk deploy --context auth0Domain=<domain> --context auth0Audience=<audience>
+npx cdk deploy Dev-CostcoReceipts-Processing                    # dev OCR pipeline
+npx cdk deploy -c stage=prod Prod-CostcoReceipts-Processing     # prod OCR pipeline
+npx cdk deploy -c stage=prod Prod-CostcoReceipts-Frontend       # S3 + CloudFront + deploy role
 ```
 
-### Architecture Components
+The receipt-image buckets are deliberately **not** CDK resources — they hold
+real user data and are referenced by name, so every stack resource stays
+disposable. Their configuration lives in `cdk-backend/BUCKETS.md`.
 
-**Backend (Lambda):**
-- Runtime: .NET 8 (`DOTNET_8`)
-- Handler: `CostcoReceipts.Api` (ASP.NET Core Lambda)
-- Bundling: Uses Docker to compile and package during `cdk deploy`
-- Memory: 1024 MB
-- Timeout: 30 seconds
-- Environment variables set via CDK stack
+## CI/CD
 
-**Frontend (S3 + CloudFront):**
-1. Build React app: `cd frontend && npm run build`
-2. Upload to S3: `aws s3 sync build/ s3://<frontend-bucket-name>/`
-3. Invalidate CloudFront cache: `aws cloudfront create-invalidation --distribution-id <id> --paths "/*"`
+- `.github/workflows/ci.yml` — on PRs and pushes to `main`: builds both .NET
+  projects with `-warnaserror`, Angular production build plus vitest, CDK
+  typecheck and synth, and `dotnet ef migrations has-pending-model-changes` so
+  an entity change without a migration fails the PR.
+- `.github/workflows/frontend.yml` — on pushes to `main` touching
+  `frontend-angular/**`: builds and deploys to S3 + CloudFront, authenticating
+  with GitHub OIDC (no stored AWS keys). Runs in the protected `production`
+  environment, which supplies the role ARN, bucket and distribution ID as
+  environment-scoped variables.
+- `.github/workflows/api.yml` — on pushes to `main` touching
+  `api/CostcoReceipts.Api/**`: builds the image on a GitHub-hosted arm64
+  runner, pushes it to GHCR (public), then starts and watches `deploy.yml` in
+  the **private** repository `jdsanchez93/costco-deploy`. That repository
+  exists only to hold the Pi's self-hosted runner, because a self-hosted runner
+  on a public repository can be sent jobs from fork pull requests. The link is
+  a GitHub App with Actions read/write on that one repository.
 
-**Database:**
-- DynamoDB table must exist before deployment (not created by this stack)
-- Table name passed as stack parameter: `mainTableName`
-- Uses single-table design with GSI for share token lookups
+The Pi has no inbound path, so the runner polls GitHub. The deploy runs
+`/usr/local/sbin/costco-deploy`, which deploys by digest, health-checks, and
+puts the previous image back on failure. That script, its sudoers entry and
+`docker-compose.prod.yml` are installed on the Pi by hand, never by CI.
+`api/deploy/README.md` has the design, setup and rollback.
 
-### CDK Stack Parameters
+PR descriptions follow `.github/pull_request_template.md` — short; the
+reasoning lives in the commits.
 
-Required:
-- `mainTableName` - Existing DynamoDB table name
+## Things that have bitten before
 
-Optional (via context):
-- `auth0Domain` - Auth0 tenant domain
-- `auth0Audience` - Auth0 API audience
-- `s3UploadApiUrl` - External S3 upload API endpoint
-- `s3DownloadApiUrl` - External S3 download API endpoint
-- `customDomainName` - Custom domain for CloudFront
-- `certificateArn` - ACM certificate ARN (must be in us-east-1)
+- **A TCP connection to `127.0.0.1` counts as `localhost`.** The Pi's MariaDB
+  resolves client names (no `skip-name-resolve`), so a loopback connection
+  matches `@'localhost'` accounts as well as `@'127.0.0.1'` ones. When a user
+  has both, MariaDB picks `@'localhost'` and never tries the other, so a
+  different password on `@'127.0.0.1'` just fails: that broke
+  `costco_migrator`'s first deploy. Keep one account per user. `costco_app` is
+  `@'127.0.0.1'` only, which matches by IP either way; turning on
+  `skip-name-resolve` would leave `@'localhost'` matching socket connections
+  only.
+- **`costco_migrator` needs `CREATE ROUTINE`, `ALTER ROUTINE` and `EXECUTE`**,
+  not just DDL. Pomelo, and so the fork, can't drop and recreate a primary key
+  on an `AUTO_INCREMENT` column with a plain `ALTER TABLE`, so it defines
+  helper stored procedures such as `POMELO_BEFORE_DROP_PRIMARY_KEY`, and
+  MariaDB grants routines separately from tables. Without them such a
+  migration fails with error 1370, "alter routine command denied".
+- **S3 notifications on a non-CDK-managed bucket merge rather than overwrite**
+  (`Managed: false`). Two stacks owning a trigger on the same prefix OCRs every
+  upload twice.
+- **Only JPEG and PNG are accepted on upload.** Textract reads neither HEIC nor
+  WebP, and non-Safari browsers cannot render HEIC. Enforced on both sides.
+  Client-side conversion is a known gap — a Mac Photos export currently has to
+  be converted by hand.
+- **Deleting a receipt removes its image only best-effort.** `DeleteReceipt`
+  commits the DB delete first, then deletes the S3 object (a delete marker,
+  since the bucket is versioned), logging a warning rather than failing if S3
+  refuses — so a missing `s3:DeleteObject` grant shows up as orphans, not 500s.
+  Deleting while OCR is still pending, and the abandoned-upload path, still let
+  the Lambda POST results for a receipt that is gone: a 404, a burned Textract
+  call, and an event in the DLQ.
+- **Access tokens carry no profile claims** — no `email`, `name` or
+  `nickname`, only the ID token does. `UserProvisioningMiddleware` gets them
+  from Auth0's `/userinfo` with the caller's own access token (valid there
+  because the SPA requests `openid` alongside the API audience): first for a
+  user with no self-contact, then retried while it has no email. A failed
+  fetch leaves the `sub` as a stand-in name, which `GET /api/me` reports as
+  `needsName` and the shell prompts the user to replace. A real name belongs
+  to the user (`/api/me`) and is never overwritten from Auth0.
+- **`docker compose restart` does not re-read `.env`**; it takes a recreate. On
+  the Pi that is `sudo costco-deploy --recreate`, since plain `compose` there
+  also needs the image from `deploy.env`.
 
-### Deployment Checklist
+## Documentation map
 
-1. ✅ .NET 8 SDK installed
-2. ✅ AWS CDK CLI installed (`npm install -g aws-cdk`)
-3. ✅ AWS credentials configured
-4. ✅ DynamoDB table exists
-5. ✅ Auth0 application configured
-6. ✅ External S3 upload/download APIs deployed
-7. ✅ (Optional) ACM certificate created in us-east-1 for custom domain
-
-### Monitoring
-
-- **Lambda Logs**: CloudWatch Logs `/aws/lambda/<function-name>`
-- **API Gateway Logs**: Enable execution and access logging in API Gateway settings
-- **CloudFront Logs**: Optional S3 access logs
-- **DynamoDB Metrics**: Monitor read/write capacity and throttling
-
-### Rolling Back
-
-```bash
-# Revert to previous version
-cdk deploy --rollback
-
-# Or completely tear down
-cdk destroy
-```
+- `README.md` — project overview for humans
+- `cdk-backend/README.md` — the stacks and how to deploy them
+- `cdk-backend/BUCKETS.md` — bucket config that lives outside CDK
+- `cdk-backend/RUNBOOK.md` — how the 2026-10 migration was executed, and what
+  was learned
+- `api/deploy/README.md` — the API deploy pipeline, Pi operations, and one-time
+  AWS/GitHub setup
+- `docs/redesign-plan.md` — roadmap: what is left to build and the decisions
+  already made about how. Forward-looking only; completed work lives in
+  `RUNBOOK.md` and `git log`.
+- `PI.md` in the **private** repository `jdsanchez93/costco-deploy` — the Pi's
+  exact configuration: storage and boot, MariaDB tuning and accounts, the
+  tunnel ID, firewall and SSH. Kept out of this public repository because it
+  fingerprints the box. It holds no secrets.
