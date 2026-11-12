@@ -85,6 +85,111 @@ Decided approach when this gets picked up:
 
 ---
 
+## Contacts and claiming — decided 2026-11-12, not started
+
+The goal: adding members to a receipt starts from the owner's contacts,
+with "new person" as the fallback, and a share link is how someone becomes
+a real user on a receipt.
+
+Already true: a membership references a contact in the receipt owner's
+address book, and access comes from that contact's `UserId`. Assignments
+hang off `receipt_members.Id`, not the contact, so pointing a membership at
+a different contact keeps its items. A member with an account shows their
+own name everywhere (`MemberNames`), and the share view sends only each
+member's id and name.
+
+### Decisions
+
+- **Accounts become contacts only through a mutual act.** No lookup by
+  email, no friend requests. An owner adds a placeholder and shares the
+  receipt; the other person signs in through the link and claims the
+  placeholder. That creates contacts in both directions — between the
+  claimer and the receipt owner only, not with the receipt's other members.
+  From then on the owner picks them directly.
+- **Every active share link can be claimed through.** Links stay viewable
+  signed out — someone can see what they owe and be done — and claiming is
+  the invitation to do more. No per-link flag.
+- **A claim covers one receipt.** It repoints that receipt's membership at
+  the owner's contact for the claimer (found or created) and leaves the
+  placeholder on the owner's other receipts; otherwise one forwarded link
+  would hand over every receipt the placeholder is on. The owner is then
+  asked whether it's the same person elsewhere — "Jane claimed 'John' on
+  Nov 3. Is Jane the John on your 4 other receipts?" — and linking merges
+  the placeholder into Jane's contact. A placeholder left on no receipts is
+  removed.
+- **Claims are visible and reversible.** The member row reads "Jane Doe ·
+  joined as John", and the owner can unlink, which puts the membership back
+  on a placeholder with its assignments. Each claim is recorded — who,
+  which placeholder and name, which link, when — in a new
+  `receipt_member_claims` table, which also says what a leaked link was
+  used for.
+- **Link holders can claim but not add themselves.** "Don't see your name?
+  Ask Jordan to add you." The owner keeps the roster, and so the totals.
+- **Prevent duplicates where people are added; keep the merger as the
+  backstop.** The merge in `PlaceholderContactMerger` moves into an API
+  service shared by the contacts page, the claim prompt and the CLI, with
+  its three safety rules intact.
+- **Only the uploader gets the contact picker.** A receipt's contacts live
+  in the book of `Receipt.OwnerUserId`. A promoted co-owner's contacts are
+  in another, and copying a real user across would link two people who
+  never agreed to it. Co-owners keep adding by name.
+
+### Phases, one PR each
+
+1. **Contacts API and people picker.** No schema change; recency comes from
+   `receipt_members.AddedAt`.
+   - `GET /api/contacts?q=` returning `{ contactId, displayName,
+     hasAccount, receiptCount, lastUsedAt }` — not the caller's
+     self-contact, and no Auth0 subs.
+   - `POST /members` takes `{ contactId }` or `{ displayName }`. A
+     `contactId` must belong to the receipt owner: contact ids are
+     sequential, and without the check any owner could attach strangers'
+     accounts to their receipts.
+   - The add form becomes one people field (Material chip grid +
+     autocomplete, like Gmail's recipients): recent people as one-tap chips
+     before typing, "Same people as last receipt", matches ranked by exact
+     name then recency, and "Add 'Joh…' as a new person" last — "Add
+     another 'John Doe'" when that name exists. Email and role leave the
+     form; role defaults to editor and nothing reads the email. Each pick
+     adds at once, with Undo. "Placeholder" becomes "Hasn't joined".
+2. **Contacts page (`/app/contacts`) and the merge service.** "Needs
+   review" on top — claim prompts, and same-name likely duplicates by the
+   merger's grouping rule — then a searchable list by recent use with
+   "N receipts together". Rename (placeholders only; a real user's name is
+   theirs), merge into…, and delete (only when on no receipts — the FK is
+   Restrict anyway). The self-contact is hidden.
+3. **Claiming.**
+   - `receipt_member_claims`, additive.
+   - `POST /api/receipts/shared/{token}/claim { memberId }`, authenticated,
+     with its own entry ahead of the anonymous wildcard in `app.config.ts`.
+     It checks the link is active, the caller isn't already a member and
+     the member is still a placeholder; finds or creates the contacts both
+     ways, race-safe on the unique index as `UserProvisioningMiddleware`
+     is; and repoints with `WHERE Id = @member AND ContactId =
+     @placeholder` so two concurrent claims can't both win.
+   - `POST /members/{id}/unlink` (owner), and the review prompt.
+   - Shared page: "Which one are you?" for everyone, signed out included —
+     picking highlights that member's items and share, remembered per link
+     in local storage. Then "Save this to your receipts" → sign in or sign
+     up → back with `?claim=<memberId>` → one confirm → claim →
+     `/app/receipts/{id}`, replacing the history entry. A 409 because
+     someone else just claimed refreshes the list and says so.
+   - A .NET test project lands with this phase — WebApplicationFactory and
+     Testcontainers on MariaDB 11.8 — covering concurrent claims, an
+     existing member, an expired link, a contact id from another owner's
+     book, and merging two contacts on one receipt.
+
+### Later
+
+- Who uploaded each receipt, in the list. `Receipt {guid}` (above) gets
+  worse once people see receipts they didn't upload.
+- A contact picker for co-owners.
+- Removing or blocking a real-user contact.
+- Per-person totals across receipts. Needs a "settled" state first, or the
+  number only grows.
+
+---
+
 ## Standing decision: AWS credentials on the Pi (2026-09-13)
 
 The API runs in a Docker container on the Pi, not on AWS-managed
@@ -114,8 +219,6 @@ expiry.
 
 ## Open questions
 
-- Is `SharedController`'s response shape still correct given the newer contacts
-  model? Worth a review before the shared-view path gets more traffic.
 - Does the Auth0 dashboard have "Allow Offline Access" enabled for the API?
   Needed for real refresh-token issuance. Silent auth still works without it
   via the iframe fallback, but that is fragile long-term.
