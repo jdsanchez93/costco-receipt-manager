@@ -1,3 +1,4 @@
+using CostcoReceipts.Api.Authorization;
 using CostcoReceipts.Api.Data;
 using CostcoReceipts.Api.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -6,7 +7,10 @@ using Microsoft.EntityFrameworkCore;
 namespace CostcoReceipts.Api.Controllers;
 
 /// <summary>
-/// Public read-only access to a receipt via a share token. No authentication required.
+/// Public read-only access to a receipt via a share token. No authentication
+/// required, but a signed-in caller is recognized: the SPA sends its token
+/// here when it has one, and JWT bearer is the default scheme, so
+/// <c>User</c> is populated without an [Authorize] to demand it.
 /// </summary>
 [ApiController]
 [Route("api/receipts")]
@@ -21,8 +25,20 @@ public class SharedController : ControllerBase
         _logger = logger;
     }
 
+    /// <summary>
+    /// The receipt behind a share link, or — for a caller who is already a
+    /// member — a <see cref="SharedReceiptMemberResponse"/> pointing the
+    /// client at the receipt itself. That holds even for an expired or
+    /// deactivated link: a member's access comes from their membership, not
+    /// the link, and the receipt id tells them nothing their own receipts
+    /// list doesn't. <paramref name="preview"/> skips it, so a member can see
+    /// what everyone else with the link sees.
+    /// </summary>
     [HttpGet("shared/{shareToken}")]
-    public async Task<IActionResult> GetSharedReceipt(string shareToken, CancellationToken ct)
+    public async Task<IActionResult> GetSharedReceipt(
+        string shareToken,
+        [FromQuery] bool preview,
+        CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(shareToken))
         {
@@ -32,6 +48,17 @@ public class SharedController : ControllerBase
         var share = await _db.ReceiptShares
             .AsNoTracking()
             .FirstOrDefaultAsync(s => s.ShareToken == shareToken, ct);
+
+        var userId = User.GetUserId();
+        if (share is not null && userId is not null && !preview)
+        {
+            var isMember = await _db.ReceiptMembers
+                .AnyAsync(m => m.ReceiptId == share.ReceiptId && m.Contact.UserId == userId, ct);
+            if (isMember)
+            {
+                return Ok(new SharedReceiptMemberResponse { ReceiptId = share.ReceiptId });
+            }
+        }
 
         if (share is null || !share.IsActive || share.ExpiresAt < DateTime.UtcNow)
         {
@@ -64,7 +91,7 @@ public class SharedController : ControllerBase
             .ThenInclude(c => c.User)
             .Where(m => m.ReceiptId == receiptId)
             .OrderBy(m => m.AddedAt)
-            .Select(m => ReceiptMemberDto.From(m))
+            .Select(m => SharedMemberDto.From(m))
             .ToListAsync(ct);
 
         var geometryRows = await _db.ReceiptGeometries

@@ -30,9 +30,11 @@ export const appConfig: ApplicationConfig = {
       },
       httpInterceptor: {
         // Order matters — the SDK attaches a token to the first match.
-        // The public shared-receipt read must go out with no bearer token
-        // (and not error for a logged-out visitor), so it needs its own
-        // `allowAnonymous` entry ahead of the catch-all.
+        // The public shared-receipt read must still go out for a logged-out
+        // visitor instead of erroring, so it needs its own `allowAnonymous`
+        // entry ahead of the catch-all. That still attaches a token when
+        // there is one, which is how the backend recognizes a member and
+        // sends them on to the receipt.
         allowedList: [
           { uri: `${environment.apiUrl}/receipts/shared/*`, allowAnonymous: true },
           `${environment.apiUrl}/*`,

@@ -239,13 +239,52 @@ public class ShareInfoDto
     public DateTime ExpiresAt { get; set; }
 }
 
+/// <summary>
+/// A member as anyone holding a share link sees them: enough to label items
+/// and totals, and nothing else. No email and no Auth0 sub, since the
+/// viewer may be anyone the link was forwarded to.
+/// </summary>
+public class SharedMemberDto
+{
+    public long Id { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Requires .Include(m => m.Contact).ThenInclude(c => c.User).</summary>
+    public static SharedMemberDto From(ReceiptMember m) => new()
+    {
+        Id = m.Id,
+        DisplayName = MemberNames.Of(m.Contact),
+    };
+}
+
+/// <summary>Values of <c>Kind</c> on the two shared-receipt responses.</summary>
+public static class SharedReceiptKinds
+{
+    /// <summary>The receipt itself, as anyone with the link sees it.</summary>
+    public const string Public = "public";
+
+    /// <summary>The caller is a member, so the client opens the receipt in the app instead.</summary>
+    public const string Member = "member";
+}
+
 public class SharedReceiptResponse
 {
+    public string Kind { get; set; } = SharedReceiptKinds.Public;
     public string ReceiptId { get; set; } = string.Empty;
     public List<ReceiptItemDto> Items { get; set; } = new();
-    public List<ReceiptMemberDto> Members { get; set; } = new();
+    public List<SharedMemberDto> Members { get; set; } = new();
     public GeometryDto Geometry { get; set; } = new();
     public ShareInfoDto ShareInfo { get; set; } = new();
+}
+
+/// <summary>
+/// Returned instead of <see cref="SharedReceiptResponse"/> when the caller is
+/// signed in and already a member of the link's receipt.
+/// </summary>
+public class SharedReceiptMemberResponse
+{
+    public string Kind { get; set; } = SharedReceiptKinds.Member;
+    public string ReceiptId { get; set; } = string.Empty;
 }
 
 /// <summary>
