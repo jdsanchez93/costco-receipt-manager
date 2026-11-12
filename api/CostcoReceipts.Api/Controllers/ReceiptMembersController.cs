@@ -26,6 +26,7 @@ public class ReceiptMembersController : ControllerBase
         var members = await _db.ReceiptMembers
             .AsNoTracking()
             .Include(m => m.Contact)
+            .ThenInclude(c => c.User)
             .Where(m => m.ReceiptId == receiptId)
             .OrderBy(m => m.AddedAt)
             .Select(m => ReceiptMemberDto.From(m))
@@ -113,6 +114,7 @@ public class ReceiptMembersController : ControllerBase
 
         var member = await _db.ReceiptMembers
             .Include(m => m.Contact)
+            .ThenInclude(c => c.User)
             .FirstOrDefaultAsync(m => m.Id == memberId && m.ReceiptId == receiptId, ct);
 
         if (member is null) return NotFound(new { error = "Member not found on this receipt" });

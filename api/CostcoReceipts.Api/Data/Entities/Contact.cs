@@ -12,6 +12,11 @@ namespace CostcoReceipts.Api.Data.Entities;
 ///  - Placeholder: <see cref="UserId"/> is null. Multiple placeholders with
 ///    the same DisplayName may coexist in one owner's address book (nothing
 ///    provably distinguishes them).
+///
+/// <see cref="DisplayName"/> is the owner's label. Receipts show it only for
+/// a placeholder; an authenticated contact shows <see cref="User"/>'s own
+/// name instead (see <c>Models.MemberNames</c>). A self-contact's name is
+/// just a copy of its user's, kept for older images to read.
 /// </summary>
 public class Contact
 {
