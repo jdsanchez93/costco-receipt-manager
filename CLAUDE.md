@@ -220,7 +220,11 @@ reasoning lives in the commits.
   user with no self-contact, then retried while it has no email. A failed
   fetch leaves the `sub` as a stand-in name, which `GET /api/me` reports as
   `needsName` and the shell prompts the user to replace. A real name belongs
-  to the user (`/api/me`) and is never overwritten from Auth0.
+  to the user (`/api/me`) and is never overwritten from Auth0. It lives on
+  the `users` row, which the profile and every receipt they are on read,
+  whatever the receipt owner named their contact (`MemberNames`); a
+  contact's own name only shows for a placeholder, and the self-contact
+  keeps a copy only for older images.
 - **`docker compose restart` does not re-read `.env`**; it takes a recreate. On
   the Pi that is `sudo costco-deploy --recreate`, since plain `compose` there
   also needs the image from `deploy.env`.

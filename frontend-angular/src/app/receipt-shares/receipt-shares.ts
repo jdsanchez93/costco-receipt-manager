@@ -8,6 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { RouterLink } from '@angular/router';
 
 import { ReceiptsApi } from '../api/receipts-api';
 import { ReceiptShareDto } from '../api/types';
@@ -21,9 +22,10 @@ const DAY_MS = 86_400_000;
 
 /**
  * Share-link management for a receipt: create a public link (with an
- * expiry), copy it, and deactivate it. Owner-only — the parent
- * (receipt detail) only mounts this panel when the caller owns the
- * receipt, so unlike the members panel there is no `canManage` input.
+ * expiry), preview it as a visitor sees it, copy it, and deactivate it.
+ * Owner-only — the parent (receipt detail) only mounts this panel when the
+ * caller owns the receipt, so unlike the members panel there is no
+ * `canManage` input.
  *
  * This component owns its own list: share links don't feed into any
  * parent-derived state, so there's no `@Output` back to the receipt page.
@@ -38,6 +40,7 @@ const DAY_MS = 86_400_000;
     MatIconModule,
     MatInputModule,
     MatProgressSpinnerModule,
+    RouterLink,
     StatusBadge,
   ],
   templateUrl: './receipt-shares.html',

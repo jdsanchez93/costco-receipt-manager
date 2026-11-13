@@ -16,7 +16,7 @@ import {
   ReceiptRole,
   ReceiptShareDto,
   ReceiptSummaryDto,
-  SharedReceiptResponse,
+  SharedReceiptLookup,
 } from './types';
 
 @Injectable({ providedIn: 'root' })
@@ -188,15 +188,19 @@ export class ReceiptsApi {
   }
 
   /**
-   * Public, **unauthenticated** read of a receipt via a share token — the
-   * one call in this service that runs with no bearer token (see the
-   * `allowAnonymous` entry in app.config.ts). Backend:
-   * GET /api/receipts/shared/{shareToken}. Returns 404 { error } when the
-   * token is unknown, inactive, or expired.
+   * Public read of a receipt via a share token — the one call in this
+   * service that works without a bearer token. The `allowAnonymous` entry
+   * in app.config.ts still attaches one for a signed-in visitor, and a
+   * visitor who is already a member gets `{ kind: 'member', receiptId }`
+   * back instead of the receipt, unless `preview` asks for what everyone
+   * else sees. Backend: GET /api/receipts/shared/{shareToken}?preview=.
+   * Returns 404 { error } when the token is unknown, inactive, or expired
+   * and the caller isn't a member.
    */
-  getSharedReceipt(shareToken: string): Observable<SharedReceiptResponse> {
-    return this.http.get<SharedReceiptResponse>(
+  getSharedReceipt(shareToken: string, preview = false): Observable<SharedReceiptLookup> {
+    return this.http.get<SharedReceiptLookup>(
       `${this.base}/receipts/shared/${encodeURIComponent(shareToken)}`,
+      preview ? { params: { preview: true } } : {},
     );
   }
 

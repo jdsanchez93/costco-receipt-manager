@@ -8,7 +8,9 @@ namespace CostcoReceipts.Api.Data.Entities;
 /// Email and DisplayName are filled from Auth0's /userinfo, with the subject
 /// standing in for DisplayName and the fetch retried while Email is missing.
 /// Neither is overwritten from Auth0 once set — the name is the user's to
-/// change via <c>/api/me</c>, which keeps it in step with their self-contact.
+/// change via <c>/api/me</c>. This is the one name an account has: the
+/// profile and every receipt read it here, and the self-contact only keeps
+/// a copy for older images.
 /// </summary>
 public class User
 {

@@ -125,7 +125,16 @@ describe('ReceiptsApi', () => {
 
     const req = httpMock.expectOne('/api/receipts/shared/tok%2Fen%2B1');
     expect(req.request.method).toBe('GET');
-    req.flush({ receiptId: 'abc', items: [], members: [], shareInfo: { createdAt: '', expiresAt: '' } });
+    expect(req.request.params.has('preview')).toBe(false);
+    req.flush({ kind: 'public', receiptId: 'abc', items: [], members: [], shareInfo: { createdAt: '', expiresAt: '' } });
+  });
+
+  it('getSharedReceipt asks for the public view with preview=true', () => {
+    api.getSharedReceipt('tok', true).subscribe();
+
+    const req = httpMock.expectOne('/api/receipts/shared/tok?preview=true');
+    expect(req.request.method).toBe('GET');
+    req.flush({ kind: 'member', receiptId: 'abc' });
   });
 
   it('getUploadUrl POSTs { contentType } to the upload-url endpoint', () => {

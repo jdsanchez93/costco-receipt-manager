@@ -5,7 +5,29 @@ namespace CostcoReceipts.Api.Models;
 
 // Response DTOs shaped for the frontend.
 // Identity fields (UserId, DisplayName, Email) come through the linked Contact,
-// which lives in the receipt owner's address book.
+// which lives in the receipt owner's address book — except the name of a
+// member with an account, which is theirs (see MemberNames).
+
+/// <summary>
+/// The name a receipt member is shown under. A member with an account shows
+/// the name they chose through <c>/api/me</c>, whatever the receipt owner
+/// called their contact: the contact's name is the owner's label, and only a
+/// placeholder shows it. The exception is an account still standing in its
+/// sub for a name (see <see cref="MeDto.NeedsName"/>), where the owner's
+/// label is the better of the two.
+/// </summary>
+public static class MemberNames
+{
+    /// <summary>Requires <see cref="Contact.User"/> to be loaded.</summary>
+    public static string Of(Contact? contact)
+    {
+        if (contact is null) return string.Empty;
+        var user = contact.User;
+        return user is not null && user.DisplayName != user.UserId
+            ? user.DisplayName
+            : contact.DisplayName;
+    }
+}
 
 public class ReceiptItemDto
 {
@@ -48,14 +70,17 @@ public class ReceiptMemberDto
     public DateTime AddedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 
-    /// <summary>Requires the ReceiptMember to be loaded with .Include(m => m.Contact).</summary>
+    /// <summary>
+    /// Requires the ReceiptMember to be loaded with
+    /// .Include(m => m.Contact).ThenInclude(c => c.User).
+    /// </summary>
     public static ReceiptMemberDto From(ReceiptMember m) => new()
     {
         Id = m.Id,
         ReceiptId = m.ReceiptId,
         ContactId = m.ContactId,
         UserId = m.Contact?.UserId,
-        DisplayName = m.Contact?.DisplayName ?? string.Empty,
+        DisplayName = MemberNames.Of(m.Contact),
         Email = m.Contact?.Email,
         Role = m.Role,
         AddedByMemberId = m.AddedByMemberId,
@@ -214,18 +239,57 @@ public class ShareInfoDto
     public DateTime ExpiresAt { get; set; }
 }
 
+/// <summary>
+/// A member as anyone holding a share link sees them: enough to label items
+/// and totals, and nothing else. No email and no Auth0 sub, since the
+/// viewer may be anyone the link was forwarded to.
+/// </summary>
+public class SharedMemberDto
+{
+    public long Id { get; set; }
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Requires .Include(m => m.Contact).ThenInclude(c => c.User).</summary>
+    public static SharedMemberDto From(ReceiptMember m) => new()
+    {
+        Id = m.Id,
+        DisplayName = MemberNames.Of(m.Contact),
+    };
+}
+
+/// <summary>Values of <c>Kind</c> on the two shared-receipt responses.</summary>
+public static class SharedReceiptKinds
+{
+    /// <summary>The receipt itself, as anyone with the link sees it.</summary>
+    public const string Public = "public";
+
+    /// <summary>The caller is a member, so the client opens the receipt in the app instead.</summary>
+    public const string Member = "member";
+}
+
 public class SharedReceiptResponse
 {
+    public string Kind { get; set; } = SharedReceiptKinds.Public;
     public string ReceiptId { get; set; } = string.Empty;
     public List<ReceiptItemDto> Items { get; set; } = new();
-    public List<ReceiptMemberDto> Members { get; set; } = new();
+    public List<SharedMemberDto> Members { get; set; } = new();
     public GeometryDto Geometry { get; set; } = new();
     public ShareInfoDto ShareInfo { get; set; } = new();
 }
 
 /// <summary>
-/// The caller's own profile. Read from their self-contact, since that is
-/// what other members see on receipts.
+/// Returned instead of <see cref="SharedReceiptResponse"/> when the caller is
+/// signed in and already a member of the link's receipt.
+/// </summary>
+public class SharedReceiptMemberResponse
+{
+    public string Kind { get; set; } = SharedReceiptKinds.Member;
+    public string ReceiptId { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// The caller's own profile, read from their users row — the same name every
+/// receipt they're on shows (see <see cref="MemberNames"/>).
 /// </summary>
 public class MeDto
 {
@@ -238,11 +302,11 @@ public class MeDto
     /// </summary>
     public bool NeedsName { get; set; }
 
-    public static MeDto From(Contact self) => new()
+    public static MeDto From(User user) => new()
     {
-        UserId = self.UserId ?? string.Empty,
-        DisplayName = self.DisplayName,
-        Email = self.Email,
-        NeedsName = self.DisplayName == self.UserId,
+        UserId = user.UserId,
+        DisplayName = user.DisplayName,
+        Email = user.Email,
+        NeedsName = user.DisplayName == user.UserId,
     };
 }
