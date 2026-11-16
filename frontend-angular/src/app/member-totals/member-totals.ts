@@ -1,8 +1,7 @@
 import { CurrencyPipe } from '@angular/common';
 import { Component, computed, input } from '@angular/core';
 
-import { ReceiptMemberDto } from '../api/types';
-import { EnrichedItem, computeMemberTotals } from '../receipts/receipt-view';
+import { EnrichedItem, MemberSummary, computeMemberTotals } from '../receipts/receipt-view';
 import { StatusBadge } from '../status-badge/status-badge';
 
 /**
@@ -18,7 +17,7 @@ import { StatusBadge } from '../status-badge/status-badge';
 })
 export class MemberTotals {
   readonly items = input.required<EnrichedItem[]>();
-  readonly members = input.required<ReceiptMemberDto[]>();
+  readonly members = input.required<MemberSummary[]>();
 
   readonly totals = computed(() => computeMemberTotals(this.items(), this.members()));
 

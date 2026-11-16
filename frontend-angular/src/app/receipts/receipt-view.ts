@@ -15,6 +15,12 @@ export type Loadable<T> =
   | { kind: 'error'; message: string };
 
 /**
+ * What rendering a receipt needs of a member. Both the authenticated
+ * ReceiptMemberDto and the share link's slimmer SharedMemberDto satisfy it.
+ */
+export type MemberSummary = Pick<ReceiptMemberDto, 'id' | 'displayName'>;
+
+/**
  * A receipt item with its assignee display names pre-resolved, so the
  * template doesn't re-join against the members list on every render.
  */
@@ -25,7 +31,7 @@ export interface EnrichedItem extends ReceiptItemDto {
 /** Resolve each item's `assignedMemberIds` to display names once. */
 export function enrichItems(
   items: ReceiptItemDto[],
-  members: ReceiptMemberDto[],
+  members: MemberSummary[],
 ): EnrichedItem[] {
   const nameById = new Map(members.map(m => [m.id, m.displayName]));
   return items.map(item => ({
@@ -93,7 +99,7 @@ export interface MemberTotalsResult {
  */
 export function computeMemberTotals(
   items: ReceiptItemDto[],
-  members: ReceiptMemberDto[],
+  members: MemberSummary[],
 ): MemberTotalsResult {
   const byId = new Map<number, MemberTotal>(
     members.map(m => [

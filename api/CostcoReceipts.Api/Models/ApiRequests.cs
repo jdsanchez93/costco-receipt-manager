@@ -35,12 +35,6 @@ public class AddReceiptMemberRequest
     public string? Role { get; set; }
 }
 
-public class UpdateMemberDetailsRequest
-{
-    public string Email { get; set; } = string.Empty;
-    public string? Name { get; set; }
-}
-
 public class UpdateMemberRoleRequest
 {
     public string Role { get; set; } = string.Empty;

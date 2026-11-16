@@ -187,14 +187,24 @@ export interface GetDownloadUrlResponse {
 }
 
 /**
+ * A member as anyone holding a share link sees them — no email, no user id.
+ * Mirrors the backend SharedMemberDto.
+ */
+export interface SharedMemberDto {
+  id: number;
+  displayName: string;
+}
+
+/**
  * Public read-only payload for a shared receipt, from the anonymous
  * GET /api/receipts/shared/{shareToken}. Mirrors the backend
  * SharedReceiptResponse (api/CostcoReceipts.Api/Models/ReceiptDtos.cs).
  */
 export interface SharedReceiptResponse {
+  kind: 'public';
   receiptId: string;
   items: ReceiptItemDto[];
-  members: ReceiptMemberDto[];
+  members: SharedMemberDto[];
   geometry: GeometryDto;
   shareInfo: {
     /** ISO-8601 timestamp. */
@@ -205,8 +215,22 @@ export interface SharedReceiptResponse {
 }
 
 /**
- * The caller's own profile, from GET /api/me — read from their self-contact,
- * which is what other members see on receipts. Mirrors the backend MeDto.
+ * Returned by the same endpoint, instead of the receipt, when the caller is
+ * signed in and already a member — even if the link has since expired or
+ * been deactivated. Mirrors the backend SharedReceiptMemberResponse.
+ */
+export interface SharedReceiptMemberResponse {
+  kind: 'member';
+  receiptId: string;
+}
+
+/** Either answer from GET /api/receipts/shared/{shareToken}, told apart by `kind`. */
+export type SharedReceiptLookup = SharedReceiptResponse | SharedReceiptMemberResponse;
+
+/**
+ * The caller's own profile, from GET /api/me. `displayName` is the name every
+ * receipt they're on shows, whatever the receipt owner called their contact.
+ * Mirrors the backend MeDto.
  * `email` comes from the identity provider and isn't editable.
  */
 export interface MeDto {

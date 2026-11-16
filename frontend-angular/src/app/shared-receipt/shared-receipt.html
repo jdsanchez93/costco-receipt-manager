@@ -1,7 +1,9 @@
 <main class="shared">
   <header class="shared__bar">
     <span class="shared__brand">Costco Receipt Manager</span>
-    <span class="shared__note">Shared receipt · read-only</span>
+    <span class="shared__note">
+      {{ preview ? 'Preview · what anyone with the link sees' : 'Shared receipt · read-only' }}
+    </span>
   </header>
 
   @let s = state();
@@ -20,6 +22,13 @@
 
     @case ('ok') {
       <section class="page">
+        @if (preview) {
+          <a mat-button class="preview-back" [routerLink]="['/app/receipts', s.data.receiptId]">
+            <mat-icon>arrow_back</mat-icon>
+            Back to receipt
+          </a>
+        }
+
         <app-receipt-stats
           [itemCount]="s.data.items.length"
           [memberCount]="s.data.members.length"

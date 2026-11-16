@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Clipboard } from '@angular/cdk/clipboard';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { provideRouter } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
 
 import { ReceiptShares } from './receipt-shares';
@@ -60,6 +61,7 @@ describe('ReceiptShares', () => {
     TestBed.configureTestingModule({
       imports: [ReceiptShares],
       providers: [
+        provideRouter([]),
         provideAnimationsAsync('noop'),
         { provide: ReceiptsApi, useValue: apiSpy },
         { provide: MatSnackBar, useValue: snackSpy },
@@ -81,6 +83,14 @@ describe('ReceiptShares', () => {
     const text = (fixture.nativeElement.textContent as string).replace(/\s+/g, ' ');
     expect(text).toContain('Share links (1)');
     expect(text).toContain('http://localhost:4200/shared-receipt/tok-a');
+  });
+
+  it('links each share to a preview of the public view', () => {
+    setup();
+    const preview = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>(
+      'a[aria-label="Preview link"]',
+    );
+    expect(preview?.getAttribute('href')).toBe('/shared-receipt/tok-a?preview=1');
   });
 
   it('enters error state with the backend message when the load fails', () => {

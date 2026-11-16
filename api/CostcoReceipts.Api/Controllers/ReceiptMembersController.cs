@@ -26,6 +26,7 @@ public class ReceiptMembersController : ControllerBase
         var members = await _db.ReceiptMembers
             .AsNoTracking()
             .Include(m => m.Contact)
+            .ThenInclude(c => c.User)
             .Where(m => m.ReceiptId == receiptId)
             .OrderBy(m => m.AddedAt)
             .Select(m => ReceiptMemberDto.From(m))
@@ -100,45 +101,6 @@ public class ReceiptMembersController : ControllerBase
         });
     }
 
-    /// <summary>
-    /// A member updates the display name / email on THEIR own Contact for this
-    /// receipt. Anyone in the receipt can edit their own row. Only touches the
-    /// contact, not the receipt_members metadata.
-    /// </summary>
-    [HttpPut("update-details")]
-    [Authorize(Policy = ReceiptPolicies.Member)]
-    public async Task<IActionResult> UpdateOwnDetails(
-        string receiptId,
-        [FromBody] UpdateMemberDetailsRequest request,
-        CancellationToken ct)
-    {
-        if (string.IsNullOrWhiteSpace(request.Email))
-            return BadRequest(new { error = "Email is required" });
-
-        var userId = User.GetUserId()!;
-        var member = await _db.ReceiptMembers
-            .Include(m => m.Contact)
-            .FirstOrDefaultAsync(m => m.ReceiptId == receiptId && m.Contact.UserId == userId, ct);
-
-        if (member is null) return NotFound(new { error = "Member record not found" });
-
-        var displayName = string.IsNullOrWhiteSpace(request.Name)
-            ? request.Email.Split('@')[0]
-            : request.Name;
-
-        member.Contact.DisplayName = displayName;
-        member.Contact.Email = request.Email;
-        member.UpdatedAt = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync(ct);
-
-        return Ok(new
-        {
-            message = "Member details updated successfully",
-            member = ReceiptMemberDto.From(member),
-        });
-    }
-
     [HttpPut("{memberId:long}/role")]
     [Authorize(Policy = ReceiptPolicies.Owner)]
     public async Task<IActionResult> UpdateRole(
@@ -152,6 +114,7 @@ public class ReceiptMembersController : ControllerBase
 
         var member = await _db.ReceiptMembers
             .Include(m => m.Contact)
+            .ThenInclude(c => c.User)
             .FirstOrDefaultAsync(m => m.Id == memberId && m.ReceiptId == receiptId, ct);
 
         if (member is null) return NotFound(new { error = "Member not found on this receipt" });

@@ -106,6 +106,13 @@
                 </div>
 
                 <div class="share__actions">
+                  <a
+                    mat-icon-button
+                    aria-label="Preview link"
+                    [routerLink]="['/shared-receipt', share.shareToken]"
+                    [queryParams]="{ preview: 1 }">
+                    <mat-icon>visibility</mat-icon>
+                  </a>
                   <button
                     mat-icon-button
                     aria-label="Copy link"

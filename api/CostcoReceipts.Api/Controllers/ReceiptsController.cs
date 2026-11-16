@@ -176,6 +176,7 @@ public class ReceiptsController : ControllerBase
         var memberships = await _db.ReceiptMembers
             .AsNoTracking()
             .Include(m => m.Contact)
+            .ThenInclude(c => c.User)
             .Where(m => m.Contact.UserId == userId)
             .OrderByDescending(m => m.AddedAt)
             .Select(m => ReceiptMemberDto.From(m))

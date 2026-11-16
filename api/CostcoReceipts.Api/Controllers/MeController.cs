@@ -31,18 +31,20 @@ public class MeController : ControllerBase
     public async Task<IActionResult> GetMe(CancellationToken ct)
     {
         var userId = User.GetUserId()!;
-        var self = await _db.Contacts
+        var user = await _db.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.OwnerUserId == userId && c.UserId == userId, ct);
+            .FirstOrDefaultAsync(u => u.UserId == userId, ct);
 
-        if (self is null) return NotFound(new { error = "User is not provisioned" });
+        if (user is null) return NotFound(new { error = "User is not provisioned" });
 
-        return Ok(MeDto.From(self));
+        return Ok(MeDto.From(user));
     }
 
     /// <summary>
-    /// Renames the caller. Writes the self-contact, which receipts display,
-    /// and the users row together so the two never drift apart.
+    /// Renames the caller. The users row holds the name — the one this
+    /// profile and every receipt they're on show. The self-contact's copy
+    /// is written alongside it only so an older image, which still reads
+    /// that copy, shows the same name after a rollback.
     /// </summary>
     [HttpPut]
     public async Task<IActionResult> UpdateMe([FromBody] UpdateMeRequest request, CancellationToken ct)
@@ -60,10 +62,10 @@ public class MeController : ControllerBase
 
         if (self?.User is null) return NotFound(new { error = "User is not provisioned" });
 
-        self.DisplayName = displayName;
         self.User.DisplayName = displayName;
+        self.DisplayName = displayName;
         await _db.SaveChangesAsync(ct);
 
-        return Ok(MeDto.From(self));
+        return Ok(MeDto.From(self.User));
     }
 }

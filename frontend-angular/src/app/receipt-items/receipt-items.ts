@@ -6,8 +6,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 
-import { ReceiptMemberDto } from '../api/types';
-import { EnrichedItem } from '../receipts/receipt-view';
+import { EnrichedItem, MemberSummary } from '../receipts/receipt-view';
 import { StatusBadge } from '../status-badge/status-badge';
 
 /**
@@ -33,7 +32,7 @@ import { StatusBadge } from '../status-badge/status-badge';
 export class ReceiptItems {
   readonly items = input.required<EnrichedItem[]>();
   /** Needed for the "add member" menu; also gates the assignee chip row. */
-  readonly members = input<ReceiptMemberDto[]>([]);
+  readonly members = input<MemberSummary[]>([]);
   readonly editable = input<boolean>(false);
   readonly selectable = input<boolean>(false);
   readonly selectedIds = input<ReadonlySet<number>>(new Set<number>());
@@ -43,7 +42,7 @@ export class ReceiptItems {
   readonly selectionToggle = output<number>();
 
   /** Members not yet assigned to this item — populates the add menu. */
-  availableMembers(item: EnrichedItem): ReceiptMemberDto[] {
+  availableMembers(item: EnrichedItem): MemberSummary[] {
     return this.members().filter(m => !item.assignedMemberIds.includes(m.id));
   }
 }
