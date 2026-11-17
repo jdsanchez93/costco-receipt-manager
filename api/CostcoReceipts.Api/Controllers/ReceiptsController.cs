@@ -196,7 +196,7 @@ public class ReceiptsController : ControllerBase
         var receipt = await _db.Receipts.AsNoTracking().FirstOrDefaultAsync(r => r.ReceiptId == receiptId, ct);
         if (receipt is null) return NotFound(new { error = "Receipt not found" });
 
-        return Ok(ReceiptSummaryDto.From(receipt));
+        return Ok(ReceiptSummaryDto.From(receipt, User.GetUserId()));
     }
 
     [HttpGet("receipt/{receiptId}/geometry")]

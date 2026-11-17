@@ -90,6 +90,27 @@ public class ReceiptMemberDto
 }
 
 /// <summary>
+/// An entry in the caller's address book, as the people picker shows it.
+/// No Auth0 sub and no email: the picker only needs to tell people apart.
+/// </summary>
+public class ContactDto
+{
+    public long ContactId { get; set; }
+    /// <summary>The account's own name when there is one (see <see cref="MemberNames"/>).</summary>
+    public string DisplayName { get; set; } = string.Empty;
+    public bool HasAccount { get; set; }
+    /// <summary>How many receipts this contact is on.</summary>
+    public int ReceiptCount { get; set; }
+    /// <summary>When they were last added to a receipt; null if they are on none.</summary>
+    public DateTime? LastUsedAt { get; set; }
+    /// <summary>
+    /// On the receipt the caller uploaded just before the one named by
+    /// <c>forReceipt</c>. Always false without that parameter.
+    /// </summary>
+    public bool OnPreviousReceipt { get; set; }
+}
+
+/// <summary>
 /// Receipt-level metadata — currently just enough for the frontend to know
 /// whether OCR has finished, without tacking a receipt-lifecycle field onto
 /// an unrelated sub-resource (members, items, geometry). Also the natural
@@ -101,12 +122,19 @@ public class ReceiptSummaryDto
     /// <summary>One of <see cref="ReceiptProcessingStatus"/>.</summary>
     public string ProcessingStatus { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
+    /// <summary>
+    /// The caller uploaded this receipt, so its members come from the
+    /// caller's own contacts and they get the contact picker. A co-owner
+    /// doesn't: see <c>ReceiptMembersController.AddMember</c>.
+    /// </summary>
+    public bool UploadedByMe { get; set; }
 
-    public static ReceiptSummaryDto From(Receipt r) => new()
+    public static ReceiptSummaryDto From(Receipt r, string? callerUserId) => new()
     {
         ReceiptId = r.ReceiptId,
         ProcessingStatus = r.ProcessingStatus,
         CreatedAt = r.CreatedAt,
+        UploadedByMe = callerUserId is not null && r.OwnerUserId == callerUserId,
     };
 }
 

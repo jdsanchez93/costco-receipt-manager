@@ -1,48 +1,18 @@
 <section class="members">
   <div class="members__head">
     <h2>Members ({{ members().length }})</h2>
-    @if (canManage() && !formOpen()) {
-      <button mat-button (click)="openForm()" [disabled]="busy()">
-        <mat-icon>person_add</mat-icon>
-        Add member
-      </button>
-    }
   </div>
 
-  @if (formOpen()) {
-    <form class="add-form" (ngSubmit)="submitAdd()">
-      <mat-form-field appearance="outline" class="add-form__field">
-        <mat-label>Name</mat-label>
-        <input matInput name="name" [(ngModel)]="newName" required autocomplete="off" />
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="add-form__field">
-        <mat-label>Email (optional)</mat-label>
-        <input matInput name="email" type="email" [(ngModel)]="newEmail" autocomplete="off" />
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="add-form__field add-form__field--role">
-        <mat-label>Role</mat-label>
-        <mat-select name="role" [(ngModel)]="newRole">
-          <mat-option value="editor">Editor</mat-option>
-          <mat-option value="owner">Owner</mat-option>
-        </mat-select>
-      </mat-form-field>
-
-      <p class="add-form__hint">
-        Adds a placeholder participant. They can claim the account later via a
-        share link.
-      </p>
-
-      <div class="add-form__actions">
-        <button mat-button type="button" (click)="closeForm()" [disabled]="busy()">
-          Cancel
-        </button>
-        <button mat-flat-button type="submit" [disabled]="busy() || !newName.trim()">
-          Add
-        </button>
-      </div>
-    </form>
+  @if (canManage()) {
+    <app-people-picker
+      class="members__picker"
+      [contacts]="contacts()"
+      [takenContactIds]="takenContactIds()"
+      [takenNames]="takenNames()"
+      [disabled]="busy()"
+      (contactPicked)="addContact($event)"
+      (newPerson)="addNewPerson($event)"
+      (previousPicked)="addPrevious($event)" />
   }
 
   @if (members().length === 0) {
@@ -66,11 +36,15 @@
           } @else {
             <div class="member__identity">
               <span class="member__name">{{ m.displayName }}</span>
-              @if (m.email) {
-                <span class="member__email">{{ m.email }}</span>
-              }
-              @if (!m.userId) {
-                <span class="member__tag">Placeholder</span>
+              @if (!m.userId || m.email) {
+                <span class="member__detail">
+                  @if (!m.userId) {
+                    <app-status-badge tone="neutral">Hasn't joined</app-status-badge>
+                  }
+                  @if (m.email) {
+                    <span class="member__email">{{ m.email }}</span>
+                  }
+                </span>
               }
             </div>
 

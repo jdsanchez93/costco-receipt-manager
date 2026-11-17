@@ -51,6 +51,7 @@
         [receiptId]="s.data.receiptId"
         [members]="s.data.members"
         [canManage]="canManageMembers()"
+        [canPickContacts]="s.data.uploadedByMe"
         (membersChange)="onMembersChange($event)" />
 
       @if (canManageShares()) {

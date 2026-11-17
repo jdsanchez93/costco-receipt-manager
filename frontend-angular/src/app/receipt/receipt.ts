@@ -34,6 +34,8 @@ export interface ReceiptDetailData {
   items: EnrichedItem[];
   subtotalMatch: SubtotalMatchDto;
   processingStatus: ReceiptProcessingStatus;
+  /** The signed-in user uploaded this receipt (see ReceiptSummaryDto). */
+  uploadedByMe: boolean;
 }
 
 // Bounded exponential backoff while OCR is still running: 2s, 4s, 8s, 16s,
@@ -172,6 +174,7 @@ export class Receipt {
             items: enrichItems(items, members),
             subtotalMatch: geometry.subtotalMatch,
             processingStatus: summary.processingStatus,
+            uploadedByMe: !!summary.uploadedByMe,
           },
         });
         if (summary.processingStatus === 'pending') this.schedulePoll();

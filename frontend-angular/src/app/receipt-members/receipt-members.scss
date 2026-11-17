@@ -17,6 +17,10 @@
     }
   }
 
+  &__picker {
+    margin-bottom: 1rem;
+  }
+
   &__empty {
     font: var(--mat-sys-body-medium);
     color: var(--mat-sys-on-surface-variant);
@@ -29,41 +33,6 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-  }
-}
-
-// ---- Add form ----
-
-.add-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 1rem;
-  margin-bottom: 1rem;
-  background: var(--mat-sys-surface-container-low);
-  border-radius: 8px;
-
-  &__field {
-    flex: 1 1 12rem;
-
-    &--role {
-      flex: 0 1 9rem;
-    }
-  }
-
-  &__hint {
-    flex-basis: 100%;
-    margin: 0;
-    font: var(--mat-sys-label-medium);
-    color: var(--mat-sys-on-surface-variant);
-  }
-
-  &__actions {
-    flex-basis: 100%;
-    display: flex;
-    justify-content: flex-end;
     gap: 0.5rem;
   }
 }
@@ -90,33 +59,33 @@
     color: var(--mat-sys-on-error-container);
   }
 
+  // Name on one line, what we know about the person on the next. The second
+  // line is where "Hasn't joined" lives, so a row is laid out the same
+  // whether the name is short or long enough to fill the width.
   &__identity {
     display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+    flex-direction: column;
+    gap: 0.25rem;
     min-width: 0;
   }
 
   &__name {
     font: var(--mat-sys-body-large);
     font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+
+  &__detail {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.5rem;
   }
 
   &__email {
     font: var(--mat-sys-label-medium);
     color: var(--mat-sys-on-surface-variant);
     overflow-wrap: anywhere;
-  }
-
-  &__tag {
-    font: var(--mat-sys-label-small);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    padding: 0.1rem 0.4rem;
-    border-radius: 4px;
-    background: var(--mat-sys-surface-container-highest);
-    color: var(--mat-sys-on-surface-variant);
   }
 
   &__actions {

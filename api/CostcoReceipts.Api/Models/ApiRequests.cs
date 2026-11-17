@@ -21,17 +21,18 @@ public class GetDownloadUrlResponse
 }
 
 /// <summary>
-/// Add a placeholder participant to a receipt. Always creates a fresh
-/// placeholder Contact in the receipt owner's address book (nothing gets
-/// deduped by display name — two "John"s are two Johns).
-///
-/// Adding an authenticated user by picking from the owner's existing
-/// contacts is a future flow that will use its own endpoint.
+/// Add someone to a receipt: either an existing contact from the receipt
+/// owner's address book (<see cref="ContactId"/>), or a new person by name
+/// (<see cref="DisplayName"/>), who becomes a fresh placeholder contact
+/// there. Exactly one of the two. A name is never matched against existing
+/// contacts — two "John"s are two Johns — so reusing a contact is always the
+/// caller's explicit choice.
 /// </summary>
 public class AddReceiptMemberRequest
 {
-    public string DisplayName { get; set; } = string.Empty;
-    public string? Email { get; set; }
+    public long? ContactId { get; set; }
+    public string? DisplayName { get; set; }
+    /// <summary>Defaults to editor.</summary>
     public string? Role { get; set; }
 }
 

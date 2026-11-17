@@ -12,6 +12,9 @@ namespace CostcoReceipts.Api.Controllers;
 [Route("api/receipts/receipt/{receiptId}/members")]
 public class ReceiptMembersController : ControllerBase
 {
+    // Matches the DisplayName column length on contacts.
+    private const int MaxDisplayNameLength = 256;
+
     private readonly AppDbContext _db;
 
     public ReceiptMembersController(AppDbContext db)
@@ -36,10 +39,18 @@ public class ReceiptMembersController : ControllerBase
     }
 
     /// <summary>
-    /// Adds a placeholder participant to a receipt. Always creates a fresh
-    /// Contact in the receipt owner's address book (no dedup by display name —
-    /// two "John"s are two Johns). Adding an authenticated user by picking
-    /// from the owner's existing contacts will be its own future endpoint.
+    /// Adds someone to a receipt, as an existing contact or as a new person.
+    ///
+    /// A new person always gets a fresh placeholder Contact in the receipt
+    /// owner's address book (no dedup by display name — two "John"s are two
+    /// Johns).
+    ///
+    /// An existing contact must be in the book of the receipt's uploader, and
+    /// only the uploader may pick from it. Contact ids are sequential, so
+    /// without the first check any owner could attach a stranger's account to
+    /// their receipt; without the second a promoted co-owner could do the
+    /// same with the uploader's contacts, none of whom they were ever
+    /// introduced to. Both failures read as the contact not existing.
     /// </summary>
     [HttpPost]
     [Authorize(Policy = ReceiptPolicies.Owner)]
@@ -48,8 +59,13 @@ public class ReceiptMembersController : ControllerBase
         [FromBody] AddReceiptMemberRequest request,
         CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.DisplayName))
-            return BadRequest(new { error = "Display name is required" });
+        var displayName = request.DisplayName?.Trim() ?? string.Empty;
+        if (request.ContactId is null && displayName.Length == 0)
+            return BadRequest(new { error = "Either a contact or a display name is required" });
+        if (request.ContactId is not null && displayName.Length > 0)
+            return BadRequest(new { error = "Send either a contact or a display name, not both" });
+        if (displayName.Length > MaxDisplayNameLength)
+            return BadRequest(new { error = $"Display name must be at most {MaxDisplayNameLength} characters" });
 
         var role = request.Role ?? ReceiptRoles.Editor;
         if (!ReceiptRoles.IsValid(role))
@@ -70,30 +86,53 @@ public class ReceiptMembersController : ControllerBase
 
         var now = DateTime.UtcNow;
 
-        // New placeholder contact in the receipt owner's address book.
-        var contact = new Contact
+        Contact? contact;
+        if (request.ContactId is { } contactId)
         {
-            OwnerUserId = receiptOwnerUserId,
-            UserId = null,
-            DisplayName = request.DisplayName,
-            Email = request.Email,
-            CreatedAt = now,
-        };
-        _db.Contacts.Add(contact);
-        await _db.SaveChangesAsync(ct);
+            contact = callerUserId == receiptOwnerUserId
+                ? await _db.Contacts
+                    .Include(c => c.User)
+                    .FirstOrDefaultAsync(c => c.ContactId == contactId && c.OwnerUserId == receiptOwnerUserId, ct)
+                : null;
+            if (contact is null) return NotFound(new { error = "Contact not found" });
 
+            if (await _db.ReceiptMembers.AnyAsync(m => m.ReceiptId == receiptId && m.ContactId == contactId, ct))
+                return Conflict(new { error = $"{MemberNames.Of(contact)} is already on this receipt" });
+        }
+        else
+        {
+            // New placeholder contact in the receipt owner's address book.
+            contact = new Contact
+            {
+                OwnerUserId = receiptOwnerUserId,
+                UserId = null,
+                DisplayName = displayName,
+                CreatedAt = now,
+            };
+        }
+
+        // One save: EF inserts a new contact ahead of the membership that
+        // references it, in the same transaction.
         var member = new ReceiptMember
         {
             ReceiptId = receiptId,
-            ContactId = contact.ContactId,
+            Contact = contact,
             Role = role,
             AddedByMemberId = callerMemberId,
             AddedAt = now,
         };
         _db.ReceiptMembers.Add(member);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException) when (request.ContactId is not null)
+        {
+            // Lost a race with another add of the same contact: the unique
+            // index on (ReceiptId, ContactId) refused the second.
+            return Conflict(new { error = $"{MemberNames.Of(contact)} is already on this receipt" });
+        }
 
-        member.Contact = contact;
         return CreatedAtAction(nameof(GetMembers), new { receiptId }, new
         {
             message = "Member added successfully",
