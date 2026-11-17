@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
@@ -40,7 +40,7 @@ const UNDO_MS = 6000;
   templateUrl: './receipt-members.html',
   styleUrl: './receipt-members.scss',
 })
-export class ReceiptMembers {
+export class ReceiptMembers implements OnInit {
   private api = inject(ReceiptsApi);
   private contactsApi = inject(ContactsApi);
   private snackBar = inject(MatSnackBar);
@@ -64,10 +64,8 @@ export class ReceiptMembers {
   takenContactIds = computed(() => this.members().map(m => m.contactId));
   takenNames = computed(() => this.members().map(m => m.displayName));
 
-  constructor() {
-    effect(() => {
-      if (this.canManage() && this.canPickContacts()) untracked(() => this.loadContacts());
-    });
+  ngOnInit(): void {
+    this.loadContacts();
   }
 
   /**
@@ -76,7 +74,7 @@ export class ReceiptMembers {
    * last receipt" and the book itself are derived from.
    */
   private loadContacts(): void {
-    if (!this.canPickContacts()) return;
+    if (!this.canManage() || !this.canPickContacts()) return;
     this.contactsApi.getContacts({ forReceipt: this.receiptId() }).subscribe({
       next: contacts => this.contacts.set(contacts),
       error: () => {},
