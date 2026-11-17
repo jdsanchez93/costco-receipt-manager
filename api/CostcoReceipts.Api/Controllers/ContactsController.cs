@@ -43,11 +43,11 @@ public class ContactsController : ControllerBase
         // memory — which the shown name needs anyway (MemberNames).
         var rows = await _db.Contacts
             .AsNoTracking()
+            .Include(c => c.User)
             .Where(c => c.OwnerUserId == userId && c.UserId != userId)
             .Select(c => new
             {
                 Contact = c,
-                c.User,
                 ReceiptCount = c.Memberships.Count(),
                 LastUsedAt = c.Memberships.Max(m => (DateTime?)m.AddedAt),
             })
@@ -57,18 +57,14 @@ public class ContactsController : ControllerBase
 
         var query = q?.Trim() ?? string.Empty;
         var contacts = rows
-            .Select(r =>
+            .Select(r => new ContactDto
             {
-                r.Contact.User = r.User;
-                return new ContactDto
-                {
-                    ContactId = r.Contact.ContactId,
-                    DisplayName = MemberNames.Of(r.Contact),
-                    HasAccount = r.Contact.UserId is not null,
-                    ReceiptCount = r.ReceiptCount,
-                    LastUsedAt = r.LastUsedAt,
-                    OnPreviousReceipt = onPrevious.Contains(r.Contact.ContactId),
-                };
+                ContactId = r.Contact.ContactId,
+                DisplayName = MemberNames.Of(r.Contact),
+                HasAccount = r.Contact.UserId is not null,
+                ReceiptCount = r.ReceiptCount,
+                LastUsedAt = r.LastUsedAt,
+                OnPreviousReceipt = onPrevious.Contains(r.Contact.ContactId),
             })
             .Where(c => query.Length == 0 || c.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(c => query.Length > 0 && string.Equals(c.DisplayName, query, StringComparison.OrdinalIgnoreCase))
