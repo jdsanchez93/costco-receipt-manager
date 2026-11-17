@@ -1,0 +1,72 @@
+<mat-form-field appearance="outline" class="field" subscriptSizing="dynamic">
+  <mat-label>Add people</mat-label>
+  <mat-icon matPrefix>person_add</mat-icon>
+  <input
+    #box
+    matInput
+    autocomplete="off"
+    maxlength="256"
+    [placeholder]="contacts().length ? 'Search or add a name' : 'Name'"
+    [matAutocomplete]="auto"
+    (input)="query.set(box.value)" />
+  <mat-autocomplete
+    #auto="matAutocomplete"
+    autoActiveFirstOption
+    [displayWith]="blank"
+    (optionSelected)="choose($event.option.value, box)">
+    @for (c of matches(); track c.contactId) {
+      <mat-option class="person" [value]="c" [disabled]="disabled()">
+        <span class="option">
+          <span class="option__avatar" aria-hidden="true">{{ initials(c.displayName) }}</span>
+          <span class="option__text">
+            <span class="option__name">{{ c.displayName }}</span>
+            <span class="option__meta">{{ meta(c) }}</span>
+          </span>
+        </span>
+      </mat-option>
+    }
+    @if (newName(); as name) {
+      <mat-option class="person" [value]="name" [disabled]="disabled()">
+        <span class="option">
+          <span class="option__avatar option__avatar--new" aria-hidden="true">
+            <mat-icon>person_add</mat-icon>
+          </span>
+          <span class="option__text">
+            <span class="option__name">{{ name }}</span>
+            <span class="option__meta">
+              {{ nameExists() ? 'Add another person with this name' : 'Add as a new person' }}
+            </span>
+          </span>
+        </span>
+      </mat-option>
+    }
+  </mat-autocomplete>
+</mat-form-field>
+
+@if (!newName() && (recent().length > 0 || previous().length > 1)) {
+  <div class="quick" role="group" aria-label="Recent people">
+    @if (previous().length > 1) {
+      <button
+        mat-stroked-button
+        type="button"
+        class="quick__chip"
+        [disabled]="disabled()"
+        (click)="previousPicked.emit(previous())">
+        <mat-icon>group_add</mat-icon>
+        Same people as last receipt
+      </button>
+    }
+    @for (c of recent(); track c.contactId) {
+      <button
+        mat-stroked-button
+        type="button"
+        class="quick__chip"
+        [disabled]="disabled()"
+        [attr.aria-label]="'Add ' + chipLabel(c)"
+        [attr.title]="c.displayName"
+        (click)="contactPicked.emit(c)">
+        <span class="quick__label">{{ chipLabel(c) }}</span>
+      </button>
+    }
+  </div>
+}

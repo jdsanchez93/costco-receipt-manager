@@ -85,7 +85,7 @@ Decided approach when this gets picked up:
 
 ---
 
-## Contacts and claiming — decided 2026-11-12, not started
+## Contacts and claiming — decided 2026-11-12, picker shipped
 
 The goal: adding members to a receipt starts from the owner's contacts,
 with "new person" as the fallback, and a share link is how someone becomes
@@ -101,6 +101,14 @@ Already true:
 - The share view sends only each member's id and name. A signed-in member
   who opens a share link is sent to the receipt, even from an expired or
   deactivated link, and `?preview` shows them the public view instead.
+- The uploader adds people through one field that searches their contacts
+  (`GET /api/contacts`, `POST /members { contactId }`), with "add as a new
+  person" always last, recent people and "Same people as last receipt" one
+  tap away, and Undo on every add. A co-owner gets the same field without
+  the contacts. The field holds no chips: a pick lands in the roster below
+  at once, so the roster is the chip list. A new person is still never
+  matched to an existing contact by name, and removing a member leaves
+  their contact in the book — both are the contacts page's to tidy.
 
 ### Decisions
 
@@ -152,30 +160,7 @@ Already true:
 
 ### Phases, one PR each
 
-1. **Contacts API and people picker.** No schema change: recency and
-   frequency come from a contact's `receipt_members` rows.
-   - `GET /api/contacts?q=` returning `{ contactId, displayName,
-     hasAccount, receiptCount, lastUsedAt }` — not the caller's
-     self-contact, and no Auth0 subs.
-   - `POST /members` takes `{ contactId }` or `{ displayName }`. A
-     `contactId` must belong to the receipt owner: contact ids are
-     sequential, and without the check any owner could attach strangers'
-     accounts to their receipts.
-   - The add form becomes one people field (Material chip grid +
-     autocomplete, like Gmail's recipients):
-     - Before typing: recent people as one-tap chips, and "Same people as
-       last receipt", which copies the members of the owner's previous
-       receipt.
-     - Typing filters contacts, ranked by exact name, then recency and
-       frequency. Each row shows initials, the name, a "Has an account"
-       badge, and "last on Nov 3".
-     - "Add 'Joh…' as a new person" is always last — "Add another 'John
-       Doe'" when that name already exists.
-     - Each pick adds at once, with an Undo snackbar.
-     - Email and role leave the form. Role defaults to editor and the role
-       menu changes it; nothing reads the email.
-   - "Placeholder" becomes "Hasn't joined" on member rows.
-2. **Contacts page and the merge service.**
+1. **Contacts page and the merge service.**
    - `/app/contacts`, in the side nav, with a count badge while anything
      needs review.
    - "Needs review" on top: claim prompts, and likely duplicates —
@@ -189,7 +174,7 @@ Already true:
    - `PATCH /api/contacts/{id}` to rename, `DELETE /api/contacts/{id}`
      (409 while in use), and `POST /api/contacts/{id}/merge
      { intoContactId }` under the merge rules above.
-3. **Claiming.**
+2. **Claiming.**
    - `receipt_member_claims`, additive.
    - `POST /api/receipts/shared/{token}/claim { memberId }`, authenticated,
      with its own entry ahead of the anonymous wildcard in `app.config.ts`.

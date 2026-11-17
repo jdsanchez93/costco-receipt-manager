@@ -1,0 +1,127 @@
+:host {
+  display: block;
+  // Lets the chip strip scroll without the host growing wider than its column.
+  min-width: 0;
+}
+
+.field {
+  width: 100%;
+}
+
+// ---- One-tap chips ----
+//
+// On a phone the chips are one row that scrolls sideways: wrapped, six
+// people push the roster — and the items under it — most of a screen down.
+// The row fades out at its right edge so a cut-off chip reads as "more this
+// way"; the end padding lets the last chip scroll clear of the fade. From
+// tablet width up there is room to wrap.
+
+.quick {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  padding-right: 2rem;
+  mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (min-width: 600px) {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    padding-right: 0;
+    mask-image: none;
+  }
+
+  &__chip {
+    --mat-button-outlined-container-height: 36px;
+    flex: none;
+    white-space: nowrap;
+  }
+
+  &__label {
+    display: block;
+    max-width: 11rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+// ---- Dropdown rows ----
+//
+// Two lines each — the name, then what kind of row it is — so a long name
+// only ever truncates the name and never the part that says what tapping
+// the row does.
+
+.person {
+  min-height: 56px;
+  line-height: normal;
+
+  // Material wraps an option's content in a span that only takes the width
+  // of its text; stretch it so the name can truncate against the row's edge.
+  ::ng-deep .mdc-list-item__primary-text {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding-block: 0.375rem;
+
+  &__avatar {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 50%;
+    font: var(--mat-sys-label-large);
+    background: var(--mat-sys-secondary-container);
+    color: var(--mat-sys-on-secondary-container);
+
+    &--new {
+      background: var(--mat-sys-primary-container);
+      color: var(--mat-sys-on-primary-container);
+    }
+
+    // The icon font must stay the icon's own, and mat-option gives icons a
+    // trailing margin meant for a leading icon outside any wrapper.
+    mat-icon {
+      margin: 0;
+      width: 1.25rem;
+      height: 1.25rem;
+      font-size: 1.25rem;
+    }
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  &__name,
+  &__meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__name {
+    font: var(--mat-sys-body-large);
+  }
+
+  &__meta {
+    font: var(--mat-sys-body-small);
+    color: var(--mat-sys-on-surface-variant);
+  }
+}

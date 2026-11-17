@@ -21,6 +21,32 @@ export interface ReceiptSummaryDto {
   processingStatus: ReceiptProcessingStatus;
   /** ISO-8601 timestamp. */
   createdAt: string;
+  /**
+   * The caller uploaded this receipt, so its members come from the caller's
+   * own contacts and the members panel offers them. A co-owner adds by name
+   * only.
+   */
+  uploadedByMe: boolean;
+}
+
+/**
+ * An entry in the caller's address book, from GET /api/contacts. Never the
+ * caller themselves. Mirrors the backend ContactDto.
+ */
+export interface ContactDto {
+  contactId: number;
+  /** The account's own name when the contact has one. */
+  displayName: string;
+  hasAccount: boolean;
+  /** How many receipts this contact is on. */
+  receiptCount: number;
+  /** ISO-8601 timestamp of when they were last added to a receipt, or null if on none. */
+  lastUsedAt: string | null;
+  /**
+   * On the receipt the caller uploaded just before the one passed as
+   * `forReceipt`. Always false without it.
+   */
+  onPreviousReceipt: boolean;
 }
 
 /**
@@ -73,17 +99,15 @@ export interface ItemAssignmentUpdate {
 }
 
 /**
- * Body for POST /api/receipts/receipt/{receiptId}/members. Always creates a
- * fresh placeholder participant in the receipt owner's address book —
- * nothing is deduped by display name. Matches the backend
+ * Body for POST /api/receipts/receipt/{receiptId}/members: an existing
+ * contact from the uploader's address book, or a new person by name, who
+ * becomes a fresh placeholder there — a name is never matched to an existing
+ * contact. `role` defaults to 'editor' on the backend. Matches the backend
  * AddReceiptMemberRequest DTO.
  */
-export interface AddReceiptMemberRequest {
-  displayName: string;
-  email?: string | null;
-  /** Defaults to 'editor' on the backend when omitted. */
+export type AddReceiptMemberRequest = ({ contactId: number } | { displayName: string }) & {
   role?: ReceiptRole;
-}
+};
 
 /**
  * The `{ message, member }` envelope the backend returns from the add-member

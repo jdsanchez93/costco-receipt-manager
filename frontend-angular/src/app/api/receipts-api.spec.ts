@@ -48,11 +48,11 @@ describe('ReceiptsApi', () => {
   });
 
   it('addReceiptMember POSTs the request body to the members endpoint', () => {
-    api.addReceiptMember('abc123', { displayName: 'Bob', email: null, role: 'editor' }).subscribe();
+    api.addReceiptMember('abc123', { contactId: 7 }).subscribe();
 
     const req = httpMock.expectOne('/api/receipts/receipt/abc123/members');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ displayName: 'Bob', email: null, role: 'editor' });
+    expect(req.request.body).toEqual({ contactId: 7 });
     req.flush({ message: 'ok', member: {} });
   });
 

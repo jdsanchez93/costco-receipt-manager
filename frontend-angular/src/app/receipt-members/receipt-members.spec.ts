@@ -1,11 +1,21 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 
 import { ReceiptMembers } from './receipt-members';
+import { ContactsApi } from '../api/contacts-api';
 import { ReceiptsApi } from '../api/receipts-api';
-import { ReceiptMemberDto } from '../api/types';
+import { ContactDto, ReceiptMemberDto } from '../api/types';
+
+const contact = (contactId: number, displayName: string): ContactDto => ({
+  contactId,
+  displayName,
+  hasAccount: false,
+  receiptCount: 1,
+  lastUsedAt: '2026-01-01T00:00:00Z',
+  onPreviousReceipt: false,
+});
 
 const member = (
   id: number,
@@ -33,19 +43,25 @@ describe('ReceiptMembers', () => {
     updateMemberRole: ReturnType<typeof vi.fn>;
     removeReceiptMember: ReturnType<typeof vi.fn>;
   };
+  let contactsSpy: { getContacts: ReturnType<typeof vi.fn> };
   let snackSpy: { open: ReturnType<typeof vi.fn> };
+  /** Fires when the test "clicks" the action on the last toast. */
+  let snackAction: Subject<void>;
   let emitted: ReceiptMemberDto[][];
 
   function setup(opts: {
     members?: ReceiptMemberDto[];
     canManage?: boolean;
-    addReceiptMember?: () => Observable<unknown>;
+    canPickContacts?: boolean;
+    contacts?: Observable<ContactDto[]>;
+    addReceiptMember?: (request: unknown) => Observable<unknown>;
     updateMemberRole?: () => Observable<unknown>;
     removeReceiptMember?: () => Observable<unknown>;
   } = {}): void {
     apiSpy = {
       addReceiptMember: vi.fn().mockImplementation(
-        () => (opts.addReceiptMember ?? (() => of({ message: 'ok', member: member(99, 'New') })))(),
+        (_id: string, request: unknown) =>
+          (opts.addReceiptMember ?? (() => of({ message: 'ok', member: member(99, 'New') })))(request),
       ),
       updateMemberRole: vi.fn().mockImplementation(
         () => (opts.updateMemberRole ?? (() => of({ message: 'ok', member: member(1, 'Alice', { role: 'owner' }) })))(),
@@ -54,7 +70,9 @@ describe('ReceiptMembers', () => {
         () => (opts.removeReceiptMember ?? (() => of(void 0)))(),
       ),
     };
-    snackSpy = { open: vi.fn() };
+    contactsSpy = { getContacts: vi.fn().mockReturnValue(opts.contacts ?? of([])) };
+    snackAction = new Subject<void>();
+    snackSpy = { open: vi.fn().mockReturnValue({ onAction: () => snackAction }) };
     emitted = [];
 
     TestBed.configureTestingModule({
@@ -62,6 +80,7 @@ describe('ReceiptMembers', () => {
       providers: [
         provideAnimationsAsync('noop'),
         { provide: ReceiptsApi, useValue: apiSpy },
+        { provide: ContactsApi, useValue: contactsSpy },
         { provide: MatSnackBar, useValue: snackSpy },
       ],
     }).compileComponents();
@@ -71,6 +90,7 @@ describe('ReceiptMembers', () => {
     fixture.componentRef.setInput('receiptId', 'abc');
     fixture.componentRef.setInput('members', opts.members ?? []);
     fixture.componentRef.setInput('canManage', opts.canManage ?? true);
+    fixture.componentRef.setInput('canPickContacts', opts.canPickContacts ?? false);
     component.membersChange.subscribe(list => emitted.push(list));
     fixture.detectChanges();
   }
@@ -83,51 +103,119 @@ describe('ReceiptMembers', () => {
     expect(text).toContain('Bob');
   });
 
-  describe('submitAdd', () => {
-    it('POSTs the trimmed form and emits the appended roster', () => {
-      setup({ members: [member(1, 'Alice')] });
-      component.openForm();
-      component.newName = '  Bob  ';
-      component.newEmail = ' bob@example.com ';
-      component.newRole = 'owner';
-      component.submitAdd();
+  it('labels a member without an account as not having joined', () => {
+    setup({ members: [member(1, 'Alice', { userId: 'auth0|1' }), member(2, 'Bob')] });
+    const tags = [...fixture.nativeElement.querySelectorAll('.member app-status-badge')] as HTMLElement[];
+    expect(tags.map(t => t.textContent!.trim())).toEqual(["Hasn't joined"]);
+  });
 
-      expect(apiSpy.addReceiptMember).toHaveBeenCalledWith('abc', {
-        displayName: 'Bob',
-        email: 'bob@example.com',
-        role: 'owner',
-      });
+  describe('the people field', () => {
+    it('is hidden from someone who cannot manage members', () => {
+      setup({ canManage: false, canPickContacts: true });
+      expect(fixture.nativeElement.querySelector('app-people-picker')).toBeNull();
+      expect(contactsSpy.getContacts).not.toHaveBeenCalled();
+    });
+
+    it("loads the uploader's contacts, asking who was on their last receipt", () => {
+      setup({ canPickContacts: true, contacts: of([contact(7, 'Jane')]) });
+      expect(contactsSpy.getContacts).toHaveBeenCalledWith({ forReceipt: 'abc' });
+      expect(component.contacts().map(c => c.contactId)).toEqual([7]);
+    });
+
+    it('never loads contacts for a co-owner, who only adds by name', () => {
+      setup({ canPickContacts: false });
+      expect(fixture.nativeElement.querySelector('app-people-picker')).not.toBeNull();
+      expect(contactsSpy.getContacts).not.toHaveBeenCalled();
+    });
+
+    it('still adds by name when the contacts fail to load', () => {
+      setup({ canPickContacts: true, contacts: throwError(() => new Error('boom')) });
+      component.addNewPerson('Bob');
+      expect(apiSpy.addReceiptMember).toHaveBeenCalledWith('abc', { displayName: 'Bob' });
+    });
+  });
+
+  describe('adding', () => {
+    it('POSTs a picked contact by id and emits the appended roster', () => {
+      setup({ members: [member(1, 'Alice')], canPickContacts: true });
+      component.addContact(contact(7, 'Jane'));
+
+      expect(apiSpy.addReceiptMember).toHaveBeenCalledWith('abc', { contactId: 7 });
       expect(emitted.at(-1)!.map(m => m.id)).toEqual([1, 99]);
-      expect(component.formOpen()).toBe(false);
+      expect(component.busy()).toBe(false);
     });
 
-    it('does nothing when the name is blank', () => {
+    it('POSTs a new person by name', () => {
       setup();
-      component.openForm();
-      component.newName = '   ';
-      component.submitAdd();
-      expect(apiSpy.addReceiptMember).not.toHaveBeenCalled();
+      component.addNewPerson('Bob');
+      expect(apiSpy.addReceiptMember).toHaveBeenCalledWith('abc', { displayName: 'Bob' });
     });
 
-    it('sends email as null when omitted', () => {
-      setup();
-      component.openForm();
-      component.newName = 'Bob';
-      component.submitAdd();
-      expect(apiSpy.addReceiptMember).toHaveBeenCalledWith('abc', {
-        displayName: 'Bob',
-        email: null,
-        role: 'editor',
+    it('reloads the contacts afterwards', () => {
+      setup({ canPickContacts: true });
+      component.addNewPerson('Bob');
+      expect(contactsSpy.getContacts).toHaveBeenCalledTimes(2);
+    });
+
+    it('offers Undo, which removes the member again', () => {
+      setup({ members: [member(1, 'Alice')] });
+      component.addNewPerson('Bob');
+      expect(snackSpy.open).toHaveBeenCalledWith('Added New.', 'Undo', expect.anything());
+
+      fixture.componentRef.setInput('members', emitted.at(-1));
+      snackAction.next();
+
+      expect(apiSpy.removeReceiptMember).toHaveBeenCalledWith('abc', 99);
+      expect(emitted.at(-1)!.map(m => m.id)).toEqual([1]);
+    });
+
+    it('adds the people from the last receipt one after another, with one Undo', () => {
+      let next = 10;
+      setup({
+        canPickContacts: true,
+        addReceiptMember: () => of({ message: 'ok', member: member(next++, 'Copied') }),
       });
+      component.addPrevious([contact(7, 'Jane'), contact(8, 'John')]);
+
+      expect(apiSpy.addReceiptMember.mock.calls.map(c => c[1])).toEqual([
+        { contactId: 7 },
+        { contactId: 8 },
+      ]);
+      expect(emitted).toHaveLength(1);
+      expect(emitted[0].map(m => m.id)).toEqual([10, 11]);
+      expect(snackSpy.open).toHaveBeenCalledWith('Added 2 people.', 'Undo', expect.anything());
+
+      fixture.componentRef.setInput('members', emitted[0]);
+      snackAction.next();
+      expect(apiSpy.removeReceiptMember).toHaveBeenCalledTimes(2);
+      expect(emitted.at(-1)).toEqual([]);
+    });
+
+    it('keeps the ones that went through when a later one fails', () => {
+      setup({
+        canPickContacts: true,
+        addReceiptMember: request =>
+          (request as { contactId: number }).contactId === 7
+            ? of({ message: 'ok', member: member(10, 'Jane') })
+            : throwError(() => ({ error: { error: 'John is already on this receipt' } })),
+      });
+      component.addPrevious([contact(7, 'Jane'), contact(8, 'John'), contact(9, 'Joan')]);
+
+      expect(apiSpy.addReceiptMember).toHaveBeenCalledTimes(2);
+      expect(emitted.at(-1)!.map(m => m.id)).toEqual([10]);
+      expect(snackSpy.open).toHaveBeenCalledWith(
+        'John is already on this receipt',
+        'Dismiss',
+        expect.anything(),
+      );
+      expect(component.busy()).toBe(false);
     });
 
     it('surfaces the backend error message on failure', () => {
       setup({
         addReceiptMember: () => throwError(() => ({ error: { error: 'Nope' } })),
       });
-      component.openForm();
-      component.newName = 'Bob';
-      component.submitAdd();
+      component.addNewPerson('Bob');
 
       expect(emitted).toHaveLength(0);
       expect(snackSpy.open).toHaveBeenCalledWith('Nope', 'Dismiss', expect.anything());

@@ -73,9 +73,13 @@ export class ReceiptsApi {
   }
 
   /**
-   * Add a placeholder participant to a receipt. Requires the caller to hold
-   * the ReceiptOwner policy. Backend: POST /api/receipts/receipt/{receiptId}/members
-   * with body { displayName, email?, role? }. Returns a { message, member } envelope.
+   * Add someone to a receipt: a contact from the uploader's address book, or
+   * a new person by name. Requires the caller to hold the ReceiptOwner
+   * policy, and to be the uploader to add by contact. Backend:
+   * POST /api/receipts/receipt/{receiptId}/members with body
+   * { contactId } or { displayName }, plus an optional role. Returns a
+   * { message, member } envelope; 404 { error } for a contact that isn't the
+   * uploader's to pick, 409 { error } for one already on the receipt.
    */
   addReceiptMember(
     receiptId: string,
