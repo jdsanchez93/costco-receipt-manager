@@ -85,7 +85,7 @@ Decided approach when this gets picked up:
 
 ---
 
-## Contacts and claiming — decided 2026-11-12, picker shipped
+## Contacts and claiming — decided 2026-11-12, picker and contacts page shipped
 
 The goal: adding members to a receipt starts from the owner's contacts,
 with "new person" as the fallback, and a share link is how someone becomes
@@ -109,6 +109,27 @@ Already true:
   at once, so the roster is the chip list. A new person is still never
   matched to an existing contact by name, and removing a member leaves
   their contact in the book — both are the contacts page's to tidy.
+- `/app/contacts` lists the book by recent use, searchable, with
+  "Needs review" on top and its count badged in the side nav. Review holds
+  likely duplicates only for now: placeholders with the same name
+  (`ContactMerger.NameKey`), offered as one "merge into one" when no two of
+  them share a receipt. There is no "not the same person" dismissal —
+  renaming one is how the owner says so, and they need different names to
+  pick the right one anyway.
+- A contact's page lists the receipts in your book they're on, and for a
+  placeholder offers rename, merge into…, and delete once it's on no
+  receipts (`PATCH`, `POST …/merge`, `DELETE /api/contacts/{id}`). An
+  account can't be renamed, merged away, or deleted: the only way back
+  would be another claim.
+- `ContactMerger` (API `Services/`) is the one merge, used by the contacts
+  page and the CLI: same owner, placeholder source, never two contacts on
+  one receipt, and never into the owner's own contact. It joins a
+  transaction the caller already has open, which the CLI uses to collapse a
+  name group whole or not at all. A concurrent add that would break a rule
+  is caught by the unique index or the Restrict FK and rolled back as a
+  409, as is one racing a delete.
+- Receipt counts are per book: an account contact's count is the receipts
+  *you* uploaded that they're on, not every receipt you share.
 
 ### Decisions
 
@@ -145,8 +166,8 @@ Already true:
 - **Link holders can claim but not add themselves.** "Don't see your name?
   Ask Jordan to add you." The owner keeps the roster, and so the totals.
 - **Prevent duplicates where people are added; keep merging as the
-  backstop.** The merge in `PlaceholderContactMerger` moves into an API
-  service shared by the contacts page, the claim prompt and the CLI. A
+  backstop.** The merge is `ContactMerger`, an API service shared by the
+  contacts page, the claim prompt and the CLI. A
   merge needs the source to be a placeholder, both contacts to have the
   same owner, and the two never to be on the same receipt (they would
   collapse into one membership). The target may be a placeholder or an
@@ -160,21 +181,7 @@ Already true:
 
 ### Phases, one PR each
 
-1. **Contacts page and the merge service.**
-   - `/app/contacts`, in the side nav, with a count badge while anything
-     needs review.
-   - "Needs review" on top: claim prompts, and likely duplicates —
-     placeholders with the same name, by the merger's grouping rule.
-   - Then a searchable list by recent use, each with "N receipts
-     together". The self-contact is hidden.
-   - A contact's page lists the receipts you're both on, and offers rename
-     (placeholders only; an account's name is theirs), merge into…, and
-     delete. Delete works only on a contact on no receipts — the FK is
-     Restrict anyway — and otherwise offers the merge.
-   - `PATCH /api/contacts/{id}` to rename, `DELETE /api/contacts/{id}`
-     (409 while in use), and `POST /api/contacts/{id}/merge
-     { intoContactId }` under the merge rules above.
-2. **Claiming.**
+1. **Claiming.**
    - `receipt_member_claims`, additive.
    - `POST /api/receipts/shared/{token}/claim { memberId }`, authenticated,
      with its own entry ahead of the anonymous wildcard in `app.config.ts`.
@@ -184,7 +191,12 @@ Already true:
      `UserProvisioningMiddleware` is; repoints with `WHERE Id = @member AND
      ContactId = @placeholder` so two concurrent claims can't both win; and
      records the claim.
-   - `POST /members/{id}/unlink` (owner), and the review prompt.
+   - `POST /members/{id}/unlink` (owner), and the review prompt. It joins
+     the duplicates in "Needs review" on the contacts page (and so the nav
+     badge), and each confirmation is a `ContactMerger` merge of the
+     placeholder into the claimer's contact. Unlike a duplicate, a claim
+     prompt needs a way to say "not them" that renaming can't give, so it
+     needs a dismissed state — on the claim row is the obvious place.
    - The shared response gains whether each member has joined, and which
      member is the owner, for the copy below.
    - Shared page:

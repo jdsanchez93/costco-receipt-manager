@@ -1,4 +1,5 @@
 using CostcoReceipts.Api.Data;
+using CostcoReceipts.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -25,15 +26,22 @@ public record MergeStats(
 ///   3. No single receipt has receipt_members pointing at more than one
 ///      contact in the group (otherwise merging would violate the
 ///      (ReceiptId, ContactId) unique index and silently drop a membership)
+///
+/// The merge itself is the API's <see cref="ContactMerger"/>, which enforces
+/// 1 and 3 again per pair. Rule 2 is this tool's alone: it merges by name
+/// without asking anyone, where an owner choosing a merge has decided.
 /// </summary>
 public class PlaceholderContactMerger
 {
     private readonly AppDbContext _db;
+    private readonly ContactMerger _merger;
     private readonly ILogger<PlaceholderContactMerger> _logger;
 
-    public PlaceholderContactMerger(AppDbContext db, ILogger<PlaceholderContactMerger> logger)
+    public PlaceholderContactMerger(
+        AppDbContext db, ContactMerger merger, ILogger<PlaceholderContactMerger> logger)
     {
         _db = db;
+        _merger = merger;
         _logger = logger;
     }
 
@@ -142,17 +150,22 @@ public class PlaceholderContactMerger
 
         if (!dryRun)
         {
+            // One transaction for the group, so it collapses whole or not at
+            // all; the merger joins it rather than opening its own.
             await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
-            await _db.ReceiptMembers
-                .Where(m => redundantIds.Contains(m.ContactId))
-                .ExecuteUpdateAsync(
-                    s => s.SetProperty(m => m.ContactId, canonical.ContactId),
-                    ct);
-
-            await _db.Contacts
-                .Where(c => redundantIds.Contains(c.ContactId))
-                .ExecuteDeleteAsync(ct);
+            foreach (var redundantId in redundantIds)
+            {
+                var result = await _merger.MergeAsync(key.OwnerUserId, redundantId, canonical.ContactId, ct);
+                if (result.Outcome != ContactMergeOutcome.Merged)
+                {
+                    await tx.RollbackAsync(ct);
+                    _logger.LogWarning(
+                        "SKIP  owner={Owner} name={Name} count={Count} reason={Reason} contact={Contact}",
+                        key.OwnerUserId, key.NormalizedName, members.Count, result.Outcome, redundantId);
+                    return;
+                }
+            }
 
             await tx.CommitAsync(ct);
         }
@@ -162,7 +175,7 @@ public class PlaceholderContactMerger
         stats.MembershipsReassigned += membershipCount;
     }
 
-    private static string Normalize(string s) => s.Trim().ToLowerInvariant();
+    private static string Normalize(string s) => ContactMerger.NameKey(s);
 
     private record PlaceholderRow(long ContactId, string OwnerUserId, string DisplayName, string? Email);
     private record GroupKey(string OwnerUserId, string NormalizedName);

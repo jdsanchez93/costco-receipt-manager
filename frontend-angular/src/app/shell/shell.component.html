@@ -12,6 +12,15 @@
         Receipts
       </a>
       <a mat-list-item
+         routerLink="/app/contacts"
+         routerLinkActive="active-link"
+         (click)="closeIfMobile(drawer)">
+        <span matListItemTitle>Contacts</span>
+        @if (reviewCount(); as n) {
+          <span matListItemMeta class="nav-count" [attr.aria-label]="n + ' to review'">{{ n }}</span>
+        }
+      </a>
+      <a mat-list-item
          routerLink="/app/profile"
          routerLinkActive="active-link"
          (click)="closeIfMobile(drawer)">
@@ -24,10 +33,14 @@
       @if (isHandset$ | async) {
         <button
           type="button"
-          aria-label="Toggle sidenav"
+          class="menu-button"
+          [attr.aria-label]="reviewCount() ? 'Toggle sidenav, contacts to review' : 'Toggle sidenav'"
           matIconButton
           (click)="drawer.toggle()">
           <mat-icon aria-label="Side nav toggle icon">menu</mat-icon>
+          @if (reviewCount()) {
+            <span class="menu-dot" aria-hidden="true"></span>
+          }
         </button>
       }
       <span class="app-name">Costco Receipt Manager</span>
