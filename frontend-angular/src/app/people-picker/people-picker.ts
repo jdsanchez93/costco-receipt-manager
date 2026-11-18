@@ -1,4 +1,3 @@
-import { formatDate } from '@angular/common';
 import { Component, LOCALE_ID, computed, inject, input, output, signal } from '@angular/core';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
@@ -7,13 +6,12 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 
 import { ContactDto } from '../api/types';
+import { initials, sameName, shortDate } from '../contacts/contact-format';
 
 /** How many contacts the dropdown lists above "add as a new person". */
 const MAX_MATCHES = 8;
 /** How many recent people are offered as one-tap chips before typing. */
 const MAX_RECENT = 6;
-
-const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 /** Most recently used first, then most used; never-used contacts last. */
 function byRecency(a: ContactDto, b: ContactDto): number {
@@ -113,18 +111,11 @@ export class PeoplePicker {
     else this.contactPicked.emit(value);
   }
 
-  initials(name: string): string {
-    const words = name.trim().split(/\s+/).filter(Boolean);
-    const letters = words.length > 1 ? [words[0], words[words.length - 1]] : words;
-    return letters.map(w => [...w][0].toUpperCase()).join('');
-  }
+  readonly initials = initials;
 
   /** "Nov 3", with the year once it isn't this one. */
   lastOn(contact: ContactDto): string {
-    if (!contact.lastUsedAt) return '';
-    const date = new Date(contact.lastUsedAt);
-    const format = date.getFullYear() === new Date().getFullYear() ? 'MMM d' : 'MMM d, y';
-    return formatDate(date, format, this.locale);
+    return contact.lastUsedAt ? shortDate(contact.lastUsedAt, this.locale) : '';
   }
 
   /** A dropdown row's second line: what tells this contact from another. */
