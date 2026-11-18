@@ -41,6 +41,18 @@ public class UpdateMemberRoleRequest
     public string Role { get; set; } = string.Empty;
 }
 
+/// <summary>Rename a placeholder contact. An account's name is its user's.</summary>
+public class UpdateContactRequest
+{
+    public string? DisplayName { get; set; }
+}
+
+/// <summary>Fold the contact into <see cref="IntoContactId"/>, which keeps its receipts.</summary>
+public class MergeContactRequest
+{
+    public long IntoContactId { get; set; }
+}
+
 public class UpdateItemAssignmentRequest
 {
     /// <summary>ReceiptMember ids (not user ids). Replaces the current assignment set.</summary>

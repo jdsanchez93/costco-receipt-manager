@@ -1,4 +1,5 @@
 using CostcoReceipts.Api.Data;
+using CostcoReceipts.Api.Services;
 using CostcoReceipts.Migration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -27,6 +28,7 @@ var connectionString = cli.ConnectionString
 builder.Services.AddDbContext<AppDbContext>(o =>
     o.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
+builder.Services.AddScoped<ContactMerger>();
 builder.Services.AddScoped<PlaceholderContactMerger>();
 
 var app = builder.Build();
