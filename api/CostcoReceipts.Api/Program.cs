@@ -6,6 +6,7 @@ using CostcoReceipts.Api.Authorization;
 using CostcoReceipts.Api.Configuration;
 using CostcoReceipts.Api.Data;
 using CostcoReceipts.Api.Middleware;
+using CostcoReceipts.Api.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 
@@ -51,6 +52,8 @@ if (args.Contains("--migrate"))
 // A database check, because the API otherwise starts fine with a wrong
 // connection string: nothing touches the database until a request does.
 builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>("database");
+
+builder.Services.AddScoped<ContactMerger>();
 
 // AWS credentials: an explicit named profile for local dev (AWS:Profile),
 // otherwise the SDK's default credential provider chain (env vars, etc. —

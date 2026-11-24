@@ -28,6 +28,37 @@
   flex: 1 1 auto;
 }
 
+// "Needs review" on the contacts page: a count beside the link, and on a
+// phone, where the nav is folded away, a dot on the menu button.
+.nav-count {
+  // The list colours its trailing text through this token, from a rule
+  // as specific as any plain class here.
+  --mat-list-list-item-trailing-supporting-text-color: var(--mat-sys-on-error);
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.375rem;
+  border-radius: 999px;
+  font: var(--mat-sys-label-small);
+  background: var(--mat-sys-error);
+  color: var(--mat-sys-on-error);
+}
+
+.menu-button {
+  position: relative;
+}
+
+.menu-dot {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mat-sys-error);
+}
+
 // Highlight the current route in the sidenav.
 .active-link {
   background: var(--mat-sys-secondary-container);

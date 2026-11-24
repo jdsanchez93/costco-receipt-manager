@@ -1,0 +1,97 @@
+@use '@angular/material' as mat;
+
+:host {
+  display: block;
+  padding: 1.5rem;
+
+  @media (max-width: 599px) {
+    padding: 1rem;
+  }
+}
+
+.page {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+// Pulled left so the arrow lines up with the page's text, not the button's padding.
+.back {
+  margin: 0 0 1rem -0.75rem;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+
+  &__avatar {
+    --contact-avatar-size: 3.5rem;
+    --contact-avatar-font: var(--mat-sys-title-large);
+  }
+
+  &__text {
+    min-width: 0;
+  }
+
+  h1 {
+    margin: 0 0 0.25rem;
+    font: var(--mat-sys-headline-small);
+    overflow-wrap: anywhere;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.danger {
+  @include mat.button-overrides((
+    outlined-label-text-color: var(--mat-sys-error),
+  ));
+}
+
+.hint {
+  margin: 0.75rem 0 0;
+  font: var(--mat-sys-body-medium);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.section-title {
+  font: var(--mat-sys-title-medium);
+  margin: 2rem 0 0.5rem;
+}
+
+.receipts {
+  padding: 0;
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 0;
+}
+
+.error {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1.5rem;
+  border: 1px solid var(--mat-sys-error);
+  border-radius: 8px;
+  color: var(--mat-sys-on-error-container);
+  background: var(--mat-sys-error-container);
+
+  p {
+    margin: 0;
+  }
+}
+
+.empty {
+  margin: 0;
+  font: var(--mat-sys-body-large);
+  color: var(--mat-sys-on-surface-variant);
+}

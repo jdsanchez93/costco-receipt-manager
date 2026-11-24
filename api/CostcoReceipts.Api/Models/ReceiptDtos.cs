@@ -110,6 +110,51 @@ public class ContactDto
     public bool OnPreviousReceipt { get; set; }
 }
 
+/// <summary>A contact's page: who they are, where they are, and who they could be merged into.</summary>
+public class ContactDetailDto
+{
+    public ContactDto Contact { get; set; } = new();
+    /// <summary>The receipts this contact is on, newest first.</summary>
+    public List<ContactReceiptDto> Receipts { get; set; } = new();
+    /// <summary>
+    /// The contacts this one can be merged into: everyone else in the book
+    /// who isn't on a receipt with them, same name first. Empty for a
+    /// contact with an account, which can't be merged away.
+    /// </summary>
+    public List<ContactDto> MergeTargets { get; set; } = new();
+}
+
+public class ContactReceiptDto
+{
+    public string ReceiptId { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public int ItemCount { get; set; }
+    public int MemberCount { get; set; }
+}
+
+/// <summary>What the contacts page asks the owner to look at.</summary>
+public class ContactReviewDto
+{
+    public List<DuplicateContactsDto> Duplicates { get; set; } = new();
+}
+
+/// <summary>
+/// Placeholders in one book with the same name (<c>ContactMerger.NameKey</c>),
+/// which are often one person added more than once.
+/// </summary>
+public class DuplicateContactsDto
+{
+    public string DisplayName { get; set; } = string.Empty;
+    /// <summary>Most recently used first: the first is what the rest merge into.</summary>
+    public List<ContactDto> Contacts { get; set; } = new();
+    /// <summary>
+    /// No two of them are on the same receipt, so they can all become one.
+    /// Otherwise at least two are different people, and the owner tells
+    /// them apart by renaming.
+    /// </summary>
+    public bool CanMergeAll { get; set; }
+}
+
 /// <summary>
 /// Receipt-level metadata — currently just enough for the frontend to know
 /// whether OCR has finished, without tacking a receipt-lifecycle field onto

@@ -49,6 +49,40 @@ export interface ContactDto {
   onPreviousReceipt: boolean;
 }
 
+/** A contact's page, from GET /api/contacts/{id}. */
+export interface ContactDetailDto {
+  contact: ContactDto;
+  /** The receipts they're on, newest first. */
+  receipts: ContactReceiptDto[];
+  /**
+   * Who they can be merged into: everyone else in the book who isn't on a
+   * receipt with them, same name first. Empty for a contact with an account.
+   */
+  mergeTargets: ContactDto[];
+}
+
+export interface ContactReceiptDto {
+  receiptId: string;
+  /** ISO-8601 timestamp of the upload. */
+  createdAt: string;
+  itemCount: number;
+  memberCount: number;
+}
+
+/** What the contacts page asks the owner to look at, from GET /api/contacts/review. */
+export interface ContactReviewDto {
+  duplicates: DuplicateContactsDto[];
+}
+
+/** Placeholders in the caller's book that share a name. */
+export interface DuplicateContactsDto {
+  displayName: string;
+  /** Most recently used first: the first is what "merge into one" keeps. */
+  contacts: ContactDto[];
+  /** No two are on the same receipt, so they can all become one contact. */
+  canMergeAll: boolean;
+}
+
 /**
  * One person's membership on one receipt. Identity fields (userId,
  * displayName, email) come through the linked Contact on the backend but

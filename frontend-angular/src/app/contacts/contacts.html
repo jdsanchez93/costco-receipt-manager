@@ -1,0 +1,90 @@
+<section class="page">
+  <div class="page__head">
+    <h1>Contacts</h1>
+  </div>
+
+  @if (duplicates().length) {
+    <section class="review" aria-labelledby="review-title">
+      <h2 id="review-title" class="section-title">Needs review</h2>
+      @for (group of duplicates(); track group.contacts[0].contactId) {
+        <article class="dup">
+          <h3 class="dup__title">{{ group.contacts.length }} contacts named {{ group.displayName }}</h3>
+          <mat-nav-list class="dup__people">
+            @for (c of group.contacts; track c.contactId) {
+              <a mat-list-item [routerLink]="['/app/contacts', c.contactId]">
+                <app-contact-avatar matListItemAvatar [name]="c.displayName" />
+                <span matListItemTitle>{{ c.displayName }}</span>
+                <span matListItemLine>{{ meta(c) }}</span>
+              </a>
+            }
+          </mat-nav-list>
+          @if (group.canMergeAll) {
+            <p class="dup__hint">
+              If they're one person, merge them. If not, rename them so you can tell them apart.
+            </p>
+            <div class="dup__actions">
+              <button mat-flat-button (click)="mergeAll(group)" [disabled]="busy()">
+                Merge into one
+              </button>
+            </div>
+          } @else {
+            <p class="dup__hint">
+              {{ group.contacts.length === 2 ? "They're" : 'Some of them are' }} on the same
+              receipt, so they're different people. Rename them so you can tell them apart.
+            </p>
+          }
+        </article>
+      }
+    </section>
+  }
+
+  @let s = state();
+  @switch (s.kind) {
+    @case ('loading') {
+      <div class="center">
+        <mat-spinner diameter="40" />
+      </div>
+    }
+    @case ('error') {
+      <div class="error">
+        <p>{{ s.message }}</p>
+        <button mat-flat-button (click)="load()">Retry</button>
+      </div>
+    }
+    @case ('ok') {
+      @if (s.data.length === 0) {
+        <p class="empty">
+          No contacts yet. Everyone you add to a receipt you uploaded shows up here.
+        </p>
+      } @else {
+        @if (duplicates().length) {
+          <h2 class="section-title">Everyone</h2>
+        }
+        <mat-form-field appearance="outline" class="search" subscriptSizing="dynamic">
+          <mat-label>Search contacts</mat-label>
+          <mat-icon matPrefix>search</mat-icon>
+          <input
+            #box
+            matInput
+            type="search"
+            autocomplete="off"
+            (input)="query.set(box.value)" />
+        </mat-form-field>
+
+        @if (shown().length === 0) {
+          <p class="empty">No one matches “{{ query().trim() }}”.</p>
+        } @else {
+          <mat-nav-list class="people">
+            @for (c of shown(); track c.contactId) {
+              <a mat-list-item [routerLink]="['/app/contacts', c.contactId]">
+                <app-contact-avatar matListItemAvatar [name]="c.displayName" />
+                <span matListItemTitle>{{ c.displayName }}</span>
+                <span matListItemLine>{{ meta(c) }}</span>
+              </a>
+            }
+          </mat-nav-list>
+        }
+      }
+    }
+  }
+</section>

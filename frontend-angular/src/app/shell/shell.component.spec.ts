@@ -8,6 +8,7 @@ import { AuthService } from '@auth0/auth0-angular';
 import { Observable, of, throwError } from 'rxjs';
 
 import { ShellComponent } from './shell.component';
+import { ContactsApi } from '../api/contacts-api';
 import { ProfileApi } from '../api/profile-api';
 import { MeDto } from '../api/types';
 import { NameDialog } from '../profile/name-dialog';
@@ -32,6 +33,8 @@ describe('ShellComponent', () => {
     url?: string;
     /** What the name dialog closes with. */
     closedWith?: MeDto;
+    /** How many duplicate groups the contacts review has. */
+    duplicates?: number;
   } = {}): Promise<void> {
     const getMe = opts.getMe ?? of(me(false));
     authSpy = { logout: vi.fn(), user$: of({ name: 'Ana Silva', email: 'ana@example.com' }) };
@@ -54,6 +57,19 @@ describe('ShellComponent', () => {
         },
         { provide: AuthService, useValue: authSpy },
         { provide: ProfileApi, useValue: { getMe: () => getMe } },
+        {
+          provide: ContactsApi,
+          useValue: {
+            getReview: () =>
+              of({
+                duplicates: Array.from({ length: opts.duplicates ?? 0 }, () => ({
+                  displayName: 'John',
+                  contacts: [],
+                  canMergeAll: true,
+                })),
+              }),
+          },
+        },
         { provide: MatDialog, useValue: dialogSpy },
         { provide: MatSnackBar, useValue: snackSpy },
       ],
@@ -101,6 +117,17 @@ describe('ShellComponent', () => {
   it('stays quiet when the profile check fails', async () => {
     await setup({ getMe: throwError(() => new Error('boom')) });
     expect(dialogSpy.open).not.toHaveBeenCalled();
+  });
+
+  it('badges the Contacts link with how many groups need review', async () => {
+    await setup({ duplicates: 2 });
+    const count = fixture.nativeElement.querySelector('.nav-count') as HTMLElement | null;
+    expect(count?.textContent?.trim()).toBe('2');
+  });
+
+  it('shows no badge when nothing needs review', async () => {
+    await setup();
+    expect(fixture.nativeElement.querySelector('.nav-count')).toBeNull();
   });
 
   it('logout() calls AuthService.logout with returnTo = origin', async () => {

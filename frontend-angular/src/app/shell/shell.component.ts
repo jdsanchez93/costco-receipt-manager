@@ -14,6 +14,7 @@ import { Observable, forkJoin } from 'rxjs';
 import { map, shareReplay, take } from 'rxjs/operators';
 
 import { ProfileApi } from '../api/profile-api';
+import { ContactReview } from '../contacts/contact-review';
 import { MeDto } from '../api/types';
 import { NameDialog, NameDialogData } from '../profile/name-dialog';
 import { suggestedName } from '../profile/suggested-name';
@@ -41,6 +42,10 @@ export class ShellComponent {
   private profileApi = inject(ProfileApi);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
+  private contactReview = inject(ContactReview);
+
+  /** Contacts needing review, badged on the nav. */
+  readonly reviewCount = this.contactReview.count;
 
   isHandset$: Observable<boolean> = this.breakpointObserver.observe(Breakpoints.Handset)
     .pipe(
@@ -50,6 +55,7 @@ export class ShellComponent {
 
   constructor() {
     this.promptForNameIfNeeded();
+    this.contactReview.refresh();
   }
 
   /**

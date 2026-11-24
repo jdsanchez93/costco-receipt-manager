@@ -1,0 +1,87 @@
+<section class="page">
+  <a mat-button routerLink="/app/contacts" class="back">
+    <mat-icon>arrow_back</mat-icon>
+    Contacts
+  </a>
+
+  @let s = state();
+  @switch (s.kind) {
+    @case ('loading') {
+      <div class="center">
+        <mat-spinner diameter="40" />
+      </div>
+    }
+    @case ('error') {
+      <div class="error">
+        <p>{{ s.message }}</p>
+        <button mat-flat-button (click)="load()">Retry</button>
+      </div>
+    }
+    @case ('ok') {
+      @let c = s.data.contact;
+      <header class="head">
+        <app-contact-avatar class="head__avatar" [name]="c.displayName" />
+        <div class="head__text">
+          <h1>{{ c.displayName }}</h1>
+          <div class="head__detail">
+            @if (c.hasAccount) {
+              <app-status-badge tone="success">Joined</app-status-badge>
+            } @else {
+              <app-status-badge tone="neutral">Hasn't joined</app-status-badge>
+            }
+          </div>
+        </div>
+      </header>
+
+      @if (c.hasAccount) {
+        <p class="hint">{{ c.displayName }} chose this name, so only they can change it.</p>
+      } @else {
+        <div class="actions">
+          <button mat-stroked-button (click)="rename(c)">
+            <mat-icon>edit</mat-icon>
+            Rename
+          </button>
+          @if (s.data.mergeTargets.length) {
+            <button mat-stroked-button (click)="merge(s.data)">
+              <mat-icon>call_merge</mat-icon>
+              Merge into…
+            </button>
+          }
+          @if (c.receiptCount === 0) {
+            <button mat-stroked-button class="danger" (click)="remove(c)">
+              <mat-icon>delete</mat-icon>
+              Delete
+            </button>
+          }
+        </div>
+        @if (c.receiptCount > 0 && s.data.mergeTargets.length) {
+          <p class="hint">
+            {{ c.displayName }} is on receipts, so they can't be deleted. If they're someone else
+            in your contacts, merge them.
+          </p>
+        }
+      }
+
+      <h2 class="section-title">
+        @if (s.data.receipts.length) {
+          On {{ plural(s.data.receipts.length, 'receipt') }} you uploaded
+        } @else {
+          Receipts
+        }
+      </h2>
+      @if (s.data.receipts.length === 0) {
+        <p class="empty">{{ c.displayName }} isn't on any receipts.</p>
+      } @else {
+        <mat-nav-list class="receipts">
+          @for (r of s.data.receipts; track r.receiptId) {
+            <a mat-list-item [routerLink]="['/app/receipts', r.receiptId]">
+              <mat-icon matListItemIcon>receipt_long</mat-icon>
+              <span matListItemTitle>{{ r.createdAt | date: 'mediumDate' }}</span>
+              <span matListItemLine>{{ receiptLine(r) }}</span>
+            </a>
+          }
+        </mat-nav-list>
+      }
+    }
+  }
+</section>
